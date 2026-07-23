@@ -27,8 +27,15 @@ do
     grep -Fqx "$heading" README.md
 done
 
-grep -Fq 'https://github.com/Valhallab/PlayerVox-OverCrow.git' README.md
-grep -Fq 'No AUR package or prebuilt GitHub release is published yet.' README.md
+grep -Fq 'https://github.com/Valhallab/PlayerVox-OverCrow' README.md
+grep -Fq 'yay -S overcrow-bin' README.md
+grep -Fq \
+    'https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.1' \
+    README.md
+if grep -Fq 'No AUR package or prebuilt GitHub release is published yet.' README.md; then
+    printf '%s\n' 'README still claims that no public release exists' >&2
+    exit 1
+fi
 grep -Fq 'docs/architecture.md' README.md
 grep -Fq 'docs/troubleshooting.md' README.md
 grep -Fq 'SECURITY.md' README.md

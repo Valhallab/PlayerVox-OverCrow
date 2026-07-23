@@ -26,23 +26,20 @@ may bypass compositor windows and is outside the current design.
 
 ## Quick start
 
-No AUR package or prebuilt GitHub release is published yet. The current
-installation path builds a native Arch package from source:
+The current pre-alpha supports Arch Linux and Arch-based distributions on
+x86_64. Install the complete application from the AUR:
 
 ```sh
-sudo pacman -S --needed base-devel rustup nodejs npm pkgconf libx11 libxcb \
-  libxkbcommon wayland mesa gtk3 webkit2gtk-4.1 zstd
-rustup default stable
-cargo install --locked cargo-about --version 0.9.1
-
-git clone https://github.com/Valhallab/PlayerVox-OverCrow.git
-cd PlayerVox-OverCrow
-./scripts/build-arch-package.sh
-sudo pacman -U dist/overcrow-bin-*.pkg.tar.zst
+yay -S overcrow-bin
 ```
 
-Nothing is started during package installation. Open **PlayerVox OverCrow**
-from the application menu, or run:
+`paru -S overcrow-bin` works as an alternative. Without an AUR helper,
+download the package from the
+[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.1)
+and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
+
+Nothing starts during installation. Open **PlayerVox OverCrow** from the
+application menu, or run:
 
 ```sh
 overcrow-control
@@ -60,16 +57,15 @@ sudo pacman -R overcrow-bin
 
 User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`.
 
-### Upcoming pre-alpha candidate
+### Release artifacts
 
-The local release workflow prepares one x86_64 package without installing,
-tagging, uploading, or starting OverCrow:
+The pre-alpha release contains one complete x86_64 package and its checksum:
 
 - `overcrow-bin-0.1.0prealpha1-1-x86_64.pkg.tar.zst`
 - `SHA256SUMS`
 
-Run `./scripts/prepare-release.sh` from a clean `master` checkout. Publication
-will happen only after the
+Maintainers prepare future releases with `./scripts/prepare-release.sh` from a
+clean `master` checkout after the
 [real-machine pre-alpha checklist](docs/testing/pre-alpha-release.md) passes.
 
 ## Using OverCrow

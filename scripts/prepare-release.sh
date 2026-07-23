@@ -82,9 +82,13 @@ cargo deny --locked check advisories licenses
 cargo deny --locked check bans sources
 
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
-    packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+    packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+    packaging/release/*.sh
+shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
-    packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+    packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+    packaging/release/*.sh
+bash -n packaging/aur/PKGBUILD
 node --check integrations/kwin/contents/code/main.js
 node --test tests/kwin-bridge.test.js
 

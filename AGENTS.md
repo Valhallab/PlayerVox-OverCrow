@@ -155,9 +155,13 @@ For shell, packaging, or integration changes, run the touched smoke tests plus:
 
 ```sh
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
-  packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+  packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+  packaging/release/*.sh
+shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
-  packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+  packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+  packaging/release/*.sh
+bash -n packaging/aur/PKGBUILD
 ```
 
 For KWin changes:

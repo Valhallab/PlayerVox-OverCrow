@@ -66,9 +66,13 @@ jobs:
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets -- -D warnings
           shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
-            packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+            packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+            packaging/release/*.sh
+          shellcheck -s bash packaging/aur/PKGBUILD
           sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
-            packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+            packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
+            packaging/release/*.sh
+          bash -n packaging/aur/PKGBUILD
           node --check integrations/kwin/contents/code/main.js
 
       - name: Run automated tests
@@ -76,6 +80,7 @@ jobs:
           cargo test --workspace --all-targets --locked
           node --test tests/kwin-bridge.test.js
           tests/qjsvalue-variant-smoke.sh
+          tests/aur-package-smoke.sh
           tests/public-docs-smoke.sh
           tests/public-license-policy-smoke.sh
           tests/native-only-distribution-smoke.sh
