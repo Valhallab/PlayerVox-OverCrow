@@ -3,7 +3,7 @@ set -eu
 
 project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 version_helper="$project_root/scripts/lib/release-version.sh"
-version=0.1.0-pre-alpha.1
+version=0.1.0-pre-alpha.2
 
 # The source path is derived from this checked-in script's physical root.
 # shellcheck disable=SC1090,SC1091
@@ -28,8 +28,8 @@ for invalid in \
 done
 
 test "$(overcrow_arch_version 0.1.0)" = 0.1.0
-test "$(overcrow_arch_version "$version")" = 0.1.0prealpha1
-test "$(vercmp 0.1.0prealpha1 0.1.0)" -lt 0
+test "$(overcrow_arch_version "$version")" = 0.1.0prealpha2
+test "$(vercmp 0.1.0prealpha2 0.1.0)" -lt 0
 
 grep -Fqx "version = \"$version\"" "$project_root/Cargo.toml"
 grep -Fq "\"version\": \"$version\"" \

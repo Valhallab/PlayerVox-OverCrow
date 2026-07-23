@@ -35,7 +35,7 @@ yay -S overcrow-bin
 
 `paru -S overcrow-bin` works as an alternative. Without an AUR helper,
 download the package from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.1)
+[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.2)
 and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
 
 Nothing starts during installation. Open **PlayerVox OverCrow** from the
@@ -54,7 +54,7 @@ available from the system tray. The tray menu shows the current status and
 provides **Start OverCrow**, **Stop OverCrow**, **Open Control Center**, and
 **Quit**. Quit disables the runtime before the tray application exits.
 
-To uninstall, first disable OverCrow in the Control Center, then run:
+To uninstall, choose **Quit** from the tray, then run:
 
 ```sh
 sudo pacman -R overcrow-bin
@@ -66,7 +66,7 @@ User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcr
 
 The pre-alpha release contains one complete x86_64 package and its checksum:
 
-- `overcrow-bin-0.1.0prealpha1-1-x86_64.pkg.tar.zst`
+- `overcrow-bin-0.1.0prealpha2-1-x86_64.pkg.tar.zst`
 - `SHA256SUMS`
 
 Maintainers prepare future releases with `./scripts/prepare-release.sh` from a

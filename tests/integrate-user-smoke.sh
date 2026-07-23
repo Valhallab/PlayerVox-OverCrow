@@ -37,6 +37,12 @@ grep -Fq "kwin_current_metadata_sha256='$kwin_metadata_sha256'" "$helper" ||
     fail 'the pinned KWin metadata fingerprint is stale'
 grep -Fq "kwin_current_main_sha256='$kwin_main_sha256'" "$helper" ||
     fail 'the pinned KWin script fingerprint is stale'
+grep -Fq \
+    "kwin_legacy_pre_alpha_1_metadata_sha256='d3f2a92714dbd0fb2c497341d9ae7eabd5498e7c87047a77dd7dcf9c54889f83'" \
+    "$helper" || fail 'the pre-alpha 1 KWin metadata fingerprint was not retained'
+grep -Fq \
+    "kwin_legacy_pre_alpha_1_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'" \
+    "$helper" || fail 'the pre-alpha 1 KWin script fingerprint was not retained'
 
 grep -Fq "overcrow_hypr_timeout_program='/usr/bin/timeout'" "$library" ||
     fail 'the Hyprland library does not use the fixed timeout program'

@@ -32,6 +32,11 @@
   <url type="help">https://github.com/Valhallab/PlayerVox-OverCrow#quick-start</url>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.0-pre-alpha.2" date="2026-07-23">
+      <description>
+        <p>Adds the resident system tray, synchronized lifecycle actions, and clean shutdown.</p>
+      </description>
+    </release>
     <release version="0.1.0-pre-alpha.1" date="2026-07-23">
       <description>
         <p>First public pre-alpha of the opt-in PlayerVox OverCrow Control Center and overlay.</p>

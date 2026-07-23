@@ -11,7 +11,7 @@
         "Id": "io.github.overcrow.kwin",
         "License": "AGPL-3.0-only",
         "Name": "OverCrow",
-        "Version": "0.1.0-pre-alpha.1",
+        "Version": "0.1.0-pre-alpha.2",
         "Website": "https://github.com/Valhallab/PlayerVox-OverCrow"
     },
     "KPackageStructure": "KWin/Script",

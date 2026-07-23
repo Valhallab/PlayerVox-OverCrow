@@ -1,6 +1,6 @@
-# PlayerVox OverCrow 0.1.0 — Pre-alpha 1
+# PlayerVox OverCrow 0.1.0 — Pre-alpha 2
 
-This is the first public technical preview of PlayerVox OverCrow. Expect bugs,
+This is the second public technical preview of PlayerVox OverCrow. Expect bugs,
 rough edges, and compatibility gaps. Please disable OverCrow and attach the
 sanitized Diagnostics logs when reporting a problem.
 
@@ -9,6 +9,8 @@ sanitized Diagnostics logs when reporting a problem.
 - Opt-in external overlay with movable built-in widgets
 - Steam game discovery and per-game authorization
 - Passive click-through and interactive overlay modes
+- Resident system tray with synchronized Start, Stop, Open, and Quit actions
+- Single-instance Control Center with close-to-tray behavior
 - Local, bounded Diagnostics logs
 - One complete native Arch package
 
