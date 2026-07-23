@@ -1,0 +1,21 @@
+"libraryfolders"
+{
+    "0"
+    {
+        "path"      "__ROOT_LIBRARY__"
+        "label"     ""
+        "apps"
+        {
+            "620"   "123"
+        }
+    }
+    "1"
+    {
+        "path"      "__SECONDARY_LIBRARY__"
+        "label"     "Games"
+        "apps"
+        {
+            "1623730"   "456"
+        }
+    }
+}

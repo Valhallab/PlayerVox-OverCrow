@@ -1,0 +1,22 @@
+[package]
+name = "overcrow-control-ui"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "overcrow-control"
+path = "src/main.rs"
+
+[dependencies]
+overcrow-control = { path = "../../overcrow-control" }
+tauri = { version = "2.10.0", features = [] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

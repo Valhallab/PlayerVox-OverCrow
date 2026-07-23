@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PlayerVox OverCrow
+Comment=Choose when the OverCrow game overlay may run
+Exec=overcrow-control
+Icon=com.playervox.OverCrow
+Terminal=false
+Categories=Game;
+StartupNotify=true
+StartupWMClass=com.playervox.OverCrow

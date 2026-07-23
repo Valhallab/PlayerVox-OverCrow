@@ -1,0 +1,16 @@
+[Unit]
+Description=OverCrow active-game tracker
+
+[Service]
+Type=simple
+ExecStart=@OVERCROW_BINDIR@/overcrow-core
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+UMask=0077
+LockPersonality=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,16 @@
+[package]
+name = "overcrowctl"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+overcrow-logging = { path = "../overcrow-logging" }
+overcrow-protocol = { path = "../overcrow-protocol" }
+tokio.workspace = true
+zbus.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

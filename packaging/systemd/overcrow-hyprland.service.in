@@ -1,0 +1,18 @@
+[Unit]
+Description=OverCrow Hyprland compositor bridge
+After=overcrow-core.service graphical-session.target
+Requires=overcrow-core.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecCondition=/bin/sh -c 'test -n "$XDG_RUNTIME_DIR" && test -n "$HYPRLAND_INSTANCE_SIGNATURE" && test -S "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock" && test -S "$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"'
+ExecStart=@OVERCROW_BINDIR@/overcrow-hyprland
+ExecStopPost=@OVERCROW_BINDIR@/overcrow-hyprland --cleanup-focus-state
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+UMask=0077
+LockPersonality=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native

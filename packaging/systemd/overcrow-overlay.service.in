@@ -1,0 +1,16 @@
+[Unit]
+Description=OverCrow transparent overlay renderer
+After=overcrow-core.service graphical-session.target
+Requires=overcrow-core.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=@OVERCROW_BINDIR@/overcrow-overlay
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+UMask=0077
+LockPersonality=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native

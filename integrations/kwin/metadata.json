@@ -1,0 +1,20 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Valhallab SASU"
+            }
+        ],
+        "Copyright": "Copyright (c) 2026 Valhallab SASU",
+        "Description": "Reports the active Plasma window to OverCrow and manages its overlay windows",
+        "EnabledByDefault": false,
+        "Id": "io.github.overcrow.kwin",
+        "License": "AGPL-3.0-only",
+        "Name": "OverCrow",
+        "Version": "0.1.0-pre-alpha.1",
+        "Website": "https://github.com/Valhallab/PlayerVox-OverCrow"
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

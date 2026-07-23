@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" viewBox="85 55 340 400" xmlns="http://www.w3.org/2000/svg">
+ <defs>
+  <linearGradient id="barGradientDark" gradientUnits="userSpaceOnUse" x1="512" y1="512" x2="0" y2="0">
+   <stop offset="30%" stop-color="#3f3f46"/>
+   <stop offset="70%" stop-color="#000000"/>
+  </linearGradient>
+ </defs>
+ <path transform="translate(114,-55.5)" d="m2.97 228c-14.3 0-25.9 11.5-25.9 25.9v249l99.8-98.3v-150c0-14.3-11.5-25.9-25.9-25.9z" fill="url(#barGradientDark)"/>
+ <path d="m232 116c-14.3 0-25.7 11.5-25.7 25.7v207h99.9v-207c0-14.3-11.5-25.7-25.7-25.7h-48.4z" fill="url(#barGradientDark)"/>
+ <path transform="translate(114,-55.5)" d="m232 116c-14.3 0-25.7 11.5-25.7 25.7v263h99.9v-263c0-14.3-11.5-25.7-25.7-25.7h-48.4z" fill="url(#barGradientDark)"/>
+</svg>

@@ -1,0 +1,435 @@
+{
+  "Time": 1784309062,
+  "SyndicateMissions": [
+    {
+      "_id": {
+        "$oid": "6a5a5f8b0000000000000002"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784307595639"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784316594513"
+        }
+      },
+      "Tag": "EntratiSyndicate",
+      "Seed": 33307
+    },
+    {
+      "_id": {
+        "$oid": "6a5a5f8b0000000000000010"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784307595639"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784316594513"
+        }
+      },
+      "Tag": "CetusSyndicate",
+      "Seed": 33307
+    },
+    {
+      "_id": {
+        "$oid": "6a5a5f8b0000000000000032"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784307595639"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784316594513"
+        }
+      },
+      "Tag": "SolarisSyndicate",
+      "Seed": 33307
+    },
+    {
+      "_id": {
+        "$oid": "6a5a5f8b0000000000000036"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784307595639"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784316594513"
+        }
+      },
+      "Tag": "ZarimanSyndicate",
+      "Seed": 33308
+    }
+  ],
+  "VoidTraders": [
+    {
+      "_id": {
+        "$oid": "5d1e07a0a38e4a4fdd7cefca"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784898000000"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1785070800000"
+        }
+      },
+      "Character": "Baro'Ki Teel",
+      "Node": "MercuryHUB"
+    },
+    {
+      "_id": {
+        "$oid": "6a510a37e55f16d90b090c36"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1783782000000"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784386800000"
+        }
+      },
+      "Character": "Baro'Ki Teel",
+      "Node": "TennoConHUB2"
+    }
+  ],
+  "ActiveMissions": [
+    {
+      "_id": {
+        "$oid": "6a5a49c7593f96d2fbf960f9"
+      },
+      "Region": 8,
+      "Seed": 21564,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784302023076"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784309177413"
+        }
+      },
+      "Node": "SolNode17",
+      "MissionType": "MT_DEFENSE",
+      "Modifier": "VoidT3"
+    },
+    {
+      "_id": {
+        "$oid": "6a5a4c5ac05fc4314e1ec12d"
+      },
+      "Region": 19,
+      "Seed": 32946,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784302682603"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784309645157"
+        }
+      },
+      "Node": "SolNode745",
+      "MissionType": "MT_ARTIFACT",
+      "Modifier": "VoidT5",
+      "Hard": true
+    },
+    {
+      "_id": {
+        "$oid": "6a5a52365b57d88d18691547"
+      },
+      "Region": 19,
+      "Seed": 40767,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784304182603"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784309476056"
+        }
+      },
+      "Node": "SolNode748",
+      "MissionType": "MT_RESCUE",
+      "Modifier": "VoidT5"
+    },
+    {
+      "_id": {
+        "$oid": "6a5a52affef3ee3018d502ee"
+      },
+      "Region": 15,
+      "Seed": 5295,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784304303056"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784310679704"
+        }
+      },
+      "Node": "SolNode410",
+      "MissionType": "MT_MOBILE_DEFENSE",
+      "Modifier": "VoidT4"
+    },
+    {
+      "_id": {
+        "$oid": "6a5a52affef3ee3018d502ef"
+      },
+      "Region": 9,
+      "Seed": 94262,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784304303056"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784310792967"
+        }
+      },
+      "Node": "SolNode81",
+      "MissionType": "MT_SURVIVAL",
+      "Modifier": "VoidT4"
+    },
+    {
+      "_id": {
+        "$oid": "6a5a58c6538edfb9558c214b"
+      },
+      "Region": 22,
+      "Seed": 24746,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784305862938"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784312015098"
+        }
+      },
+      "Node": "SolNode230",
+      "MissionType": "MT_CORRUPTION",
+      "Modifier": "VoidT6",
+      "Hard": true
+    },
+    {
+      "_id": {
+        "$oid": "6a5a58c6538edfb9558c214c"
+      },
+      "Region": 18,
+      "Seed": 94372,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784305862938"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784310133260"
+        }
+      },
+      "Node": "SolNode309",
+      "MissionType": "MT_SURVIVAL",
+      "Modifier": "VoidT6",
+      "Hard": true
+    },
+    {
+      "_id": {
+        "$oid": "6a5a597ad2586d991570339e"
+      },
+      "Region": 3,
+      "Seed": 24280,
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784306042542"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784312162134"
+        }
+      },
+      "Node": "SolNode59",
+      "MissionType": "MT_MOBILE_DEFENSE",
+      "Modifier": "VoidT1",
+      "Hard": true
+    }
+  ],
+  "Sorties": [
+    {
+      "_id": {
+        "$oid": "6a5a4dfe3d5333efaddd705f"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1784304000000"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784390400000"
+        }
+      },
+      "Boss": "SORTIE_BOSS_LEPHANTIS",
+      "Variants": [
+        {
+          "missionType": "MT_EXTERMINATION",
+          "modifierType": "SORTIE_MODIFIER_EXIMUS",
+          "node": "SolNode123"
+        },
+        {
+          "missionType": "MT_INTEL",
+          "modifierType": "SORTIE_MODIFIER_SECONDARY_ONLY",
+          "node": "SettlementNode3"
+        },
+        {
+          "missionType": "MT_ASSASSINATION",
+          "modifierType": "SORTIE_MODIFIER_HAZARD_RADIATION",
+          "node": "SolNode53"
+        }
+      ]
+    }
+  ],
+  "VoidStorms": [
+    {
+      "Node": "CrewBattleNode512",
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784317803353"
+        }
+      },
+      "ActiveMissionTier": "VoidT1"
+    },
+    {
+      "Node": "CrewBattleNode513",
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784318803353"
+        }
+      },
+      "ActiveMissionTier": "VoidT4"
+    }
+  ],
+  "LiteSorties": [
+    {
+      "_id": {
+        "$oid": "6a5426fe72107c437c0bb25c"
+      },
+      "Activation": {
+        "$date": {
+          "$numberLong": "1783900800000"
+        }
+      },
+      "Expiry": {
+        "$date": {
+          "$numberLong": "1784505600000"
+        }
+      },
+      "Boss": "SORTIE_BOSS_NIRA",
+      "Missions": [
+        {
+          "missionType": "MT_MOBILE_DEFENSE",
+          "node": "SolNode126"
+        },
+        {
+          "missionType": "MT_TERRITORY",
+          "node": "SolNode121"
+        },
+        {
+          "missionType": "MT_ASSASSINATION",
+          "node": "SolNode53"
+        }
+      ]
+    }
+  ],
+  "Invasions": [
+    {
+      "_id": {
+        "$oid": "6a5a60000000000000000001"
+      },
+      "Node": "SolNode56",
+      "Faction": "FC_GRINEER",
+      "DefenderFaction": "FC_CORPUS",
+      "Count": -48101,
+      "Goal": 48000,
+      "Completed": true,
+      "AttackerReward": {
+        "countedItems": [
+          {
+            "ItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/GrineerCombatKnifeHilt",
+            "ItemCount": 1
+          }
+        ]
+      },
+      "DefenderReward": {
+        "countedItems": [
+          {
+            "ItemType": "/Lotus/Types/Recipes/Weapons/SnipetronVandalBlueprint",
+            "ItemCount": 1
+          }
+        ]
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a5a60000000000000000002"
+      },
+      "Node": "SolNode189",
+      "Faction": "FC_CORPUS",
+      "DefenderFaction": "FC_GRINEER",
+      "Count": 20171,
+      "Goal": 47000,
+      "Completed": false,
+      "AttackerReward": {
+        "countedItems": [
+          {
+            "ItemType": "/Lotus/Types/Items/Research/EnergyComponent",
+            "ItemCount": 3
+          }
+        ]
+      },
+      "DefenderReward": {
+        "countedItems": [
+          {
+            "ItemType": "/Lotus/Types/Items/Research/ChemComponent",
+            "ItemCount": 3
+          }
+        ]
+      }
+    },
+    {
+      "Node": "SolNode41",
+      "Faction": "FC_INFESTATION",
+      "DefenderFaction": "FC_GRINEER",
+      "Count": -1000,
+      "Goal": 34000,
+      "Completed": false,
+      "AttackerReward": [],
+      "DefenderReward": {
+        "countedItems": [
+          {
+            "ItemType": "/Lotus/Types/Items/Research/ChemComponent",
+            "ItemCount": 3
+          }
+        ]
+      }
+    }
+  ]
+}

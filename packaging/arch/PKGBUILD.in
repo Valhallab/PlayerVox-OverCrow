@@ -1,0 +1,19 @@
+pkgname=overcrow-bin
+pkgver=@ARCH_VERSION@
+pkgrel=1
+_overcrow_version=@VERSION@
+pkgdesc='Opt-in external Linux game overlay by PlayerVox'
+arch=('x86_64')
+license=('AGPL-3.0-only')
+depends=('glibc' 'gcc-libs' 'systemd' 'libx11' 'libxcb' 'libxkbcommon' 'wayland' 'mesa' 'xdg-desktop-portal' 'gtk3' 'webkit2gtk-4.1')
+optdepends=('hyprland: Hyprland overlay integration' 'plasma-workspace: Plasma overlay integration')
+provides=('overcrow')
+conflicts=('overcrow')
+options=('!debug' '!strip')
+install=overcrow.install
+source=("overcrow-${_overcrow_version}-x86_64-linux.tar.zst")
+sha256sums=('@BUNDLE_SHA256@')
+
+package() {
+    cp -a --no-preserve=ownership usr "$pkgdir/"
+}

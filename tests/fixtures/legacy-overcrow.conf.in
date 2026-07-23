@@ -1,0 +1,6 @@
+# Managed by OverCrow. Changes are replaced by the installer.
+exec-once = systemctl --user import-environment HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY XDG_RUNTIME_DIR && systemctl --user restart overcrow-hyprland.service
+windowrule = match:class ^(io\.github\.overcrow\.Overlay)$, float on, no_focus on, no_initial_focus on, no_follow_mouse on, focus_on_activate off, decorate off, no_anim on, no_blur on, no_dim on, no_shadow on, no_shortcuts_inhibit on, suppress_event maximize fullscreen
+windowrule = match:tag overcrow-interactive, no_focus off, no_follow_mouse off
+windowrule = match:tag overcrow-game-input-blocked, no_focus on
+bind = SUPER ALT, O, exec, @OVERCROW_BINDIR@/overcrowctl toggle

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.playervox.OverCrow</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <name>PlayerVox OverCrow</name>
+  <summary>Opt-in widgets for Linux games</summary>
+  <developer id="com.valhallab">
+    <name>Valhallab SASU</name>
+  </developer>
+  <description>
+    <p>
+      OverCrow is an external Linux game overlay by PlayerVox. It provides
+      movable session, system, media, notes, checklist, and game-information
+      widgets without injecting code into game processes.
+    </p>
+    <p>
+      OverCrow starts disabled and runs only for games selected by the user.
+      Unsupported display environments fail closed.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.playervox.OverCrow.desktop</launchable>
+  <provides>
+    <binary>overcrow-control</binary>
+  </provides>
+  <categories>
+    <category>Game</category>
+  </categories>
+  <url type="homepage">https://playervox.com</url>
+  <url type="bugtracker">https://github.com/Valhallab/PlayerVox-OverCrow/issues</url>
+  <url type="vcs-browser">https://github.com/Valhallab/PlayerVox-OverCrow</url>
+  <url type="help">https://github.com/Valhallab/PlayerVox-OverCrow#quick-start</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0-pre-alpha.1" date="2026-07-23">
+      <description>
+        <p>First public pre-alpha of the opt-in PlayerVox OverCrow Control Center and overlay.</p>
+      </description>
+    </release>
+  </releases>
+</component>

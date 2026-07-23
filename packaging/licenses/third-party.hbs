@@ -1,0 +1,16 @@
+# OverCrow third-party software notices
+
+This file is generated from the locked x86_64 Linux dependency graph.
+The listed components remain subject to their respective license terms.
+
+{{#each licenses}}
+## {{{name}}} ({{id}})
+
+Used by:
+{{#each used_by}}
+- {{crate.name}} {{crate.version}}
+{{/each}}
+
+{{{text}}}
+
+{{/each}}

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Quality checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            dbus-daemon \
+            fontconfig \
+            jq \
+            libgl1-mesa-dev \
+            libwebkit2gtk-4.1-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb1-dev \
+            libxkbcommon-dev \
+            pkg-config \
+            shellcheck
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/overcrow-control-ui/package-lock.json
+
+      - name: Validate Control Center frontend
+        working-directory: crates/overcrow-control-ui
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+
+      - name: Install Rust components
+        run: rustup component add clippy rustfmt
+
+      - name: Check formatting and static analysis
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
+            packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+          sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
+            packaging/arch/*.install packaging/arch/*.sh packaging/release/*.sh
+          node --check integrations/kwin/contents/code/main.js
+
+      - name: Run automated tests
+        run: |
+          cargo test --workspace --all-targets --locked
+          node --test tests/kwin-bridge.test.js
+          tests/qjsvalue-variant-smoke.sh
+          tests/public-docs-smoke.sh
+          tests/public-license-policy-smoke.sh
+          tests/native-only-distribution-smoke.sh

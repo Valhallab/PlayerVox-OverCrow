@@ -1,0 +1,16 @@
+[Unit]
+Description=OverCrow transparent overlay renderer
+Documentation=https://github.com/overcrow/overcrow
+After=overcrow-core.service graphical-session.target
+Requires=overcrow-core.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/overcrow-overlay
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

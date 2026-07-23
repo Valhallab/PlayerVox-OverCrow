@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OverCrow by PlayerVox
+Comment=PlayerVox external game overlay
+Exec=overcrow-overlay
+Icon=applications-games
+Terminal=false
+Categories=Game;
+StartupNotify=false
+StartupWMClass=io.github.overcrow.Overlay

@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "OverCrow contributors"
+            }
+        ],
+        "Description": "Reports the active Plasma window to OverCrow and manages its overlay windows",
+        "EnabledByDefault": false,
+        "Id": "io.github.overcrow.kwin",
+        "License": "GPL-3.0-or-later",
+        "Name": "OverCrow",
+        "Version": "0.1.0",
+        "Website": "https://github.com/overcrow/overcrow"
+    },
+    "KPackageStructure": "KWin/Script",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

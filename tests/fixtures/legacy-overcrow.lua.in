@@ -1,0 +1,35 @@
+-- Managed by OverCrow. Changes are replaced by the installer.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("systemctl --user import-environment HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP WAYLAND_DISPLAY XDG_RUNTIME_DIR && systemctl --user restart overcrow-hyprland.service")
+end)
+hl.on("hyprland.shutdown", function()
+    os.execute("systemctl --user stop overcrow-hyprland.service")
+end)
+hl.window_rule({
+    name = "overcrow-overlay",
+    match = { class = "^(io\\.github\\.overcrow\\.Overlay)$" },
+    float = true,
+    no_focus = true,
+    no_initial_focus = true,
+    no_follow_mouse = true,
+    focus_on_activate = false,
+    decorate = false,
+    no_anim = true,
+    no_blur = true,
+    no_dim = true,
+    no_shadow = true,
+    no_shortcuts_inhibit = true,
+    suppress_event = "maximize fullscreen",
+})
+hl.window_rule({
+    name = "overcrow-overlay-interactive",
+    match = { tag = "overcrow-interactive" },
+    no_focus = false,
+    no_follow_mouse = false,
+})
+hl.window_rule({
+    name = "overcrow-game-input-blocked",
+    match = { tag = "overcrow-game-input-blocked" },
+    no_focus = true,
+})
+hl.bind("SUPER + ALT + O", hl.dsp.exec_cmd("@OVERCROWCTL@ toggle"))

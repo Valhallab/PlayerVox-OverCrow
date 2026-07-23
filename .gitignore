@@ -1,0 +1,7 @@
+/target/
+/dist/
+/.superpowers/
+/.worktrees/
+/crates/overcrow-control-ui/dist/
+/crates/overcrow-control-ui/node_modules/
+/crates/overcrow-control-ui/src-tauri/gen/

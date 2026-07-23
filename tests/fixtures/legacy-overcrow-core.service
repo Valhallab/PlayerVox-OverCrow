@@ -1,0 +1,13 @@
+[Unit]
+Description=OverCrow active-game tracker
+Documentation=https://github.com/overcrow/overcrow
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/overcrow-core
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
