@@ -49,6 +49,11 @@ OverCrow starts disabled. Select at least one detected game, then enable the
 runtime from the System Status card. Runtime services and shortcuts become
 available only for explicitly selected games.
 
+Closing the Control Center hides its window while PlayerVox OverCrow remains
+available from the system tray. The tray menu shows the current status and
+provides **Start OverCrow**, **Stop OverCrow**, **Open Control Center**, and
+**Quit**. Quit disables the runtime before the tray application exits.
+
 To uninstall, first disable OverCrow in the Control Center, then run:
 
 ```sh

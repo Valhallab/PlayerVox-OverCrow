@@ -47,12 +47,23 @@ export function logSnapshot(
 
 export function memoryClient(initial: ControlSnapshot): ControlClient & {
   calls: string[];
+  emitState(snapshot: ControlSnapshot): void;
 } {
   let current = structuredClone(initial);
   const logs = logSnapshot();
   const calls: string[] = [];
+  const listeners = new Set<(snapshot: ControlSnapshot) => void>();
   return {
     calls,
+    async subscribe(listener) {
+      calls.push('subscribe');
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    emitState(snapshot) {
+      current = structuredClone(snapshot);
+      for (const listener of listeners) listener(structuredClone(current));
+    },
     async getState() {
       calls.push('getState');
       return structuredClone(current);

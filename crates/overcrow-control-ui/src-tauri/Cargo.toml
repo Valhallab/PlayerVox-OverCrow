@@ -16,7 +16,8 @@ path = "src/main.rs"
 
 [dependencies]
 overcrow-control = { path = "../../overcrow-control" }
-tauri = { version = "2.10.0", features = [] }
+tauri = { version = "2.10.0", features = ["tray-icon"] }
+zbus.workspace = true
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -92,14 +92,18 @@ must still begin as `Passive`.
    onboarding through the compatibility check and game-selection screen.
    Confirm that no game is preselected, unsupported environments cannot
    continue, and the master switch remains off unless activation is explicitly
-   chosen on the final screen. Close and reopen the window; the system must
-   remain in the selected state without repeating onboarding.
+   chosen on the final screen. Close the window and confirm that the tray icon
+   remains. Use **Open Control Center**, then launch `overcrow-control` again;
+   both actions must reveal the existing window without creating another tray
+   icon or repeating onboarding.
 
 3. **Verify explicit authorization.** Select only the test game, then enable
    the master switch. Confirm that the private settings file is mode `0600`,
    Core becomes active as the selected-process watcher, and only the reviewed
    integration for the current compositor is installed. The renderer and
    Wayland bridge must still be absent while the selected game is not running.
+   Repeat Start and Stop from the tray and confirm that its non-clickable status
+   line and the Control Center stay synchronized.
 
 4. **Verify selected-game autostart.** Launch the selected game normally from
    Steam. Confirm that Core starts the renderer and the compositor bridge (when
@@ -124,6 +128,11 @@ must still begin as `Passive`.
    process exits, and the shortcut is absent. Log out and back in, launch the
    selected game, and confirm OverCrow remains completely inert until the user
    explicitly enables it again.
+
+8. **Verify explicit application exit.** Start OverCrow, then choose **Quit**
+   from the tray. Confirm that the tray icon, Core, renderer, compositor bridge,
+   and shortcut all disappear. Closing the Control Center window alone must
+   never produce this full-exit behavior.
 
 ## X11 acceptance
 

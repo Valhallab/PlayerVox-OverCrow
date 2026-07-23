@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+const CONTROL_STATE_EVENT = 'overcrow-control-state';
 
 export type CompatibilityStatus =
   | 'supported'
@@ -69,6 +72,7 @@ export interface ControlLogSnapshot {
 }
 
 export interface ControlClient {
+  subscribe(listener: (snapshot: ControlSnapshot) => void): Promise<() => void>;
   getState(): Promise<ControlSnapshot>;
   getRecentLogs(): Promise<ControlLogSnapshot>;
   refreshGames(): Promise<ControlSnapshot>;
@@ -79,6 +83,8 @@ export interface ControlClient {
 }
 
 export const controlClient: ControlClient = {
+  subscribe: (listener) =>
+    listen<ControlSnapshot>(CONTROL_STATE_EVENT, (event) => listener(event.payload)),
   getState: () => invoke('get_control_state'),
   getRecentLogs: () => invoke('get_recent_logs'),
   refreshGames: () => invoke('refresh_games'),

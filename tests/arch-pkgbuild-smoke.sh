@@ -18,6 +18,7 @@ grep -Fqx "license=('AGPL-3.0-only')" "$template"
 grep -Fqx "provides=('overcrow')" "$template"
 grep -Fqx "options=('!debug' '!strip')" "$template"
 grep -Fq "'gtk3' 'webkit2gtk-4.1'" "$template"
+grep -Fq "'libayatana-appindicator'" "$template"
 grep -Fqx '_overcrow_version=@VERSION@' "$template"
 grep -Fqx 'pkgver=@ARCH_VERSION@' "$template"
 test "$(grep -c '^package' "$template")" -eq 1

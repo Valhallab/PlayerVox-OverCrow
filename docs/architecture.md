@@ -8,8 +8,11 @@ contract rather than an optional visual enhancement.
 
 - `overcrow-control` is the Tauri Control Center. Its Rust command boundary
   owns installation integration, game selection, compatibility checks, and the
-  global enabled state. The webview has no shell capability, and a new
-  installation is disabled.
+  global enabled state. It also owns the resident system tray; closing its
+  window only hides the webview, while the explicit tray Quit action disables
+  the runtime before exiting. A single-instance guard reopens the existing
+  window instead of starting another authority process. The webview has no
+  shell capability, and a new installation is disabled.
 - `overcrow-core` is the authority for the active game, overlay mode, session
   timing, telemetry, stopwatch state, and D-Bus API.
 - `overcrow-overlay` renders the transparent egui surface and its widgets. It

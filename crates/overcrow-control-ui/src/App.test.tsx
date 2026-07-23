@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
@@ -24,7 +24,7 @@ describe('Control Center onboarding', () => {
     expect(within(brand).getByText('OverCrow')).toBeVisible();
     expect(brand).toHaveAccessibleName('PlayerVox OverCrow');
     expect(screen.queryByText('by PlayerVox')).not.toBeInTheDocument();
-    expect(client.calls).toEqual(['getState']);
+    expect(client.calls).toEqual(['subscribe', 'getState']);
 
     fireEvent.click(screen.getByRole('button', { name: /check my system/i }));
     expect(await screen.findByText('Supported')).toBeVisible();
@@ -95,6 +95,27 @@ describe('Control Center onboarding', () => {
 });
 
 describe('Control Center dashboard', () => {
+  it('registers native state events before loading the baseline', async () => {
+    const client = memoryClient(snapshot());
+    let finishSubscription: ((unsubscribe: () => void) => void) | undefined;
+    client.subscribe = () => {
+      client.calls.push('subscribe');
+      return new Promise((resolve) => {
+        finishSubscription = resolve;
+      });
+    };
+
+    render(<App client={client} storage={memoryStorage()} />);
+
+    await waitFor(() => expect(client.calls).toEqual(['subscribe']));
+    expect(client.calls).not.toContain('getState');
+    await act(async () => {
+      finishSubscription?.(() => {});
+    });
+    expect(await screen.findByText('Your games. Your overlay. Your control.')).toBeVisible();
+    expect(client.calls).toEqual(['subscribe', 'getState']);
+  });
+
   it('loads returning users, refreshes discovery, and keeps activation explicit', async () => {
     const storage = memoryStorage();
     storage.setItem('overcrow.onboardingVersion', '1');
@@ -138,6 +159,26 @@ describe('Control Center dashboard', () => {
     render(<App client={client} storage={storage} />);
 
     expect(await screen.findByRole('button', { name: 'Starting…' })).toBeDisabled();
+  });
+
+  it('applies lifecycle changes initiated from the system tray', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const initial = snapshot({
+      games: [{ app_id: 4242, name: 'Example Game', selected: true }],
+    });
+    const client = memoryClient(initial);
+    render(<App client={client} storage={storage} />);
+
+    expect(await screen.findByText('Stopped')).toBeVisible();
+    client.emitState({
+      ...initial,
+      lifecycle: 'enabled',
+      master_switch_checked: true,
+      selection_editing_enabled: false,
+    });
+
+    expect(await screen.findByText('Running')).toBeVisible();
   });
 
   it('translates command failures into bounded friendly copy', async () => {

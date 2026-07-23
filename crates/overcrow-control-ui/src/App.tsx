@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Dashboard } from './components/Dashboard';
 import { Onboarding } from './components/Onboarding';
@@ -32,7 +32,6 @@ export function App({
   );
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
-  const initialized = useRef(false);
 
   const run = useCallback(async (operation: () => Promise<ControlSnapshot>) => {
     setBusy(true);
@@ -50,14 +49,41 @@ export function App({
   }, []);
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
     void (async () => {
+      let subscriptionUnavailable = false;
+      try {
+        const registered = await client.subscribe((next) => {
+          if (active) setSnapshot(next);
+        });
+        if (!active) {
+          registered();
+          return;
+        }
+        unsubscribe = registered;
+      } catch {
+        subscriptionUnavailable = true;
+      }
+
+      if (!active) return;
       const loaded = await run(() => client.getState());
-      if (loaded && storage.getItem(ONBOARDING_KEY) === ONBOARDING_VERSION) {
+      if (
+        active &&
+        loaded &&
+        storage.getItem(ONBOARDING_KEY) === ONBOARDING_VERSION
+      ) {
         await run(() => client.refreshGames());
       }
+      if (active && subscriptionUnavailable) {
+        setError({ code: 'state_unavailable', message: en.errors.state_unavailable });
+      }
     })();
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, [client, run, storage]);
 
   useEffect(() => {

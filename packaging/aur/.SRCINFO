@@ -17,6 +17,7 @@ pkgbase = overcrow-bin
 	depends = xdg-desktop-portal
 	depends = gtk3
 	depends = webkit2gtk-4.1
+	depends = libayatana-appindicator
 	optdepends = hyprland: Hyprland overlay integration
 	optdepends = plasma-workspace: Plasma overlay integration
 	provides = overcrow
