@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 
 import { en } from '../i18n/en';
-import type { ControlLogSnapshot, ControlSnapshot } from '../lib/control';
+import type {
+  ControlLogSnapshot,
+  ControlSnapshot,
+  ControlSupportReceipt,
+  ControlSupportReport,
+} from '../lib/control';
 import { Brand } from './Brand';
 import { CompatibilityCard } from './CompatibilityCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
@@ -17,6 +22,11 @@ interface DashboardProps {
   onPickManualGame(): void;
   onRemoveManualGame(id: string): void;
   onLoadLogs(): Promise<ControlLogSnapshot>;
+  onPrepareSupportReport(
+    description: string,
+    includeLogs: boolean,
+  ): Promise<ControlSupportReport>;
+  onSubmitSupportReport(reportId: string): Promise<ControlSupportReceipt>;
 }
 
 export function Dashboard(props: DashboardProps) {
@@ -159,6 +169,8 @@ export function Dashboard(props: DashboardProps) {
           <DiagnosticsPanel
             diagnostics={snapshot.diagnostics}
             loadLogs={props.onLoadLogs}
+            prepareSupportReport={props.onPrepareSupportReport}
+            submitSupportReport={props.onSubmitSupportReport}
           />
         )}
 

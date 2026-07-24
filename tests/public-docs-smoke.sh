@@ -9,6 +9,7 @@ test -f docs/architecture.md
 test -f docs/troubleshooting.md
 test -f docs/testing/manual-mvp.md
 test -f SECURITY.md
+test -f .github/ISSUE_TEMPLATE/bug-report.yml
 test ! -e docs/superpowers
 
 readme_lines=$(wc -l < README.md)
@@ -39,6 +40,16 @@ fi
 grep -Fq 'docs/architecture.md' README.md
 grep -Fq 'docs/troubleshooting.md' README.md
 grep -Fq 'SECURITY.md' README.md
+grep -Fq 'Report a problem' README.md
+grep -Fq 'No GitHub account is required.' README.md
+grep -Fiq 'uploaded automatically' docs/troubleshooting.md
+grep -Fq 'fixed PlayerVox support endpoint over HTTPS' docs/troubleshooting.md
+grep -Fq 'Support reference or copied report' .github/ISSUE_TEMPLATE/bug-report.yml
+if grep -R -F -n 'overcrow-support-report.md' \
+        README.md docs .github/ISSUE_TEMPLATE; then
+    printf '%s\n' 'documentation still references the removed local report file' >&2
+    exit 1
+fi
 
 if grep -E -i -n \
         'authorized source checkout|github.com/(MatthieuGC/Overcrow|overcrow/overcrow)' \

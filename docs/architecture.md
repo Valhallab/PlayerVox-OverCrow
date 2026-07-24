@@ -89,7 +89,12 @@ never responses, queries, notes, media titles, paths, or other user content.
 The native Control Center reads recent diagnostics through the hardened
 private log reader. It returns at most the newest 500 sanitized lines and
 256 KiB of versioned data. The UI cannot choose a path, run an arbitrary
-command, or upload logs automatically.
+command, or upload logs automatically. Support reports are prepared in memory,
+previewed exactly, and submitted only after explicit confirmation. The native
+client posts to one fixed PlayerVox HTTPS endpoint with no redirects or
+credentials and with bounded request, response, and timeout. The Tauri host
+accepts only the latest native-generated report ID and permits one submission
+at a time.
 
 ## Security boundary
 

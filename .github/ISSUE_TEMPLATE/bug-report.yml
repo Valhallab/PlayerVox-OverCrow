@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible problem with PlayerVox OverCrow
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve OverCrow. For security vulnerabilities, stop here and follow `SECURITY.md` instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you were doing when it occurred.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How can we reproduce it?
+      placeholder: |
+        1. Start…
+        2. Open…
+        3. Observe…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: display
+    attributes:
+      label: Display environment
+      options:
+        - Hyprland 0.55+ Wayland
+        - Plasma 6 Wayland
+        - X11 / EWMH
+        - Unsupported or unknown environment
+    validations:
+      required: true
+
+  - type: input
+    id: game
+    attributes:
+      label: Affected game
+      description: Optional. Do not include account or personal information.
+
+  - type: textarea
+    id: support-report
+    attributes:
+      label: Support reference or copied report
+      description: |
+        Optional. If you already sent a private report from Diagnostics → Report a problem, provide only its reference here. Alternatively, paste a copied report after reviewing it.
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reviewed everything above and removed any information I do not want to publish.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

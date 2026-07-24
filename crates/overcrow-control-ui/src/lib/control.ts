@@ -71,10 +71,28 @@ export interface ControlLogSnapshot {
   truncated: boolean;
 }
 
+export interface ControlSupportReport {
+  schema_version: 1;
+  report_id: string;
+  created_at: string;
+  content: string;
+  logs_included: boolean;
+}
+
+export interface ControlSupportReceipt {
+  reference: string;
+  received_at: string;
+}
+
 export interface ControlClient {
   subscribe(listener: (snapshot: ControlSnapshot) => void): Promise<() => void>;
   getState(): Promise<ControlSnapshot>;
   getRecentLogs(): Promise<ControlLogSnapshot>;
+  prepareSupportReport(
+    description: string,
+    includeLogs: boolean,
+  ): Promise<ControlSupportReport>;
+  submitSupportReport(reportId: string): Promise<ControlSupportReceipt>;
   refreshGames(): Promise<ControlSnapshot>;
   setGameSelected(appId: number, selected: boolean): Promise<ControlSnapshot>;
   removeManualGame(id: string): Promise<ControlSnapshot>;
@@ -87,6 +105,10 @@ export const controlClient: ControlClient = {
     listen<ControlSnapshot>(CONTROL_STATE_EVENT, (event) => listener(event.payload)),
   getState: () => invoke('get_control_state'),
   getRecentLogs: () => invoke('get_recent_logs'),
+  prepareSupportReport: (description, includeLogs) =>
+    invoke('prepare_support_report', { description, includeLogs }),
+  submitSupportReport: (reportId) =>
+    invoke('submit_support_report', { reportId }),
   refreshGames: () => invoke('refresh_games'),
   setGameSelected: (appId, selected) =>
     invoke('set_game_selected', { appId, selected }),

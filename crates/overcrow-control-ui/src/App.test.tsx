@@ -268,4 +268,130 @@ describe('Control Center dashboard', () => {
       screen.queryByText('OverCrow could not complete that action'),
     ).not.toBeInTheDocument();
   });
+
+  it('previews, copies, and explicitly sends a private support report', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const supportReport = {
+      schema_version: 1 as const,
+      report_id: 'oc-20260724t100000000z-0000',
+      created_at: '2026-07-24T10:00:00.000Z',
+      content: '# PlayerVox OverCrow support report\n\nExact preview.',
+      logs_included: true,
+    };
+    const client = Object.assign(memoryClient(snapshot()), {
+      prepareSupportReport: vi.fn().mockResolvedValue(supportReport),
+      submitSupportReport: vi.fn().mockResolvedValue({
+        reference: 'bfaf03ce-5471-4739-a145-1ca24f215f1b',
+        received_at: '2026-07-25T10:00:00Z',
+      }),
+    });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(<App client={client} storage={storage} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Diagnostics' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
+    const dialog = screen.getByRole('dialog', { name: 'Report a problem' });
+    const prepare = within(dialog).getByRole('button', { name: 'Prepare report' });
+    expect(prepare).toBeDisabled();
+    expect(
+      within(dialog).getByRole('checkbox', { name: 'Include sanitized logs' }),
+    ).toBeChecked();
+
+    fireEvent.change(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'The overlay stopped responding.' },
+    });
+    fireEvent.click(prepare);
+    await waitFor(() =>
+      expect(client.prepareSupportReport).toHaveBeenCalledWith(
+        'The overlay stopped responding.',
+        true,
+      ),
+    );
+    expect(await within(dialog).findByText(/Exact preview\./)).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy report' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send report' }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(supportReport.content);
+      expect(client.submitSupportReport).toHaveBeenCalledWith(
+        supportReport.report_id,
+      );
+    });
+    expect(
+      within(dialog).getByText(/bfaf03ce-5471-4739-a145-1ca24f215f1b/),
+    ).toBeVisible();
+
+    fireEvent.change(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'A different problem.' },
+    });
+    expect(within(dialog).queryByText(/Exact preview\./)).not.toBeInTheDocument();
+  });
+
+  it('enforces the support description byte limit before invoking native code', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = Object.assign(memoryClient(snapshot()), {
+      prepareSupportReport: vi.fn(),
+      submitSupportReport: vi.fn(),
+    });
+    render(<App client={client} storage={storage} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Diagnostics' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
+    const dialog = screen.getByRole('dialog', { name: 'Report a problem' });
+    fireEvent.change(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'é'.repeat(1_001) },
+    });
+
+    expect(within(dialog).getByText('2,002 / 2,000 bytes')).toBeVisible();
+    expect(
+      within(dialog).getByRole('button', { name: 'Prepare report' }),
+    ).toBeDisabled();
+    expect(client.prepareSupportReport).not.toHaveBeenCalled();
+  });
+
+  it('keeps the preview available when submission fails', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = Object.assign(memoryClient(snapshot()), {
+      prepareSupportReport: vi.fn().mockResolvedValue({
+        schema_version: 1,
+        report_id: 'oc-test',
+        created_at: '2026-07-24T10:00:00.000Z',
+        content: '# PlayerVox OverCrow support report',
+        logs_included: false,
+      }),
+      submitSupportReport: vi.fn().mockRejectedValue(
+        'support_network_unavailable',
+      ),
+    });
+    render(<App client={client} storage={storage} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Diagnostics' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
+    const dialog = screen.getByRole('dialog', { name: 'Report a problem' });
+    fireEvent.change(within(dialog).getByLabelText('What happened?'), {
+      target: { value: 'The overlay stopped responding.' },
+    });
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Prepare report' }),
+    );
+
+    fireEvent.click(
+      await within(dialog).findByRole('button', { name: 'Send report' }),
+    );
+    expect(
+      await within(dialog).findByText(
+        'The report could not be sent. Check your connection and try again.',
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole('button', { name: 'Copy report' }),
+    ).toBeEnabled();
+  });
 });

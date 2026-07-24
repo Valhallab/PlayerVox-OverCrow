@@ -72,6 +72,23 @@ export function memoryClient(initial: ControlSnapshot): ControlClient & {
       calls.push('getRecentLogs');
       return structuredClone(logs);
     },
+    async prepareSupportReport() {
+      calls.push('prepareSupportReport');
+      return {
+        schema_version: 1,
+        report_id: 'oc-test',
+        created_at: '2026-07-24T10:00:00.000Z',
+        content: '# PlayerVox OverCrow support report',
+        logs_included: true,
+      };
+    },
+    async submitSupportReport(reportId) {
+      calls.push(`submitSupportReport:${reportId}`);
+      return {
+        reference: 'bfaf03ce-5471-4739-a145-1ca24f215f1b',
+        received_at: '2026-07-25T10:00:00Z',
+      };
+    },
     async refreshGames() {
       calls.push('refreshGames');
       return structuredClone(current);

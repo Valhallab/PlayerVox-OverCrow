@@ -10,7 +10,7 @@ mod tray;
 mod tray_tests;
 
 #[cfg(not(test))]
-use commands::CommandState;
+use commands::{CommandState, SupportReportState};
 #[cfg(not(test))]
 use overcrow_control::run_settings_diagnostic_request;
 #[cfg(not(test))]
@@ -24,6 +24,7 @@ fn main() {
 
     let builder = tauri::Builder::default()
         .manage(CommandState::production())
+        .manage(SupportReportState::default())
         .setup(|app| {
             if let Err(error) = tray::install(app) {
                 abort_startup(app, &format!("could not install the system tray: {error}"));
@@ -48,6 +49,8 @@ fn main() {
             commands::pick_manual_game,
             commands::set_overcrow_enabled,
             commands::get_recent_logs,
+            commands::prepare_support_report,
+            commands::submit_support_report,
         ]);
 
     let mut app = match builder.build(tauri::generate_context!()) {

@@ -52,10 +52,24 @@ The local files are private, rotate at 2 MiB, retain three archives per
 component, and are never uploaded automatically. `overcrowctl logs` returns at
 most the newest 2,000 merged lines.
 
-When reporting a bug, include the display environment and versions, the exact
-game presentation mode, `overcrowctl status`, the relevant bounded log window,
-and minimal reproduction steps. Review output before sharing it even though
-OverCrow intentionally excludes user content and raw provider data.
+## Report a problem
+
+Open **Diagnostics → Report a problem** in the Control Center:
+
+1. Describe the issue and choose whether to include sanitized logs.
+2. Select **Prepare report**.
+3. Review the exact in-memory preview.
+4. Select **Send report** to submit it privately to PlayerVox support, or use
+   **Copy report** to keep the text yourself.
+
+The automatically collected fields contain only bounded installation state
+and structured diagnostics. They exclude game names, manual executable paths,
+notes, media metadata, provider payloads, and other stored user content. Your
+own problem description is included exactly as shown in the preview. Nothing
+is uploaded until you select **Send report**. The request is sent only to the
+fixed PlayerVox support endpoint over HTTPS; OverCrow follows no redirects,
+sends no account credentials, and stores no local report file. A successful
+submission displays a reference you can retain for follow-up.
 
 Report unresolved vulnerabilities privately through [SECURITY.md](../SECURITY.md).
 

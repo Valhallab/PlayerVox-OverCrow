@@ -3351,6 +3351,7 @@ dependencies = [
 name = "overcrow-control"
 version = "0.1.0-pre-alpha.2"
 dependencies = [
+ "chrono",
  "keyvalues-parser",
  "libc",
  "overcrow-config",
@@ -3364,6 +3365,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "unicode-casefold",
+ "ureq",
+ "uuid",
  "zbus",
 ]
 

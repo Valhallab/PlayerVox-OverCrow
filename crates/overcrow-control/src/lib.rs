@@ -8,6 +8,7 @@ mod model;
 mod presentation;
 mod settings_diagnostic;
 mod steam;
+mod support;
 
 pub use app::{
     APPLICATION_ID, APPLICATION_TITLE, AppTab, ControlController, ControlView, NoticeOperation,
@@ -46,6 +47,10 @@ pub use steam::{
     DiscoveryReport, MAX_KEYVALUES_NESTING_DEPTH, MAX_LIBRARY_VDF_BYTES, MAX_MANIFEST_BYTES,
     MAX_MANIFESTS_INSPECTED, MAX_SECONDARY_LIBRARIES, MAX_WARNINGS, SteamGame,
     candidate_steam_roots, discover_from_roots,
+};
+pub use support::{
+    ControlSupportReceipt, ControlSupportReport, MAX_SUPPORT_DESCRIPTION_BYTES,
+    SUPPORT_REPORT_SCHEMA_VERSION, SupportReportClient, SupportReportError, prepare_support_report,
 };
 #[cfg(test)]
 #[path = "steam_tests.rs"]

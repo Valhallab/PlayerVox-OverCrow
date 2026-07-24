@@ -101,6 +101,11 @@ Logs stay local under
 and exclude titles, paths, keystrokes, notes, media metadata, and provider
 payloads. See [troubleshooting](docs/troubleshooting.md) for recovery steps.
 
+To report a bug, open **Diagnostics → Report a problem**. OverCrow prepares an
+exact preview in memory; nothing is uploaded automatically. You decide whether
+to include sanitized logs, then explicitly send the reviewed report to
+PlayerVox support. No GitHub account is required.
+
 ## Built-in widgets
 
 - **Session** — elapsed time since the detected game process started.

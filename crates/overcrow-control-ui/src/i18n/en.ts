@@ -131,6 +131,36 @@ export const en = {
     logsInfo: 'Info',
     logsWarning: 'Warning',
     logsError: 'Error',
+    reportProblem: 'Report a problem',
+    reportBody:
+      'Create a private report, review its exact contents, then send it directly to PlayerVox support.',
+    reportPrivacy:
+      'Nothing is uploaded automatically. The report is sent only when you press Send report.',
+    reportDescription: 'What happened?',
+    reportIncludeLogs: 'Include sanitized logs',
+    reportIncludeLogsBody:
+      'Only bounded OverCrow events are included. Personal content and raw system paths are excluded.',
+    reportPrepare: 'Prepare report',
+    reportPreparing: 'Preparing…',
+    reportPreview: 'Report preview',
+    reportReady: 'Review the exact report below before sending.',
+    reportCopy: 'Copy report',
+    reportSend: 'Send report',
+    reportSending: 'Sending…',
+    reportSent: 'Report sent. Your support reference is',
+    reportNetworkFailed:
+      'The report could not be sent. Check your connection and try again.',
+    reportServiceFailed:
+      'PlayerVox support could not accept the report. Copy it now and try again later.',
+    reportConflict:
+      'This report reference is no longer valid. Prepare a new report and try again.',
+    reportRateLimited:
+      'Too many reports were sent recently. Please try again later.',
+    reportTimeout:
+      'The support service did not respond in time. Please try again.',
+    reportPrepareFailed:
+      'The report could not be prepared. No information was uploaded.',
+    reportCopyFailed: 'The report could not be copied.',
     aboutTitle: 'About OverCrow',
     aboutBody:
       'An open-source, external overlay framework for Linux games, created by Valhallab SASU and distributed under the PlayerVox brand.',

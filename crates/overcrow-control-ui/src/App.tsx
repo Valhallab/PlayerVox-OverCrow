@@ -136,6 +136,10 @@ export function App({
           {...actions}
           onEnable={(enabled) => void run(() => client.setEnabled(enabled))}
           onLoadLogs={() => client.getRecentLogs()}
+          onPrepareSupportReport={(description, includeLogs) =>
+            client.prepareSupportReport(description, includeLogs)}
+          onSubmitSupportReport={(reportId) =>
+            client.submitSupportReport(reportId)}
           onRemoveManualGame={(id) => void run(() => client.removeManualGame(id))}
         />
       )}
