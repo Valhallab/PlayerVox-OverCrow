@@ -17,8 +17,8 @@ use crate::diagnostics::{
     MAX_DIAGNOSTIC_DETAIL_BYTES, MAX_DIAGNOSTIC_LABEL_BYTES, MAX_DISCOVERY_WARNINGS,
     MAX_EXECUTABLE_METADATA_CHECKS, MAX_PATH_DISPLAY_BYTES, MAX_PATH_ENTRIES, MAX_RAW_PATH_BYTES,
     MAX_RENDERED_WARNING_AGGREGATE_BYTES, MAX_SESSION_TYPE_BYTES, MAX_SETTINGS_WARNINGS,
-    MAX_SOURCE_WARNING_AGGREGATE_BYTES, MAX_WARNING_BYTES, bounded_path_display,
-    diagnostic_input_from_environment_with, is_executable_file,
+    MAX_SOURCE_WARNING_AGGREGATE_BYTES, MAX_WARNING_BYTES, SYSTEM_EXECUTABLE_METADATA_CHECKS,
+    bounded_path_display, diagnostic_input_from_environment_with, is_executable_file,
 };
 use crate::{
     Availability, ControlModel, DiagnosticInput, DiscoveryReport, Level, PathValidator,
@@ -229,16 +229,37 @@ fn portal_picker_represents_executable_and_backend_availability() {
             .detail
             .contains("executables found")
     );
-    assert_eq!(item(&missing, "Portal picker").level, Level::Warning);
+    assert_eq!(item(&missing, "Portal picker").level, Level::Info);
     assert!(
         item(&missing, "Portal picker")
             .detail
-            .contains("not found in bounded PATH metadata")
+            .contains("not confirmed from bounded executable metadata")
     );
     assert!(
         item(&missing, "Portal picker")
             .detail
-            .contains("not queried")
+            .contains("validated when the native game picker is used")
+    );
+}
+
+#[test]
+fn standard_portal_directories_are_checked_when_absent_from_path() {
+    let input = diagnostic_input_from_environment_with(
+        |name| (name == "PATH").then(|| OsString::from("/usr/bin")),
+        |candidate| {
+            matches!(
+                candidate.to_str(),
+                Some("/usr/lib/xdg-desktop-portal" | "/usr/lib/xdg-desktop-portal-hyprland")
+            )
+        },
+    );
+
+    assert_eq!(
+        input.portal_picker,
+        PortalPickerInput {
+            portal_executable: Availability::Available,
+            backend_executable: Availability::Available,
+        }
     );
 }
 
@@ -366,7 +387,7 @@ fn path_entry_limit_applies_before_relative_entries_are_filtered() {
         },
     );
 
-    assert_eq!(checks.get(), 0);
+    assert_eq!(checks.get(), SYSTEM_EXECUTABLE_METADATA_CHECKS);
     assert!(input.environment_was_truncated);
 }
 
@@ -386,7 +407,7 @@ fn oversized_first_path_entry_is_not_split_or_probed_partially() {
         },
     );
 
-    assert_eq!(checks.get(), 0);
+    assert_eq!(checks.get(), SYSTEM_EXECUTABLE_METADATA_CHECKS);
     assert!(input.environment_was_truncated);
     let report = collect_foundation_diagnostics(input);
     assert_eq!(
@@ -419,12 +440,11 @@ fn relative_path_entries_never_reach_executable_metadata() {
         }
     );
     assert!(!candidates.borrow().is_empty());
-    assert!(
-        candidates
-            .borrow()
-            .iter()
-            .all(|candidate| candidate.starts_with("/absolute"))
-    );
+    assert!(candidates.borrow().iter().all(|candidate| {
+        candidate.starts_with("/absolute")
+            || candidate.starts_with("/usr/lib")
+            || candidate.starts_with("/usr/libexec")
+    }));
 }
 
 #[test]
@@ -477,7 +497,7 @@ fn environment_strings_and_paths_are_bounded_before_storage() {
             "HOME" => Some(OsString::from(&config_path)),
             _ => None,
         },
-        |_| panic!("PATH is absent, so metadata must not be inspected"),
+        |_| false,
     );
 
     assert!(input.environment_was_truncated);
@@ -691,7 +711,7 @@ fn non_utf8_config_roots_never_become_lossy_ok_authority() {
             "HOME" | "XDG_CONFIG_HOME" => Some(non_utf8.clone()),
             _ => None,
         },
-        |_| panic!("PATH is absent, so metadata must not be inspected"),
+        |_| false,
     );
 
     assert!(input.home.is_none());

@@ -38,9 +38,14 @@ const PORTAL_BACKEND_EXECUTABLES: [&str; 7] = [
     "xdg-desktop-portal-lxqt",
     "xdg-desktop-portal-xapp",
 ];
+const PORTAL_SYSTEM_DIRECTORIES: [&str; 2] = ["/usr/lib", "/usr/libexec"];
 #[cfg(test)]
-pub(crate) const MAX_EXECUTABLE_METADATA_CHECKS: usize =
-    MAX_PATH_ENTRIES * (PORTAL_EXECUTABLES.len() + PORTAL_BACKEND_EXECUTABLES.len());
+pub(crate) const MAX_EXECUTABLE_METADATA_CHECKS: usize = (MAX_PATH_ENTRIES
+    + PORTAL_SYSTEM_DIRECTORIES.len())
+    * (PORTAL_EXECUTABLES.len() + PORTAL_BACKEND_EXECUTABLES.len());
+#[cfg(test)]
+pub(crate) const SYSTEM_EXECUTABLE_METADATA_CHECKS: usize =
+    PORTAL_SYSTEM_DIRECTORIES.len() * (PORTAL_EXECUTABLES.len() + PORTAL_BACKEND_EXECUTABLES.len());
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Level {
@@ -194,35 +199,37 @@ pub(crate) fn diagnostic_input_from_environment_with(
     let home = bounded_environment_path(variable("HOME"), &mut environment_was_truncated);
     let xdg_config_home =
         bounded_environment_path(variable("XDG_CONFIG_HOME"), &mut environment_was_truncated);
-    let portal_picker = match variable("PATH") {
-        Some(path) => {
-            let (path, path_was_truncated) = bounded_path_value(path);
-            environment_was_truncated |= path_was_truncated;
-            let mut entries = env::split_paths(&path)
-                .take(MAX_PATH_ENTRIES + 1)
-                .collect::<Vec<_>>();
-            if entries.len() > MAX_PATH_ENTRIES {
-                entries.truncate(MAX_PATH_ENTRIES);
-                environment_was_truncated = true;
-            }
-            let directories = entries
-                .into_iter()
-                .filter(|path| path.is_absolute())
-                .collect::<Vec<_>>();
-            PortalPickerInput {
-                portal_executable: executable_availability(
-                    &directories,
-                    &PORTAL_EXECUTABLES,
-                    &mut executable_file,
-                ),
-                backend_executable: executable_availability(
-                    &directories,
-                    &PORTAL_BACKEND_EXECUTABLES,
-                    &mut executable_file,
-                ),
+    let mut portal_directories = PORTAL_SYSTEM_DIRECTORIES
+        .into_iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    if let Some(path) = variable("PATH") {
+        let (path, path_was_truncated) = bounded_path_value(path);
+        environment_was_truncated |= path_was_truncated;
+        let mut entries = env::split_paths(&path)
+            .take(MAX_PATH_ENTRIES + 1)
+            .collect::<Vec<_>>();
+        if entries.len() > MAX_PATH_ENTRIES {
+            entries.truncate(MAX_PATH_ENTRIES);
+            environment_was_truncated = true;
+        }
+        for directory in entries.into_iter().filter(|path| path.is_absolute()) {
+            if !portal_directories.contains(&directory) {
+                portal_directories.push(directory);
             }
         }
-        None => PortalPickerInput::default(),
+    }
+    let portal_picker = PortalPickerInput {
+        portal_executable: executable_availability(
+            &portal_directories,
+            &PORTAL_EXECUTABLES,
+            &mut executable_file,
+        ),
+        backend_executable: executable_availability(
+            &portal_directories,
+            &PORTAL_BACKEND_EXECUTABLES,
+            &mut executable_file,
+        ),
     };
 
     DiagnosticInput {
@@ -433,13 +440,13 @@ fn portal_picker_item(input: PortalPickerInput) -> DiagnosticItem {
     match (input.portal_executable, input.backend_executable) {
         (Availability::Available, Availability::Available) => diagnostic(
             "Portal picker",
-            "Portal and backend executables found in bounded PATH metadata; active portal service was not queried.",
+            "Portal and backend executables found in bounded executable metadata; active portal service was not queried.",
             Level::Ok,
         ),
         (Availability::Unavailable, _) | (_, Availability::Unavailable) => diagnostic(
             "Portal picker",
-            "A portal or backend executable was not found in bounded PATH metadata; active portal service was not queried.",
-            Level::Warning,
+            "Portal availability was not confirmed from bounded executable metadata; it will be validated when the native game picker is used.",
+            Level::Info,
         ),
         _ => diagnostic(
             "Portal picker",
