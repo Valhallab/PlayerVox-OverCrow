@@ -9,9 +9,13 @@ use std::{
 
 use tempfile::NamedTempFile;
 
-use super::{NotesDocument, NotesError};
+use serde::Deserialize;
 
-pub const NOTES_FILE_MAX_BYTES: usize = 64 * 1024;
+use super::{NotesDocument, NotesError, model::LegacyNotesDocument};
+
+// This remains above the tested worst-case JSON expansion of every bounded
+// title, body, and checklist entry while still bounding local file reads.
+pub const NOTES_FILE_MAX_BYTES: usize = 2 * 1024 * 1024;
 const NOTES_OPEN_FLAGS: libc::c_int = libc::O_NOFOLLOW | libc::O_NONBLOCK;
 
 /// Synchronous repository seam for providers admitted to the renderer.
@@ -116,13 +120,27 @@ impl NotesRepository for LocalNotesRepository {
             )));
         }
 
-        let document = serde_json::from_slice::<NotesDocument>(&contents)?;
+        let document = deserialize_document(&contents)?;
         document.validate()?;
         Ok(document)
     }
 
     fn save(&self, document: &NotesDocument) -> Result<(), NotesError> {
         self.save_with_writer(document, &FileAtomicWriter)
+    }
+}
+
+#[derive(Deserialize)]
+struct SchemaHeader {
+    schema_version: u32,
+}
+
+fn deserialize_document(contents: &[u8]) -> Result<NotesDocument, NotesError> {
+    let header = serde_json::from_slice::<SchemaHeader>(contents)?;
+    match header.schema_version {
+        1 => serde_json::from_slice::<LegacyNotesDocument>(contents)?.migrate(),
+        super::NOTES_SCHEMA_VERSION => Ok(serde_json::from_slice::<NotesDocument>(contents)?),
+        _ => Err(NotesError::validation("unsupported notes schema version")),
     }
 }
 

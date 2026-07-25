@@ -1,10 +1,11 @@
-use eframe::egui::{self, Color32, Layout, Vec2};
+use eframe::egui::{self, Color32, Layout, Vec2, vec2};
 use overcrow_config::{FissureEra, FissureSource, WarframePrefs};
 use overcrow_protocol::OverlayMode;
 
 use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, apply_scale, era_color, meta_text,
-    options_menu, panel_frame, resize_grip, timer_color, title_text,
+    BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, apply_scale, era_color,
+    fixed_panel_constraints, meta_text, options_menu, panel_frame, report_fixed_panel_size,
+    resize_grip, timer_color, title_text,
 };
 use crate::warframe::{
     FissureMission, fissure_source, format_mission_type, format_node, format_remaining,
@@ -60,8 +61,8 @@ pub fn paint_warframe_fissures(
         .show(ui.ctx(), |ui| {
             apply_scale(ui, scale);
             panel_frame(transparent_background).show(ui, |ui| {
-                ui.set_min_size(panel_size);
-                ui.set_max_size(panel_size);
+                let safe_height = (viewport.height() - margin * 2.0).max(1.0);
+                fixed_panel_constraints(ui, panel_size, mode, safe_height);
 
                 if mode == OverlayMode::Interactive {
                     paint_fissure_header(ui, visible_count, prefs, &mut actions);
@@ -84,7 +85,12 @@ pub fn paint_warframe_fissures(
                 } else {
                     36.0 * scale
                 };
-                let list_height = (panel_size.y - header_h).max(90.0);
+                let available_height = if mode == OverlayMode::Interactive {
+                    panel_size.y
+                } else {
+                    safe_height
+                };
+                let list_height = (available_height - header_h).max(90.0);
 
                 if visible_count == 0 {
                     ui.label(meta_text("No matching fissures"));
@@ -92,7 +98,7 @@ pub fn paint_warframe_fissures(
                     egui::ScrollArea::vertical()
                         .id_salt("fissure-scroll")
                         .max_height(list_height)
-                        .auto_shrink([false, false])
+                        .auto_shrink([false, mode == OverlayMode::Passive])
                         .show(ui, |ui| {
                             for source in FissureSource::ALL {
                                 if !prefs.source_enabled(source) {
@@ -149,8 +155,9 @@ pub fn paint_warframe_fissures(
             });
         });
 
+    let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeFissuresResponse {
-        size: panel_size,
+        size: report_fixed_panel_size(panel_size, measured, mode),
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,

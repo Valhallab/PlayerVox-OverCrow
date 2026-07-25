@@ -9,15 +9,27 @@ use crate::placement;
 use super::{ResizeSession, WidgetManager, widget_draggable};
 
 impl WidgetManager {
-    pub fn measured_size(&self, id: WidgetId) -> Vec2 {
-        self.measured_sizes[widget_index(id)]
+    pub(super) fn measured_size(&self, id: WidgetId, mode: OverlayMode) -> Vec2 {
+        self.measured_sizes[mode_index(mode)][widget_index(id)]
     }
 
-    pub fn set_measured_size(&mut self, id: WidgetId, size: Vec2) {
-        self.measured_sizes[widget_index(id)] = size;
+    pub(super) fn set_measured_size(&mut self, id: WidgetId, mode: OverlayMode, size: Vec2) {
+        self.measured_sizes[mode_index(mode)][widget_index(id)] = size;
     }
 
-    pub fn sync_interaction_state(
+    pub(super) fn request_repaint_if_size_changed(
+        &self,
+        ui: &egui::Ui,
+        id: WidgetId,
+        mode: OverlayMode,
+        size: Vec2,
+    ) {
+        if size_meaningfully_changed(self.measured_size(id, mode), size) {
+            ui.ctx().request_repaint();
+        }
+    }
+
+    pub(crate) fn sync_interaction_state(
         &mut self,
         mode: OverlayMode,
         active_game: bool,
@@ -28,22 +40,24 @@ impl WidgetManager {
         }
     }
 
-    pub fn screen_position(
+    pub(super) fn screen_position(
         &self,
         id: WidgetId,
+        mode: OverlayMode,
         viewport: Rect,
         margin: f32,
         profile: &WidgetProfile,
     ) -> Pos2 {
         // During resize, freeze the absolute top-left.
-        if let Some(session) = self.resize
+        if mode == OverlayMode::Interactive
+            && let Some(session) = self.resize
             && session.id == id
         {
             return session.anchor;
         }
         // Prefer last measured size when available (tests + post-drag); otherwise
-        // fall back to configured panel size for Warframe widgets.
-        let measured = self.measured_size(id);
+        // fall back to the configured size for resizable widgets.
+        let measured = self.measured_size(id, mode);
         let size = if measured.x > 1.0 && measured.y > 1.0 {
             measured
         } else {
@@ -53,8 +67,14 @@ impl WidgetManager {
         placement::screen_position(viewport, size, margin, profile.settings(id).position)
     }
 
-    pub(super) fn panel_size_for(&self, id: WidgetId, profile: &WidgetProfile) -> Vec2 {
-        if let Some(session) = self.resize
+    pub(super) fn panel_size(
+        &self,
+        id: WidgetId,
+        mode: OverlayMode,
+        profile: &WidgetProfile,
+    ) -> Vec2 {
+        if mode == OverlayMode::Interactive
+            && let Some(session) = self.resize
             && session.id == id
         {
             return session.size;
@@ -91,13 +111,14 @@ impl WidgetManager {
         viewport: Rect,
         margin: f32,
         profile: &mut WidgetProfile,
+        mode: OverlayMode,
         rendered_size: Vec2,
         visible_top_left: Pos2,
         grip: crate::widgets::chrome::ResizeGripOutcome,
     ) -> bool {
         if grip.dragging {
             if self.resize.is_none() {
-                let size = self.panel_size_for(id, profile);
+                let size = self.panel_size(id, mode, profile);
                 self.resize = Some(ResizeSession {
                     id,
                     anchor: visible_top_left,
@@ -117,7 +138,7 @@ impl WidgetManager {
                     let settings = profile.settings_mut(id);
                     settings.width = next.x;
                     settings.height = next.y;
-                    self.set_measured_size(id, next);
+                    self.set_measured_size(id, mode, next);
                 }
             }
             return false;
@@ -134,18 +155,19 @@ impl WidgetManager {
             settings.height = session.size.y;
             settings.position =
                 placement::normalized_position(viewport, rendered_size, margin, visible_top_left);
-            self.set_measured_size(id, rendered_size);
+            self.set_measured_size(id, mode, rendered_size);
             return true;
         }
 
         false
     }
 
-    /// Shared post-paint for Warframe panels: resize first, else drag-move.
+    /// Shared post-paint for resizable panels: resize first, else drag-move.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn finish_warframe_panel(
+    pub(super) fn finish_resizable_panel(
         &mut self,
         id: WidgetId,
+        mode: OverlayMode,
         viewport: Rect,
         margin: f32,
         profile: &mut WidgetProfile,
@@ -160,6 +182,7 @@ impl WidgetManager {
             viewport,
             margin,
             profile,
+            mode,
             rendered_size,
             visible_top_left,
             resize,
@@ -167,6 +190,7 @@ impl WidgetManager {
         if !resize.dragging && !resize.drag_stopped {
             save |= self.finish_drag_only(
                 id,
+                mode,
                 viewport,
                 margin,
                 profile,
@@ -183,6 +207,7 @@ impl WidgetManager {
     pub(super) fn finish_drag_only(
         &mut self,
         id: WidgetId,
+        mode: OverlayMode,
         viewport: Rect,
         margin: f32,
         profile: &mut WidgetProfile,
@@ -193,12 +218,19 @@ impl WidgetManager {
     ) -> bool {
         // `size` must be the same value used for placement next frame (panel_size
         // from paint), not a fluctuating Area rect.
-        self.set_measured_size(id, size);
+        self.set_measured_size(id, mode, size);
         if dragged || drag_stopped {
             profile.settings_mut(id).position =
                 placement::normalized_position(viewport, size, margin, position);
         }
         placement_save_requested(dragged, drag_stopped)
+    }
+}
+
+fn mode_index(mode: OverlayMode) -> usize {
+    match mode {
+        OverlayMode::Passive => 0,
+        OverlayMode::Interactive => 1,
     }
 }
 

@@ -3,6 +3,7 @@ use overcrow_logging::EventLogger;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Provider {
     Mpris,
+    LocalNotes,
     WarframeWorldstate,
     WarframeMarket,
 }
@@ -11,6 +12,7 @@ impl Provider {
     const fn fields(self) -> &'static str {
         match self {
             Self::Mpris => "widget=media provider=mpris",
+            Self::LocalNotes => "widget=notes provider=local_notes",
             Self::WarframeWorldstate => {
                 "provider=warframe_worldstate affected_widgets=warframe_status,warframe_fissures,warframe_sortie,warframe_invasions"
             }
@@ -31,6 +33,8 @@ pub(crate) enum FailureCategory {
     Parse,
     Validation,
     Response,
+    Filesystem,
+    Durability,
 }
 
 impl FailureCategory {
@@ -46,6 +50,8 @@ impl FailureCategory {
             Self::Parse => "parse",
             Self::Validation => "validation",
             Self::Response => "response",
+            Self::Filesystem => "filesystem",
+            Self::Durability => "durability",
         }
     }
 }
@@ -136,6 +142,10 @@ mod tests {
     fn provider_fields_are_fixed_and_contain_no_runtime_text() {
         assert_eq!(Provider::Mpris.fields(), "widget=media provider=mpris");
         assert_eq!(
+            Provider::LocalNotes.fields(),
+            "widget=notes provider=local_notes"
+        );
+        assert_eq!(
             Provider::WarframeWorldstate.fields(),
             "provider=warframe_worldstate affected_widgets=warframe_status,warframe_fissures,warframe_sortie,warframe_invasions"
         );
@@ -160,6 +170,8 @@ mod tests {
             FailureCategory::Parse,
             FailureCategory::Validation,
             FailureCategory::Response,
+            FailureCategory::Filesystem,
+            FailureCategory::Durability,
         ] {
             diagnostics.failed(category);
         }

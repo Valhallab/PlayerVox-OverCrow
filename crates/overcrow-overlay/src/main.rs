@@ -38,11 +38,7 @@ fn run_overlay() -> eframe::Result {
         "process_started",
         format_args!("x11_session={}", is_x11_session()),
     );
-    let options = eframe::NativeOptions {
-        viewport: viewport_builder(is_x11_session()),
-        persist_window: false,
-        ..Default::default()
-    };
+    let options = native_options(is_x11_session());
     let app_logger = logger.clone();
     let result = eframe::run_native(
         APP_ID,
@@ -53,6 +49,20 @@ fn run_overlay() -> eframe::Result {
     );
     logger.info("process_stopping", format_args!("reason=event_loop_ended"));
     result
+}
+
+fn native_options(x11_session: bool) -> eframe::NativeOptions {
+    eframe::NativeOptions {
+        viewport: viewport_builder(x11_session),
+        persist_window: false,
+        glow_options: eframe::egui_glow::GlowConfiguration {
+            // Wayland compositors may stop scheduling hidden surfaces. Waiting
+            // for VSync there can block Wayland ping handling and trigger ANR.
+            vsync: x11_session,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
 }
 
 fn lifecycle_allows_start(load: &SettingsLoad) -> bool {
@@ -74,7 +84,7 @@ fn run_if_lifecycle_allows<E>(
 mod tests {
     use overcrow_config::{LifecycleSettings, SettingsLoad};
 
-    use super::{lifecycle_allows_start, run_if_lifecycle_allows};
+    use super::{lifecycle_allows_start, native_options, run_if_lifecycle_allows};
 
     fn settings_load(enabled: bool) -> SettingsLoad {
         SettingsLoad {
@@ -111,5 +121,11 @@ mod tests {
         .unwrap();
 
         assert!(!entered);
+    }
+
+    #[test]
+    fn wayland_disables_vsync_while_x11_keeps_it() {
+        assert!(!native_options(false).glow_options.vsync);
+        assert!(native_options(true).glow_options.vsync);
     }
 }

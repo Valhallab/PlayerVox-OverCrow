@@ -2,6 +2,7 @@
 
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke, Vec2, vec2};
 use overcrow_config::{WIDGET_PANEL_MAX, WIDGET_PANEL_MIN, WIDGET_PANEL_MIN_HEIGHT};
+use overcrow_protocol::OverlayMode;
 
 pub const TITLE_SIZE: f32 = 13.0;
 pub const BODY_SIZE: f32 = 15.0;
@@ -192,13 +193,40 @@ pub fn panel_width_limits(ui: &mut egui::Ui, width: f32) {
     ui.set_max_width(width);
 }
 
-/// Report a panel size that keeps user width, never exceeds user height, and
-/// never forces empty vertical padding above the content floor.
-pub fn report_content_panel_size(user: Vec2, measured: Vec2) -> Vec2 {
-    vec2(
-        user.x,
-        measured.y.min(user.y).max(WIDGET_PANEL_MIN_HEIGHT).max(1.0),
-    )
+/// Keep the user's full size while editing and only the chosen width in passive
+/// mode. Passive height follows content up to the game viewport.
+pub fn fixed_panel_constraints(
+    ui: &mut egui::Ui,
+    user: Vec2,
+    mode: OverlayMode,
+    passive_max_height: f32,
+) {
+    if mode == OverlayMode::Interactive {
+        ui.set_min_size(user);
+        ui.set_max_size(user);
+    } else {
+        panel_width_limits(ui, user.x);
+        ui.set_max_height(passive_max_height.max(1.0));
+    }
+}
+
+pub fn report_fixed_panel_size(user: Vec2, measured: Vec2, mode: OverlayMode) -> Vec2 {
+    if mode == OverlayMode::Interactive {
+        user
+    } else {
+        vec2(user.x, measured.y.max(1.0))
+    }
+}
+
+/// Keep user width in both modes. Interactive content panels retain the resize
+/// floor and configured height cap; passive panels report their actual height.
+pub fn report_content_panel_size(user: Vec2, measured: Vec2, mode: OverlayMode) -> Vec2 {
+    let height = if mode == OverlayMode::Interactive {
+        measured.y.min(user.y).max(WIDGET_PANEL_MIN_HEIGHT)
+    } else {
+        measured.y
+    };
+    vec2(user.x, height.max(1.0))
 }
 
 pub fn apply_scale(ui: &mut egui::Ui, scale: f32) {

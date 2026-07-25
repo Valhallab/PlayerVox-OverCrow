@@ -13,6 +13,8 @@ pub enum CatalogAction {
     SetEnabled(WidgetId, bool),
     SetPassive(WidgetId, bool),
     SetTransparentBackground(WidgetId, bool),
+    SetNotesNoteVisible(bool),
+    SetNotesChecklistVisible(bool),
     ResetPosition(WidgetId),
 }
 
@@ -23,6 +25,7 @@ impl CatalogAction {
             | Self::SetPassive(id, _)
             | Self::SetTransparentBackground(id, _)
             | Self::ResetPosition(id) => id,
+            Self::SetNotesNoteVisible(_) | Self::SetNotesChecklistVisible(_) => WidgetId::Notes,
         }
     }
 }
@@ -79,6 +82,12 @@ pub fn apply_catalog_action(
         }
         CatalogAction::SetTransparentBackground(id, transparent) => {
             candidate.settings_mut(id).transparent_background = transparent;
+        }
+        CatalogAction::SetNotesNoteVisible(visible) => {
+            candidate.notes_display.show_note = visible;
+        }
+        CatalogAction::SetNotesChecklistVisible(visible) => {
+            candidate.notes_display.show_checklist = visible;
         }
         CatalogAction::ResetPosition(id) => {
             candidate.settings_mut(id).position = id.default_position();

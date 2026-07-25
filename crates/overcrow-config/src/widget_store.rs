@@ -123,8 +123,12 @@ fn read_profile(path: &Path) -> FileLoad<WidgetProfile> {
 
     match serde_json::from_slice::<WidgetProfile>(&contents)
         .map_err(|error| error.to_string())
-        .and_then(|profile| profile.validate().map_err(|error| error.to_string()))
-    {
+        .and_then(|mut profile| {
+            if profile.schema_version == 1 {
+                profile.schema_version = crate::WIDGET_SCHEMA_VERSION;
+            }
+            profile.validate().map_err(|error| error.to_string())
+        }) {
         Ok(profile) => FileLoad::Loaded(profile),
         Err(error) => FileLoad::Rejected(format!("invalid widget settings: {error}")),
     }

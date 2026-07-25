@@ -22,9 +22,9 @@ pub use warframe_prefs::{
 };
 pub use widget_store::{WidgetSettingsLoad, WidgetSettingsStore};
 pub use widgets::{
-    WIDGET_PANEL_MAX, WIDGET_PANEL_MIN, WIDGET_PANEL_MIN_HEIGHT, WIDGET_SCALE_MAX,
-    WIDGET_SCALE_MIN, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile,
-    WidgetProfileError, WidgetSettings,
+    NotesDisplaySettings, WIDGET_PANEL_MAX, WIDGET_PANEL_MIN, WIDGET_PANEL_MIN_HEIGHT,
+    WIDGET_SCALE_MAX, WIDGET_SCALE_MIN, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition,
+    WidgetProfile, WidgetProfileError, WidgetSettings,
 };
 
 #[cfg(test)]

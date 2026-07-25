@@ -7,19 +7,28 @@ use std::{
     time::{Duration, Instant},
 };
 
+use overcrow_logging::{Component, LoggerRuntime};
 use serde_json::json;
 use tempfile::NamedTempFile;
 
 use super::{
     ChecklistItem, LocalNotesRepository, NOTES_FILE_MAX_BYTES, NOTES_IDENTIFIER_MAX_BYTES,
-    NOTES_ITEM_MAX_BYTES, NOTES_ITEM_MAX_COUNT, NOTES_NOTE_MAX_BYTES, NOTES_SCHEMA_VERSION,
-    NotesCommand, NotesDocument, NotesError, NotesProviderRef, NotesRepository, NotesService,
-    NotesUpdate,
+    NOTES_ITEM_MAX_BYTES, NOTES_ITEM_MAX_COUNT, NOTES_NOTE_MAX_BYTES, NOTES_PAGE_MAX_COUNT,
+    NOTES_SCHEMA_VERSION, NOTES_TITLE_MAX_BYTES, NotePage, NotesCommand, NotesDocument, NotesError,
+    NotesProviderRef, NotesRepository, NotesService, NotesUpdate,
     store::{AtomicWriter, notes_path},
 };
 
+fn update_general(body: impl Into<String>) -> NotesCommand {
+    NotesCommand::UpdateNote {
+        id: "note-1".to_owned(),
+        title: "General".to_owned(),
+        body: body.into(),
+    }
+}
+
 #[test]
-fn default_document_has_the_exact_local_identity_and_source() {
+fn default_document_has_one_active_general_page() {
     let document = NotesDocument::default();
 
     assert_eq!(document.schema_version, NOTES_SCHEMA_VERSION);
@@ -32,10 +41,84 @@ fn default_document_has_the_exact_local_identity_and_source() {
         }
     );
     assert_eq!(document.revision, 0);
-    assert_eq!(document.next_local_id, 1);
-    assert!(document.note.is_empty());
-    assert!(document.items.is_empty());
+    assert_eq!(document.next_note_id, 2);
+    assert_eq!(document.next_item_id, 1);
+    assert_eq!(document.active_note_id, "note-1");
+    assert_eq!(
+        document.notes,
+        vec![NotePage {
+            id: "note-1".to_owned(),
+            title: "General".to_owned(),
+            body: String::new(),
+            items: Vec::new(),
+        }]
+    );
     assert!(document.validate().is_ok());
+}
+
+#[test]
+fn note_ids_are_monotonic_and_removing_the_active_page_selects_its_neighbor() {
+    let mut document = NotesDocument::default();
+    let second = document.add_note("Build").unwrap();
+    let third = document.add_note("Farm").unwrap();
+
+    document.remove_note(&third).unwrap();
+
+    assert_eq!(second, "note-2");
+    assert_eq!(third, "note-3");
+    assert_eq!(document.active_note_id, second);
+    assert_eq!(document.next_note_id, 4);
+}
+
+#[test]
+fn the_last_note_cannot_be_removed() {
+    let mut document = NotesDocument::default();
+    let committed = document.clone();
+
+    let error = document.remove_note("note-1").unwrap_err();
+
+    assert!(matches!(error, NotesError::Validation(_)));
+    assert_eq!(document, committed);
+}
+
+#[test]
+fn page_and_title_limits_are_atomic() {
+    let mut document = NotesDocument::default();
+    document
+        .update_note("note-1", "a".repeat(NOTES_TITLE_MAX_BYTES), "")
+        .unwrap();
+    for index in 1..NOTES_PAGE_MAX_COUNT {
+        document.add_note(format!("Note {index}")).unwrap();
+    }
+    let committed = document.clone();
+
+    assert!(matches!(
+        document.add_note("one too many"),
+        Err(NotesError::Validation(_))
+    ));
+    assert_eq!(document, committed);
+
+    assert!(matches!(
+        document.update_note(
+            "note-1",
+            format!("{}é", "a".repeat(NOTES_TITLE_MAX_BYTES - 1)),
+            ""
+        ),
+        Err(NotesError::Validation(_))
+    ));
+    assert_eq!(document, committed);
+}
+
+#[test]
+fn checklist_item_ids_remain_unique_across_notes() {
+    let mut document = NotesDocument::default();
+    let first = document.add_item("first").unwrap();
+    let second_note = document.add_note("Second").unwrap();
+    let second = document.add_item_to(&second_note, "second").unwrap();
+
+    assert_eq!(first, "local-1");
+    assert_eq!(second, "local-2");
+    assert_eq!(document.next_item_id, 3);
 }
 
 #[test]
@@ -46,8 +129,11 @@ fn checked_mutation_increments_revision_without_changing_item_identity() {
     document.set_checked(&id, true).unwrap();
 
     assert_eq!(document.revision, 2);
-    assert_eq!(document.items[0].id, id);
-    assert!(document.items[0].checked);
+    let active = document
+        .active_note()
+        .expect("valid test document has an active note");
+    assert_eq!(active.items[0].id, id);
+    assert!(active.items[0].checked);
 }
 
 #[test]
@@ -61,7 +147,7 @@ fn local_ids_are_monotonic_and_never_reused_after_deletion() {
     assert_eq!(first, "local-1");
     assert_eq!(second, "local-2");
     assert_eq!(third, "local-3");
-    assert_eq!(document.next_local_id, 4);
+    assert_eq!(document.next_item_id, 4);
 }
 
 #[test]
@@ -74,7 +160,13 @@ fn every_successful_mutation_increments_revision_once() {
     document.remove_item(&id).unwrap();
 
     assert_eq!(document.revision, 5);
-    assert_eq!(document.note, "plain <b>text</b>");
+    assert_eq!(
+        document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "plain <b>text</b>"
+    );
 }
 
 #[test]
@@ -142,7 +234,7 @@ fn identifier_limit_and_exact_local_source_are_validated() {
     ));
 
     let mut oversized_item = NotesDocument::default();
-    oversized_item.items.push(ChecklistItem {
+    oversized_item.notes[0].items.push(ChecklistItem {
         id: "x".repeat(NOTES_IDENTIFIER_MAX_BYTES + 1),
         text: String::new(),
         checked: false,
@@ -175,44 +267,55 @@ fn identifier_limit_and_exact_local_source_are_validated() {
 
 #[test]
 fn validation_rejects_schema_identity_duplicate_ids_and_invalid_counters() {
+    let invalid_schema = NotesDocument {
+        schema_version: NOTES_SCHEMA_VERSION + 1,
+        ..NotesDocument::default()
+    };
+    let invalid_identity = NotesDocument {
+        id: "another".to_owned(),
+        ..NotesDocument::default()
+    };
+    let invalid_counter = NotesDocument {
+        next_item_id: 0,
+        ..NotesDocument::default()
+    };
+    let mut duplicate_items = NotesDocument {
+        next_item_id: 2,
+        ..NotesDocument::default()
+    };
+    duplicate_items.notes[0].items = vec![
+        ChecklistItem {
+            id: "local-1".to_owned(),
+            text: "one".to_owned(),
+            checked: false,
+        },
+        ChecklistItem {
+            id: "local-1".to_owned(),
+            text: "duplicate".to_owned(),
+            checked: false,
+        },
+    ];
+    let mut invalid_item_counter = NotesDocument {
+        next_item_id: 2,
+        ..NotesDocument::default()
+    };
+    invalid_item_counter.notes[0].items = vec![ChecklistItem {
+        id: "local-2".to_owned(),
+        text: String::new(),
+        checked: false,
+    }];
+    let unknown_active = NotesDocument {
+        active_note_id: "note-99".to_owned(),
+        ..NotesDocument::default()
+    };
+
     let invalid_documents = [
-        NotesDocument {
-            schema_version: NOTES_SCHEMA_VERSION + 1,
-            ..NotesDocument::default()
-        },
-        NotesDocument {
-            id: "another".to_owned(),
-            ..NotesDocument::default()
-        },
-        NotesDocument {
-            next_local_id: 0,
-            ..NotesDocument::default()
-        },
-        NotesDocument {
-            next_local_id: 2,
-            items: vec![
-                ChecklistItem {
-                    id: "local-1".to_owned(),
-                    text: "one".to_owned(),
-                    checked: false,
-                },
-                ChecklistItem {
-                    id: "local-1".to_owned(),
-                    text: "duplicate".to_owned(),
-                    checked: false,
-                },
-            ],
-            ..NotesDocument::default()
-        },
-        NotesDocument {
-            next_local_id: 2,
-            items: vec![ChecklistItem {
-                id: "local-2".to_owned(),
-                text: String::new(),
-                checked: false,
-            }],
-            ..NotesDocument::default()
-        },
+        invalid_schema,
+        invalid_identity,
+        invalid_counter,
+        duplicate_items,
+        invalid_item_counter,
+        unknown_active,
     ];
 
     for document in invalid_documents {
@@ -231,8 +334,9 @@ fn unknown_fields_are_rejected_at_every_schema_level() {
     let mut provider = document.clone();
     provider["provider"]["unexpected"] = json!(true);
     let mut item = document;
-    item["items"] = json!([{"id":"local-1","text":"x","checked":false,"unexpected":true}]);
-    item["next_local_id"] = json!(2);
+    item["notes"][0]["items"] =
+        json!([{"id":"local-1","text":"x","checked":false,"unexpected":true}]);
+    item["next_item_id"] = json!(2);
 
     for invalid in [top, provider, item] {
         assert!(serde_json::from_value::<NotesDocument>(invalid).is_err());
@@ -296,6 +400,36 @@ fn missing_file_loads_the_default_and_save_writes_private_regular_json() {
 }
 
 #[test]
+fn schema_v1_load_migrates_content_without_rewriting_the_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("global.json");
+    let legacy = br#"{
+  "schema_version": 1,
+  "id": "global",
+  "provider": {"kind": "local", "remote_id": null},
+  "revision": 7,
+  "next_local_id": 2,
+  "note": "legacy body",
+  "items": [{"id": "local-1", "text": "legacy entry", "checked": true}]
+}"#;
+    write_private(&path, legacy);
+
+    let document = LocalNotesRepository::from_path(&path).load().unwrap();
+
+    assert_eq!(document.schema_version, NOTES_SCHEMA_VERSION);
+    assert_eq!(document.revision, 7);
+    assert_eq!(document.next_item_id, 2);
+    let active = document
+        .active_note()
+        .expect("migrated document has an active note");
+    assert_eq!(active.title, "General");
+    assert_eq!(active.body, "legacy body");
+    assert_eq!(active.items[0].text, "legacy entry");
+    assert!(active.items[0].checked);
+    assert_eq!(fs::read(path).unwrap(), legacy);
+}
+
+#[test]
 fn load_rejects_oversized_files_before_json_parsing() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("global.json");
@@ -317,6 +451,41 @@ fn load_accepts_a_valid_document_at_the_exact_file_size_limit() {
     assert_eq!(
         LocalNotesRepository::from_path(path).load().unwrap(),
         NotesDocument::default()
+    );
+}
+
+#[test]
+fn largest_valid_document_fits_the_repository_limit_after_json_escaping() {
+    let escaped = "\0".repeat(NOTES_NOTE_MAX_BYTES);
+    let item_text = "\0".repeat(NOTES_ITEM_MAX_BYTES);
+    let mut document = NotesDocument::default();
+    document
+        .update_note("note-1", "\0".repeat(NOTES_TITLE_MAX_BYTES), &escaped)
+        .unwrap();
+    for note_index in 0..NOTES_PAGE_MAX_COUNT {
+        let note_id = if note_index == 0 {
+            "note-1".to_owned()
+        } else {
+            let id = document
+                .add_note("\0".repeat(NOTES_TITLE_MAX_BYTES))
+                .unwrap();
+            document
+                .update_note(&id, "\0".repeat(NOTES_TITLE_MAX_BYTES), &escaped)
+                .unwrap();
+            id
+        };
+        for _ in 0..NOTES_ITEM_MAX_COUNT {
+            document.add_item_to(&note_id, &item_text).unwrap();
+        }
+    }
+
+    document.validate().unwrap();
+    let serialized = serde_json::to_vec_pretty(&document).unwrap();
+
+    assert!(
+        serialized.len() < NOTES_FILE_MAX_BYTES,
+        "maximum valid notes document needs {} bytes",
+        serialized.len() + 1
     );
 }
 
@@ -394,10 +563,8 @@ fn parent_sync_failure_is_distinguished_after_replacement() {
 fn repository_rejects_invalid_documents_before_creating_directories() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("absent/global.json");
-    let invalid = NotesDocument {
-        note: "x".repeat(NOTES_NOTE_MAX_BYTES + 1),
-        ..NotesDocument::default()
-    };
+    let mut invalid = NotesDocument::default();
+    invalid.notes[0].body = "x".repeat(NOTES_NOTE_MAX_BYTES + 1);
 
     assert!(matches!(
         LocalNotesRepository::from_path(&path).save(&invalid),
@@ -412,21 +579,42 @@ fn service_applies_every_command_against_a_validated_document() {
     let service = NotesService::spawn(repository.clone(), || {});
     wait_for_ready(&service);
 
-    service
-        .send(NotesCommand::SetNote("note".to_owned()))
-        .unwrap();
+    service.send(update_general("note")).unwrap();
     let saved = wait_for_settled(&service);
-    assert_eq!(saved.document.note, "note");
-    let id = saved.document.items.first().map(|item| item.id.clone());
+    assert_eq!(
+        saved
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "note"
+    );
+    let id = saved
+        .document
+        .active_note()
+        .expect("valid test document has an active note")
+        .items
+        .first()
+        .map(|item| item.id.clone());
     assert!(id.is_none());
 
     service
-        .send(NotesCommand::AddItem("item".to_owned()))
+        .send(NotesCommand::AddItem {
+            note_id: "note-1".to_owned(),
+            text: "item".to_owned(),
+        })
         .unwrap();
     let saved = wait_for_settled(&service);
-    let id = saved.document.items[0].id.clone();
+    let id = saved
+        .document
+        .active_note()
+        .expect("valid test document has an active note")
+        .items[0]
+        .id
+        .clone();
     service
         .send(NotesCommand::SetItemText {
+            note_id: "note-1".to_owned(),
             id: id.clone(),
             text: "edited".to_owned(),
         })
@@ -434,15 +622,28 @@ fn service_applies_every_command_against_a_validated_document() {
     wait_for_settled(&service);
     service
         .send(NotesCommand::SetChecked {
+            note_id: "note-1".to_owned(),
             id: id.clone(),
             checked: true,
         })
         .unwrap();
     wait_for_settled(&service);
-    service.send(NotesCommand::RemoveItem { id }).unwrap();
+    service
+        .send(NotesCommand::RemoveItem {
+            note_id: "note-1".to_owned(),
+            id,
+        })
+        .unwrap();
     let saved = wait_for_settled(&service);
 
-    assert!(saved.document.items.is_empty());
+    assert!(
+        saved
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .items
+            .is_empty()
+    );
     assert_eq!(saved.document.revision, 5);
     assert_eq!(repository.current(), saved.document);
 }
@@ -454,7 +655,7 @@ fn rejected_command_does_not_queue_or_change_state() {
     let ready = wait_for_ready(&service);
 
     let error = service
-        .send(NotesCommand::SetNote("x".repeat(NOTES_NOTE_MAX_BYTES + 1)))
+        .send(update_general("x".repeat(NOTES_NOTE_MAX_BYTES + 1)))
         .unwrap_err();
 
     assert!(matches!(error, NotesError::Validation(_)));
@@ -467,9 +668,7 @@ fn disconnected_worker_rejects_without_publishing_a_candidate() {
     let service = NotesService::unavailable_for_tests();
     let committed = service.current();
 
-    let error = service
-        .send(NotesCommand::SetNote("must not leak".to_owned()))
-        .unwrap_err();
+    let error = service.send(update_general("must not leak")).unwrap_err();
     let update = service.take_latest().unwrap();
 
     assert!(error.to_string().contains("worker unavailable"));
@@ -486,9 +685,7 @@ fn pre_commit_save_failure_retains_the_last_committed_document() {
     let committed = wait_for_ready(&service).document;
     repository.fail_next(false);
 
-    service
-        .send(NotesCommand::SetNote("must roll back".to_owned()))
-        .unwrap();
+    service.send(update_general("must roll back")).unwrap();
     let update = wait_for_error(&service);
 
     assert_eq!(update.document, committed);
@@ -505,12 +702,17 @@ fn post_replacement_warning_publishes_the_disk_document() {
     wait_for_ready(&service);
     repository.fail_next(true);
 
-    service
-        .send(NotesCommand::SetNote("committed on disk".to_owned()))
-        .unwrap();
+    service.send(update_general("committed on disk")).unwrap();
     let update = wait_for_error(&service);
 
-    assert_eq!(update.document.note, "committed on disk");
+    assert_eq!(
+        update
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "committed on disk"
+    );
     assert!(!update.save_pending);
     assert!(update.durability_warning);
     assert_eq!(service.current(), update.document);
@@ -523,20 +725,40 @@ fn latest_pending_save_coalesces_intermediate_documents() {
     let service = NotesService::spawn(repository.clone(), || {});
     wait_for_ready(&service);
 
-    service
-        .send(NotesCommand::SetNote("first".to_owned()))
-        .unwrap();
+    service.send(update_general("first")).unwrap();
     repository.wait_for_first_save();
-    service
-        .send(NotesCommand::SetNote("intermediate".to_owned()))
-        .unwrap();
-    service
-        .send(NotesCommand::SetNote("latest".to_owned()))
-        .unwrap();
+    service.send(update_general("intermediate")).unwrap();
+    service.send(update_general("latest")).unwrap();
     repository.release_first_save();
     let settled = wait_for_settled(&service);
 
-    assert_eq!(settled.document.note, "latest");
+    assert_eq!(
+        settled
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "latest"
+    );
+    assert_eq!(
+        repository.saved_notes(),
+        ["first".to_owned(), "latest".to_owned()]
+    );
+}
+
+#[test]
+fn shutdown_drains_the_latest_accepted_candidate() {
+    let repository = BlockingRepository::new(NotesDocument::default());
+    let service = NotesService::spawn(repository.clone(), || {});
+    wait_for_ready(&service);
+
+    service.send(update_general("first")).unwrap();
+    repository.wait_for_first_save();
+    service.send(update_general("latest")).unwrap();
+    service.begin_shutdown_for_tests();
+    repository.release_first_save();
+    drop(service);
+
     assert_eq!(
         repository.saved_notes(),
         ["first".to_owned(), "latest".to_owned()]
@@ -549,9 +771,7 @@ fn pending_candidate_is_not_published_before_repository_success() {
     let service = NotesService::spawn(repository.clone(), || {});
     let committed = wait_for_ready(&service).document;
 
-    service
-        .send(NotesCommand::SetNote("not committed yet".to_owned()))
-        .unwrap();
+    service.send(update_general("not committed yet")).unwrap();
     repository.wait_for_first_save();
     let pending = wait_for_update(&service, |update| update.save_pending);
     let current_while_pending = service.current();
@@ -560,7 +780,14 @@ fn pending_candidate_is_not_published_before_repository_success() {
 
     assert_eq!(pending.document, committed);
     assert_eq!(current_while_pending, committed);
-    assert_eq!(settled.document.note, "not committed yet");
+    assert_eq!(
+        settled
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "not committed yet"
+    );
 }
 
 #[test]
@@ -569,15 +796,18 @@ fn latest_result_publication_coalesces_pending_updates() {
     let service = NotesService::spawn(repository, || {});
     wait_for_ready(&service);
 
-    service
-        .send(NotesCommand::SetNote("one".to_owned()))
-        .unwrap();
-    service
-        .send(NotesCommand::SetNote("two".to_owned()))
-        .unwrap();
+    service.send(update_general("one")).unwrap();
+    service.send(update_general("two")).unwrap();
     let update = wait_for_settled(&service);
 
-    assert_eq!(update.document.note, "two");
+    assert_eq!(
+        update
+            .document
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "two"
+    );
     assert!(service.take_latest().is_none());
 }
 
@@ -591,6 +821,37 @@ fn service_load_failure_is_bounded_and_keeps_a_valid_default() {
     assert_eq!(update.document, NotesDocument::default());
     assert!(!update.save_pending);
     assert!(update.error.unwrap().chars().count() <= 180);
+}
+
+#[test]
+fn notes_diagnostics_omit_private_content_and_report_recovery() {
+    let temp = tempfile::tempdir().expect("create log directory");
+    let log_runtime =
+        LoggerRuntime::start_in(Component::Overlay, temp.path()).expect("start test logger");
+    let repository = MemoryRepository::new(NotesDocument::default());
+    let service = NotesService::spawn_with_logger(repository.clone(), log_runtime.logger(), || {});
+    wait_for_ready(&service);
+    repository.fail_next(false);
+
+    service
+        .send(update_general("private note content"))
+        .unwrap();
+    wait_for_error(&service);
+    service
+        .send(update_general("recovered private content"))
+        .unwrap();
+    wait_for_settled(&service);
+    drop(service);
+    drop(log_runtime);
+
+    let contents =
+        fs::read_to_string(temp.path().join("overlay.log")).expect("read diagnostic log");
+    assert_eq!(contents.matches("widget_provider_failed").count(), 1);
+    assert!(contents.contains("widget=notes provider=local_notes category=filesystem"));
+    assert!(contents.contains("widget_provider_recovered widget=notes provider=local_notes"));
+    assert!(!contents.contains("forced save failure"));
+    assert!(!contents.contains("private note content"));
+    assert!(!contents.contains("recovered private content"));
 }
 
 #[test]
@@ -881,7 +1142,13 @@ impl NotesRepository for BlockingRepository {
 
     fn save(&self, document: &NotesDocument) -> Result<(), NotesError> {
         let mut state = self.shared.state.lock().unwrap();
-        state.saved_notes.push(document.note.clone());
+        state.saved_notes.push(
+            document
+                .active_note()
+                .expect("repository only receives validated documents")
+                .body
+                .clone(),
+        );
         if !state.first_started {
             state.first_started = true;
             self.shared.changed.notify_all();

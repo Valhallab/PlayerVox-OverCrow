@@ -3,24 +3,39 @@ use eframe::egui::{
     accesskit::{Action as AccessKitAction, ActionRequest, NodeId, Role, TreeId},
     pos2, vec2,
 };
-use overcrow_config::WarframePrefs;
+use overcrow_config::{FissureEra, WarframePrefs};
 use overcrow_protocol::OverlayMode;
 
 use crate::warframe::{
-    ActivityMission, InvasionMission, SortieMission, WarframeDerivedCache, WorldstateSnapshot,
+    ActivityMission, ArchonHunt, FissureMission, InvasionMission, MarketItemSummary,
+    MarketSnapshot, SortieMission, WarframeDerivedCache, WorldstateSnapshot,
 };
 
 use super::{
-    warframe_invasions::paint_warframe_invasions, warframe_sortie::paint_warframe_sortie,
+    warframe_fissures::paint_warframe_fissures, warframe_invasions::paint_warframe_invasions,
+    warframe_market::paint_warframe_market, warframe_sortie::paint_warframe_sortie,
     warframe_status::paint_warframe_status,
 };
 
 fn raw_input(events: Vec<Event>) -> RawInput {
+    raw_input_at_height(events, 600.0)
+}
+
+fn raw_input_at_height(events: Vec<Event>, height: f32) -> RawInput {
     RawInput {
-        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, height))),
         events,
         ..RawInput::default()
     }
+}
+
+fn paint_at_height(height: f32, mut paint: impl FnMut(&mut egui::Ui) -> egui::Vec2) -> egui::Vec2 {
+    let context = egui::Context::default();
+    let mut size = egui::Vec2::ZERO;
+    let _ = context.run_ui(raw_input_at_height(Vec::new(), height), |ui| {
+        size = paint(ui);
+    });
+    size
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -167,6 +182,176 @@ fn invasion_with_instance(instance_id: &str, node: &str) -> InvasionMission {
         count: 10,
         goal: 100,
         completed: false,
+    }
+}
+
+fn populated_worldstate() -> WorldstateSnapshot {
+    let mission = ActivityMission {
+        mission_type: "Extermination".to_owned(),
+        node: "SolNode1".to_owned(),
+        modifier: Some("Enemy Elemental Enhancement".to_owned()),
+    };
+    WorldstateSnapshot {
+        sortie: Some(SortieMission {
+            boss: "Test Boss".to_owned(),
+            expires_at_secs: 10_000,
+            missions: vec![mission.clone(); 3],
+        }),
+        archon: Some(ArchonHunt {
+            boss: "Archon Boreal".to_owned(),
+            expires_at_secs: 10_000,
+            missions: vec![mission; 3],
+        }),
+        ..WorldstateSnapshot::default()
+    }
+}
+
+fn warframe_panel_sizes(
+    mode: OverlayMode,
+    viewport_height: f32,
+    populated: bool,
+) -> [egui::Vec2; 4] {
+    let panel_size = vec2(420.0, 300.0);
+    let prefs = WarframePrefs::default();
+    let fissures = if populated {
+        (0..24)
+            .map(|index| FissureMission {
+                era: FissureEra::Lith,
+                mission_type: "Extermination".to_owned(),
+                node: format!("SolNode{index}"),
+                expires_at_secs: 10_000,
+                steel_path: false,
+                is_storm: false,
+            })
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let fissure_indices = (0..fissures.len()).collect::<Vec<_>>();
+    let market = MarketSnapshot {
+        results: if populated {
+            (0..12)
+                .map(|index| MarketItemSummary {
+                    name: format!("Test item {index}"),
+                    slug: format!("test-item-{index}"),
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
+        ..MarketSnapshot::default()
+    };
+    let worldstate = populated.then(populated_worldstate).unwrap_or_default();
+    let invasions = if populated {
+        (0..12)
+            .map(|index| invasion_with_instance(&format!("test-invasion-{index}"), "SolNode1"))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
+    let fissures_size = paint_at_height(viewport_height, |ui| {
+        paint_warframe_fissures(
+            ui,
+            pos2(24.0, 24.0),
+            panel_size,
+            &fissures,
+            &fissure_indices,
+            &prefs,
+            1.0,
+            mode,
+            0,
+            false,
+            false,
+            24.0,
+        )
+        .size
+    });
+    let mut query = String::new();
+    let market_size = paint_at_height(viewport_height, |ui| {
+        paint_warframe_market(
+            ui,
+            pos2(24.0, 24.0),
+            panel_size,
+            &market,
+            &mut query,
+            None,
+            1.0,
+            mode,
+            false,
+            false,
+            24.0,
+        )
+        .size
+    });
+    let sortie_size = paint_at_height(viewport_height, |ui| {
+        paint_warframe_sortie(
+            ui,
+            pos2(24.0, 24.0),
+            panel_size,
+            &worldstate,
+            &prefs,
+            1.0,
+            mode,
+            0,
+            false,
+            false,
+            24.0,
+        )
+        .size
+    });
+    let invasion_indices = (0..invasions.len()).collect::<Vec<_>>();
+    let mut cache = WarframeDerivedCache::default();
+    let invasions_size = paint_at_height(viewport_height, |ui| {
+        paint_warframe_invasions(
+            ui,
+            pos2(24.0, 24.0),
+            panel_size,
+            &invasions,
+            &invasion_indices,
+            &[],
+            &mut cache,
+            1,
+            1,
+            &prefs,
+            1.0,
+            mode,
+            false,
+            false,
+            24.0,
+        )
+        .size
+    });
+
+    [fissures_size, market_size, sortie_size, invasions_size]
+}
+
+#[test]
+fn passive_warframe_panels_fit_short_content() {
+    for size in warframe_panel_sizes(OverlayMode::Passive, 600.0, false) {
+        assert_eq!(size.x, 420.0);
+        assert!(size.y > 1.0);
+        assert!(
+            size.y < 300.0,
+            "passive panel kept configured height: {size:?}"
+        );
+    }
+}
+
+#[test]
+fn passive_warframe_panels_cap_long_content_to_the_viewport() {
+    for size in warframe_panel_sizes(OverlayMode::Passive, 180.0, true) {
+        assert!(size.y <= 180.0, "passive panel exceeded viewport: {size:?}");
+    }
+}
+
+#[test]
+fn interactive_warframe_panels_do_not_exceed_configured_height() {
+    for size in warframe_panel_sizes(OverlayMode::Interactive, 600.0, true) {
+        assert!(
+            size.y <= 300.0,
+            "interactive panel exceeded profile: {size:?}"
+        );
     }
 }
 

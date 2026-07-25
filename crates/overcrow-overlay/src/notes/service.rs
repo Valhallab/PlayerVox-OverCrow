@@ -7,6 +7,10 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use overcrow_logging::EventLogger;
+
+use crate::runtime::widget_diagnostics::{FailureCategory, Provider, ProviderDiagnostics};
+
 use super::{NotesDocument, NotesError, NotesRepository};
 
 pub const NOTES_ERROR_MAX_CHARS: usize = 180;
@@ -14,21 +18,61 @@ const WORKER_THREAD_NAME: &str = "overcrow-notes-provider";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NotesCommand {
-    SetNote(String),
-    AddItem(String),
-    SetItemText { id: String, text: String },
-    SetChecked { id: String, checked: bool },
-    RemoveItem { id: String },
+    AddNote {
+        title: String,
+    },
+    SetActiveNote {
+        id: String,
+    },
+    UpdateNote {
+        id: String,
+        title: String,
+        body: String,
+    },
+    RemoveNote {
+        id: String,
+    },
+    AddItem {
+        note_id: String,
+        text: String,
+    },
+    SetItemText {
+        note_id: String,
+        id: String,
+        text: String,
+    },
+    SetChecked {
+        note_id: String,
+        id: String,
+        checked: bool,
+    },
+    RemoveItem {
+        note_id: String,
+        id: String,
+    },
 }
 
 impl NotesCommand {
-    fn apply(self, document: &mut NotesDocument) -> Result<(), NotesError> {
+    pub(crate) fn apply(&self, document: &mut NotesDocument) -> Result<(), NotesError> {
         match self {
-            Self::SetNote(note) => document.set_note(note),
-            Self::AddItem(text) => document.add_item(text).map(|_| ()),
-            Self::SetItemText { id, text } => document.set_item_text(&id, text),
-            Self::SetChecked { id, checked } => document.set_checked(&id, checked),
-            Self::RemoveItem { id } => document.remove_item(&id),
+            Self::AddNote { title } => document.add_note(title.clone()).map(|_| ()),
+            Self::SetActiveNote { id } => document.set_active_note(id),
+            Self::UpdateNote { id, title, body } => {
+                document.update_note(id, title.clone(), body.clone())
+            }
+            Self::RemoveNote { id } => document.remove_note(id),
+            Self::AddItem { note_id, text } => {
+                document.add_item_to(note_id, text.clone()).map(|_| ())
+            }
+            Self::SetItemText { note_id, id, text } => {
+                document.set_item_text_in(note_id, id, text.clone())
+            }
+            Self::SetChecked {
+                note_id,
+                id,
+                checked,
+            } => document.set_checked_in(note_id, id, *checked),
+            Self::RemoveItem { note_id, id } => document.remove_item_from(note_id, id),
         }
     }
 }
@@ -46,6 +90,7 @@ struct WorkerState {
     committed: NotesDocument,
     desired: NotesDocument,
     pending: Option<NotesDocument>,
+    update_generation: u64,
 }
 
 impl Default for WorkerState {
@@ -56,23 +101,35 @@ impl Default for WorkerState {
             committed: document.clone(),
             desired: document,
             pending: None,
+            update_generation: 0,
         }
     }
 }
 
+struct PublishedNotesUpdate {
+    generation: u64,
+    update: NotesUpdate,
+}
+
+#[derive(Default)]
+struct UpdateSlot {
+    newest_generation: u64,
+    latest: Option<PublishedNotesUpdate>,
+}
+
 #[derive(Clone)]
 struct UpdatePublisher {
-    slot: Arc<Mutex<Option<NotesUpdate>>>,
+    slot: Arc<Mutex<UpdateSlot>>,
     ready: SyncSender<()>,
 }
 
 struct UpdateReceiver {
-    slot: Arc<Mutex<Option<NotesUpdate>>>,
+    slot: Arc<Mutex<UpdateSlot>>,
     ready: Receiver<()>,
 }
 
 fn update_channel() -> (UpdatePublisher, UpdateReceiver) {
-    let slot = Arc::new(Mutex::new(None));
+    let slot = Arc::new(Mutex::new(UpdateSlot::default()));
     let (ready, receiver) = mpsc::sync_channel(1);
     (
         UpdatePublisher {
@@ -87,8 +144,14 @@ fn update_channel() -> (UpdatePublisher, UpdateReceiver) {
 }
 
 impl UpdatePublisher {
-    fn publish(&self, update: NotesUpdate) -> bool {
-        *self.slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(update);
+    fn publish(&self, update: PublishedNotesUpdate) -> bool {
+        let mut slot = self.slot.lock().unwrap_or_else(PoisonError::into_inner);
+        if update.generation <= slot.newest_generation {
+            return false;
+        }
+        slot.newest_generation = update.generation;
+        slot.latest = Some(update);
+        drop(slot);
         match self.ready.try_send(()) {
             Ok(()) | Err(TrySendError::Full(())) => true,
             Err(TrySendError::Disconnected(())) => false,
@@ -102,7 +165,9 @@ impl UpdateReceiver {
         self.slot
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+            .latest
             .take()
+            .map(|published| published.update)
     }
 }
 
@@ -116,8 +181,17 @@ pub struct NotesService {
 }
 
 impl NotesService {
+    #[cfg(test)]
     pub fn spawn(
         repository: impl NotesRepository,
+        request_repaint: impl Fn() + Send + 'static,
+    ) -> Self {
+        Self::spawn_with_logger(repository, EventLogger::disabled(), request_repaint)
+    }
+
+    pub fn spawn_with_logger(
+        repository: impl NotesRepository,
+        logger: EventLogger,
         request_repaint: impl Fn() + Send + 'static,
     ) -> Self {
         let state = Arc::new(Mutex::new(WorkerState::default()));
@@ -127,6 +201,7 @@ impl NotesService {
         let worker_state = Arc::clone(&state);
         let worker_publisher = publisher.clone();
         let worker_shutdown = Arc::clone(&shutdown);
+        let spawn_logger = logger.clone();
         let worker = thread::Builder::new()
             .name(WORKER_THREAD_NAME.to_owned())
             .spawn(move || {
@@ -137,15 +212,20 @@ impl NotesService {
                     worker_publisher,
                     worker_shutdown,
                     request_repaint,
+                    ProviderDiagnostics::new(logger, Provider::LocalNotes),
                 );
+            })
+            .inspect_err(|_| {
+                ProviderDiagnostics::new(spawn_logger, Provider::LocalNotes)
+                    .failed(FailureCategory::Startup);
             })
             .ok();
 
         if worker.is_none() {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
             state.ready = true;
-            let update = update_for_state(
-                &state,
+            let update = next_update_for_state(
+                &mut state,
                 Some("notes worker could not be started".to_owned()),
                 false,
             );
@@ -173,7 +253,7 @@ impl NotesService {
         candidate.validate()?;
         state.desired = candidate.clone();
         state.pending = Some(candidate);
-        let update = update_for_state(&state, None, false);
+        let update = next_update_for_state(&mut state, None, false);
         drop(state);
         self.publisher.publish(update);
         match self.wake.try_send(()) {
@@ -182,8 +262,8 @@ impl NotesService {
                 let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
                 state.desired = state.committed.clone();
                 state.pending = None;
-                let update = update_for_state(
-                    &state,
+                let update = next_update_for_state(
+                    &mut state,
                     Some("notes repository failed: notes worker unavailable".to_owned()),
                     false,
                 );
@@ -218,6 +298,17 @@ impl NotesService {
         self.updates.take_latest()
     }
 
+    fn begin_shutdown(&self) {
+        self.shutdown.store(true, Ordering::Release);
+        let _ = self.wake.try_send(());
+    }
+
+    #[cfg(test)]
+    pub(super) fn begin_shutdown_for_tests(&self) {
+        self.begin_shutdown();
+    }
+
+    #[cfg(test)]
     pub fn current(&self) -> NotesDocument {
         self.state
             .lock()
@@ -229,8 +320,7 @@ impl NotesService {
 
 impl Drop for NotesService {
     fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::Release);
-        let _ = self.wake.try_send(());
+        self.begin_shutdown();
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
@@ -244,8 +334,13 @@ fn run_worker(
     publisher: UpdatePublisher,
     shutdown: Arc<AtomicBool>,
     request_repaint: impl Fn(),
+    mut diagnostics: ProviderDiagnostics,
 ) {
     let load_result = repository.load();
+    match &load_result {
+        Ok(_) => diagnostics.recovered(),
+        Err(error) => diagnostics.failed(notes_failure_category(error)),
+    }
     let initial_update = {
         let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
         state.ready = true;
@@ -253,17 +348,14 @@ fn run_worker(
             Ok(document) => {
                 state.committed = document.clone();
                 state.desired = document;
-                update_for_state(&state, None, false)
+                next_update_for_state(&mut state, None, false)
             }
-            Err(error) => update_for_state(&state, Some(error.to_string()), false),
+            Err(error) => next_update_for_state(&mut state, Some(error.to_string()), false),
         }
     };
     publish(&publisher, initial_update, &request_repaint);
 
     while wake.recv().is_ok() {
-        if shutdown.load(Ordering::Acquire) {
-            return;
-        }
         loop {
             let candidate = {
                 state
@@ -273,10 +365,17 @@ fn run_worker(
                     .take()
             };
             let Some(candidate) = candidate else {
+                if shutdown.load(Ordering::Acquire) {
+                    return;
+                }
                 break;
             };
 
             let result = repository.save(&candidate);
+            match &result {
+                Ok(()) => diagnostics.recovered(),
+                Err(error) => diagnostics.failed(notes_failure_category(error)),
+            }
             let update = {
                 let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
                 match result {
@@ -285,48 +384,57 @@ fn run_worker(
                         if state.pending.is_none() {
                             state.desired = candidate;
                         }
-                        update_for_state(&state, None, false)
+                        next_update_for_state(&mut state, None, false)
                     }
                     Err(error) if error.was_committed() => {
                         state.committed = candidate.clone();
                         if state.pending.is_none() {
                             state.desired = candidate;
                         }
-                        update_for_state(&state, Some(error.to_string()), true)
+                        next_update_for_state(&mut state, Some(error.to_string()), true)
                     }
                     Err(error) => {
                         if state.pending.is_none() {
                             state.desired = state.committed.clone();
                         }
-                        update_for_state(&state, Some(error.to_string()), false)
+                        next_update_for_state(&mut state, Some(error.to_string()), false)
                     }
                 }
             };
             publish(&publisher, update, &request_repaint);
-
-            if shutdown.load(Ordering::Acquire) {
-                return;
-            }
         }
     }
 }
 
-fn publish(publisher: &UpdatePublisher, update: NotesUpdate, request_repaint: &impl Fn()) {
+fn notes_failure_category(error: &NotesError) -> FailureCategory {
+    match error {
+        NotesError::Validation(_) => FailureCategory::Validation,
+        NotesError::Json(_) => FailureCategory::Parse,
+        NotesError::Io(_) | NotesError::Repository(_) => FailureCategory::Filesystem,
+        NotesError::Committed(_) => FailureCategory::Durability,
+    }
+}
+
+fn publish(publisher: &UpdatePublisher, update: PublishedNotesUpdate, request_repaint: &impl Fn()) {
     if publisher.publish(update) {
         request_repaint();
     }
 }
 
-fn update_for_state(
-    state: &WorkerState,
+fn next_update_for_state(
+    state: &mut WorkerState,
     error: Option<String>,
     durability_warning: bool,
-) -> NotesUpdate {
-    NotesUpdate {
-        document: state.committed.clone(),
-        save_pending: state.pending.is_some(),
-        error: error.map(bound_error),
-        durability_warning,
+) -> PublishedNotesUpdate {
+    state.update_generation = state.update_generation.saturating_add(1);
+    PublishedNotesUpdate {
+        generation: state.update_generation,
+        update: NotesUpdate {
+            document: state.committed.clone(),
+            save_pending: state.pending.is_some(),
+            error: error.map(bound_error),
+            durability_warning,
+        },
     }
 }
 
@@ -340,4 +448,43 @@ fn bound_error(message: String) -> String {
         .collect::<String>();
     bounded.push('…');
     bounded
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::{NotesDocument, NotesUpdate, PublishedNotesUpdate, update_channel};
+
+    fn published(generation: u64, note: &str) -> PublishedNotesUpdate {
+        let mut document = NotesDocument::default();
+        document.set_note(note).expect("valid test note");
+        PublishedNotesUpdate {
+            generation,
+            update: NotesUpdate {
+                document,
+                save_pending: generation == 2,
+                error: None,
+                durability_warning: false,
+            },
+        }
+    }
+
+    #[test]
+    fn stale_publication_cannot_replace_a_newer_pending_update() {
+        let (publisher, receiver) = update_channel();
+
+        assert!(publisher.publish(published(2, "newer")));
+        let latest = receiver.take_latest().expect("latest update");
+        assert_eq!(
+            latest
+                .document
+                .active_note()
+                .expect("valid test document has an active note")
+                .body,
+            "newer"
+        );
+        assert!(latest.save_pending);
+
+        assert!(!publisher.publish(published(1, "stale")));
+        assert!(receiver.take_latest().is_none());
+    }
 }

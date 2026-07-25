@@ -71,10 +71,22 @@ Private user files live below `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`:
 - `widgets.json` stores the global widget profile and normalized geometry;
 - `warframe.json` stores Warframe filters and local activity preferences.
 
+Private note content lives separately below
+`${XDG_DATA_HOME:-$HOME/.local/share}/overcrow/notes/global.json`. The bounded
+schema stores stable titled-note and checklist-entry IDs in one atomic
+document. Schema-v1 single-note data is migrated in memory without rewriting
+the source file until the next explicit user mutation. Widget configuration
+stores only whether the note and checklist sections are visible.
+
 Writes validate ownership and paths, reject unsafe symlinks, and publish
 transactionally. Widget positions are normalized to the game viewport so they
 remain usable after resizing. Stable IDs and stored keys are treated as public
 compatibility contracts.
+
+The renderer maintains separate transient size measurements for Interactive
+and Passive modes. Interactive resize changes the persisted panel size;
+Passive content-fit measurements affect placement only and never overwrite
+saved geometry.
 
 ## External providers
 

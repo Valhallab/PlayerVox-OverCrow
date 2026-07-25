@@ -60,13 +60,18 @@ pub fn paint_warframe_sortie(
             apply_scale(ui, scale);
             panel_frame(transparent_background).show(ui, |ui| {
                 panel_width_limits(ui, panel_size.x);
-                ui.set_max_height(panel_size.y);
+                let height_limit = if mode == OverlayMode::Interactive {
+                    panel_size.y
+                } else {
+                    (viewport.height() - margin * 2.0).max(1.0)
+                };
+                ui.set_max_height(height_limit);
 
                 paint_header(ui, mode, prefs, &mut actions);
                 ui.add_space(4.0);
 
                 let header_h = 36.0 * scale;
-                let body_max = (panel_size.y - header_h).max(64.0);
+                let body_max = (height_limit - header_h).max(64.0);
 
                 if let Some(error) = snapshot.error.as_deref()
                     && snapshot.sortie.is_none()
@@ -103,7 +108,7 @@ pub fn paint_warframe_sortie(
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeSortieResponse {
-        size: report_content_panel_size(panel_size, measured),
+        size: report_content_panel_size(panel_size, measured, mode),
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,

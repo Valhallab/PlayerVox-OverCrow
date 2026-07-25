@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use serde::{Deserialize, Serialize};
 
-pub const WIDGET_SCHEMA_VERSION: u32 = 1;
+pub const WIDGET_SCHEMA_VERSION: u32 = 2;
 pub const WIDGET_SCALE_MIN: f32 = 0.75;
 pub const WIDGET_SCALE_MAX: f32 = 1.75;
 /// Minimum panel width (comfortable for Warframe panels without crushing text).
@@ -142,6 +142,22 @@ impl WidgetSettings {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NotesDisplaySettings {
+    pub show_note: bool,
+    pub show_checklist: bool,
+}
+
+impl Default for NotesDisplaySettings {
+    fn default() -> Self {
+        Self {
+            show_note: true,
+            show_checklist: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WidgetProfile {
@@ -152,6 +168,8 @@ pub struct WidgetProfile {
     pub manual_stopwatch: WidgetSettings,
     pub media: WidgetSettings,
     pub notes: WidgetSettings,
+    #[serde(default)]
+    pub notes_display: NotesDisplaySettings,
     #[serde(default = "default_warframe_status")]
     pub warframe_status: WidgetSettings,
     #[serde(default = "default_warframe_fissures")]
@@ -202,6 +220,7 @@ impl Default for WidgetProfile {
             manual_stopwatch: WidgetSettings::new(WidgetId::ManualStopwatch, false),
             media: WidgetSettings::new(WidgetId::Media, false),
             notes: WidgetSettings::new(WidgetId::Notes, false),
+            notes_display: NotesDisplaySettings::default(),
             warframe_status: default_warframe_status(),
             warframe_fissures: default_warframe_fissures(),
             warframe_market: default_warframe_market(),
@@ -261,6 +280,9 @@ impl WidgetProfile {
                 return Err(WidgetProfileError::InvalidSize(id));
             }
         }
+        if !self.notes_display.show_note && !self.notes_display.show_checklist {
+            return Err(WidgetProfileError::EmptyNotesDisplay);
+        }
         Ok(self)
     }
 }
@@ -271,6 +293,7 @@ pub enum WidgetProfileError {
     InvalidPosition(WidgetId),
     InvalidScale(WidgetId),
     InvalidSize(WidgetId),
+    EmptyNotesDisplay,
 }
 
 impl fmt::Display for WidgetProfileError {
@@ -287,6 +310,9 @@ impl fmt::Display for WidgetProfileError {
             }
             Self::InvalidSize(id) => {
                 write!(formatter, "invalid panel size for widget {id:?}")
+            }
+            Self::EmptyNotesDisplay => {
+                formatter.write_str("notes widget must show a note or checklist")
             }
         }
     }

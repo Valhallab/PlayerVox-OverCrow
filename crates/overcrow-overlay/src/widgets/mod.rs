@@ -4,6 +4,7 @@ mod clock;
 mod manager;
 mod manual_stopwatch;
 mod media;
+mod notes;
 mod performance;
 mod registry;
 mod session;
@@ -24,6 +25,7 @@ pub use manual_stopwatch::{
     format_manual_stopwatch_elapsed, manual_stopwatch_repaint_after, route_manual_stopwatch_action,
 };
 pub use media::{MediaControl, MediaPresentation};
+pub use notes::{NotesWidgetAction, NotesWidgetState, notes_action_allowed};
 pub use performance::PerformancePresentation;
 pub use registry::{BUILTIN_WIDGETS, WidgetDescriptor};
 pub use session::{
@@ -46,3 +48,7 @@ mod manual_stopwatch_tests;
 #[cfg(test)]
 #[path = "warframe_tests.rs"]
 mod warframe_tests;
+
+#[cfg(test)]
+#[path = "notes_tests.rs"]
+mod notes_tests;

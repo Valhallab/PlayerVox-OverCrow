@@ -43,8 +43,8 @@ impl WidgetManager {
 
         let viewport = ui.max_rect();
         let id = WidgetId::WarframeStatus;
-        let pos = self.screen_position(id, viewport, margin, profile);
-        let panel_size = self.panel_size_for(id, profile);
+        let pos = self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
         let can_move = self.can_move_panel(
             ui,
             id,
@@ -66,9 +66,11 @@ impl WidgetManager {
             can_move,
             margin,
         );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeStatusRenderOutcome {
-            save_requested: self.finish_warframe_panel(
+            save_requested: self.finish_resizable_panel(
                 id,
+                core_snapshot.overlay_mode,
                 viewport,
                 margin,
                 profile,
@@ -109,8 +111,8 @@ impl WidgetManager {
 
         let viewport = ui.max_rect();
         let id = WidgetId::WarframeFissures;
-        let pos = self.screen_position(id, viewport, margin, profile);
-        let panel_size = self.panel_size_for(id, profile);
+        let pos = self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
         let can_move = self.can_move_panel(
             ui,
             id,
@@ -133,9 +135,11 @@ impl WidgetManager {
             can_move,
             margin,
         );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeFissuresRenderOutcome {
-            save_requested: self.finish_warframe_panel(
+            save_requested: self.finish_resizable_panel(
                 id,
+                core_snapshot.overlay_mode,
                 viewport,
                 margin,
                 profile,
@@ -175,8 +179,8 @@ impl WidgetManager {
 
         let viewport = ui.max_rect();
         let id = WidgetId::WarframeMarket;
-        let pos = self.screen_position(id, viewport, margin, profile);
-        let panel_size = self.panel_size_for(id, profile);
+        let pos = self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
         let can_move = self.can_move_panel(
             ui,
             id,
@@ -198,9 +202,11 @@ impl WidgetManager {
             can_move,
             margin,
         );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeMarketRenderOutcome {
-            save_requested: self.finish_warframe_panel(
+            save_requested: self.finish_resizable_panel(
                 id,
+                core_snapshot.overlay_mode,
                 viewport,
                 margin,
                 profile,
@@ -240,8 +246,8 @@ impl WidgetManager {
 
         let viewport = ui.max_rect();
         let id = WidgetId::WarframeSortie;
-        let pos = self.screen_position(id, viewport, margin, profile);
-        let panel_size = self.panel_size_for(id, profile);
+        let pos = self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
         let can_move = self.can_move_panel(
             ui,
             id,
@@ -263,9 +269,11 @@ impl WidgetManager {
             can_move,
             margin,
         );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeSortieRenderOutcome {
-            save_requested: self.finish_warframe_panel(
+            save_requested: self.finish_resizable_panel(
                 id,
+                core_snapshot.overlay_mode,
                 viewport,
                 margin,
                 profile,
@@ -309,8 +317,8 @@ impl WidgetManager {
 
         let viewport = ui.max_rect();
         let id = WidgetId::WarframeInvasions;
-        let pos = self.screen_position(id, viewport, margin, profile);
-        let panel_size = self.panel_size_for(id, profile);
+        let pos = self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
         let can_move = self.can_move_panel(
             ui,
             id,
@@ -336,9 +344,11 @@ impl WidgetManager {
             can_move,
             margin,
         );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeInvasionsRenderOutcome {
-            save_requested: self.finish_warframe_panel(
+            save_requested: self.finish_resizable_panel(
                 id,
+                core_snapshot.overlay_mode,
                 viewport,
                 margin,
                 profile,

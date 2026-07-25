@@ -1,9 +1,13 @@
 use std::time::Duration;
 
 use chrono::{Local, TimeZone, Timelike};
-use overcrow_protocol::GameTelemetry;
+use eframe::egui::vec2;
+use overcrow_protocol::{GameTelemetry, OverlayMode};
 
-use super::{ClockPresentation, PerformancePresentation};
+use super::{
+    ClockPresentation, PerformancePresentation,
+    chrome::{report_content_panel_size, report_fixed_panel_size},
+};
 
 fn telemetry(cpu_percent_hundredths: u32, resident_bytes: u64) -> GameTelemetry {
     GameTelemetry {
@@ -84,5 +88,31 @@ fn clock_one_nanosecond_before_a_minute_repaints_after_one_nanosecond() {
     assert_eq!(
         ClockPresentation::from(now).repaint_after,
         Duration::from_nanos(1)
+    );
+}
+
+#[test]
+fn passive_fixed_panels_report_content_height_below_the_interactive_minimum() {
+    let configured = vec2(360.0, 280.0);
+    let measured = vec2(360.0, 92.0);
+
+    assert_eq!(
+        report_fixed_panel_size(configured, measured, OverlayMode::Interactive),
+        configured
+    );
+    assert_eq!(
+        report_fixed_panel_size(configured, measured, OverlayMode::Passive),
+        measured
+    );
+}
+
+#[test]
+fn passive_content_panels_do_not_keep_the_interactive_height_floor() {
+    let configured = vec2(360.0, 280.0);
+    let measured = vec2(360.0, 92.0);
+
+    assert_eq!(
+        report_content_panel_size(configured, measured, OverlayMode::Passive),
+        measured
     );
 }

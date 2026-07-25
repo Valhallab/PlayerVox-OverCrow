@@ -1,18 +1,19 @@
 use super::{
-    LICENSE_ID, ManualStopwatchCommandClient, NOTICE_TEXT, OverlayState, SOURCE_REPOSITORY_URL,
-    ViewportUpdate, about_visible, confirmed_mode_event, controls_visible,
-    dispatch_manual_stopwatch_action, handle_catalog_outcome, interactive_scrim,
-    log_catalog_settings_outcome, settings_failure_target, stopwatch_repaint_after,
-    viewport_builder, viewport_update_changed,
+    LICENSE_ID, ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient, OverlayState,
+    SOURCE_REPOSITORY_URL, ViewportUpdate, about_visible, confirmed_mode_event, controls_visible,
+    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
+    interactive_scrim, log_catalog_settings_outcome, settings_failure_target,
+    stopwatch_repaint_after, viewport_builder, viewport_update_changed,
 };
 use crate::{
+    notes::{NotesCommand, NotesDocument, NotesError, NotesUpdate},
     placement::screen_position,
     preferences::OverlayPreferences,
     runtime::SnapshotUpdate,
     session_clock::SessionClock,
     widgets::{
-        ManualStopwatchAction, format_session_elapsed, session_draggable as stopwatch_draggable,
-        session_visible as stopwatch_visible,
+        ManualStopwatchAction, NotesWidgetState, format_session_elapsed,
+        session_draggable as stopwatch_draggable, session_visible as stopwatch_visible,
     },
 };
 use eframe::egui::{Rect as EguiRect, WindowLevel, pos2, vec2};
@@ -26,6 +27,33 @@ use std::{
 #[derive(Default)]
 struct RecordingManualStopwatchClient {
     actions: RefCell<Vec<ManualStopwatchAction>>,
+}
+
+#[derive(Default)]
+struct RecordingNotesClient {
+    commands: RefCell<Vec<NotesCommand>>,
+    fail: bool,
+}
+
+impl NotesCommandClient for RecordingNotesClient {
+    fn send_notes(&self, command: NotesCommand) -> Result<(), NotesError> {
+        if self.fail {
+            return Err(NotesError::repository("forced command failure"));
+        }
+        self.commands.borrow_mut().push(command);
+        Ok(())
+    }
+}
+
+fn ready_notes_state() -> NotesWidgetState {
+    let mut state = NotesWidgetState::default();
+    state.apply_update(NotesUpdate {
+        document: NotesDocument::default(),
+        save_pending: false,
+        error: None,
+        durability_warning: false,
+    });
+    state
 }
 
 impl ManualStopwatchCommandClient for RecordingManualStopwatchClient {
@@ -148,9 +176,86 @@ fn app_dispatches_manual_stopwatch_actions_to_the_exact_client_methods() {
     );
 }
 
+#[test]
+fn app_dispatches_notes_only_in_interactive_mode_and_updates_optimistically() {
+    let client = RecordingNotesClient::default();
+    let mut state = ready_notes_state();
+    let command = NotesCommand::UpdateNote {
+        id: "note-1".to_owned(),
+        title: "General".to_owned(),
+        body: "saved".to_owned(),
+    };
+
+    dispatch_notes_action(&client, &mut state, OverlayMode::Passive, command.clone());
+    assert!(client.commands.borrow().is_empty());
+    assert!(
+        state
+            .document()
+            .active_note()
+            .expect("valid test document has an active note")
+            .body
+            .is_empty()
+    );
+
+    dispatch_notes_action(
+        &client,
+        &mut state,
+        OverlayMode::Interactive,
+        command.clone(),
+    );
+    assert_eq!(*client.commands.borrow(), [command]);
+    assert_eq!(
+        state
+            .document()
+            .active_note()
+            .expect("valid test document has an active note")
+            .body,
+        "saved"
+    );
+    assert!(state.save_pending());
+}
+
+#[test]
+fn rejected_notes_command_restores_the_prior_visible_state() {
+    let client = RecordingNotesClient {
+        fail: true,
+        ..RecordingNotesClient::default()
+    };
+    let mut state = ready_notes_state();
+    state.set_note_draft("keep this draft");
+
+    dispatch_notes_action(
+        &client,
+        &mut state,
+        OverlayMode::Interactive,
+        NotesCommand::UpdateNote {
+            id: "note-1".to_owned(),
+            title: "General".to_owned(),
+            body: "keep this draft".to_owned(),
+        },
+    );
+
+    assert!(
+        state
+            .document()
+            .active_note()
+            .expect("valid test document has an active note")
+            .body
+            .is_empty()
+    );
+    assert_eq!(state.note_draft(), "keep this draft");
+    assert!(!state.save_pending());
+    assert!(
+        state
+            .message()
+            .is_some_and(|message| message.contains("command failure"))
+    );
+}
+
 mod catalog {
     use std::{cell::Cell, io};
 
+    use eframe::egui::{self, RawInput, Rect, pos2, vec2};
     use overcrow_config::{CommittedSettingsSaveError, WidgetId, WidgetPosition, WidgetProfile};
     use overcrow_logging::{Component, LoggerRuntime};
     use overcrow_protocol::OverlayMode;
@@ -158,6 +263,7 @@ mod catalog {
     use crate::widgets::{
         CATALOG_ERROR_MAX_CHARS, CatalogAction, CatalogActionOutcome, CatalogCommit,
         CatalogFailureCategory, WidgetManager, apply_catalog_action, catalog_visible,
+        paint_catalog,
     };
 
     use super::{handle_catalog_outcome, log_catalog_settings_outcome, settings_failure_target};
@@ -265,6 +371,66 @@ mod catalog {
                 reload_widget_settings: false,
             })
         );
+    }
+
+    #[test]
+    fn notes_sections_are_independent_but_cannot_both_be_hidden() {
+        let mut profile = WidgetProfile::default();
+
+        let first = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetNotesNoteVisible(false),
+            |_| Ok(()),
+        );
+        assert!(matches!(first, CatalogActionOutcome::Durable(_)));
+        assert!(!profile.notes_display.show_note);
+        assert!(profile.notes_display.show_checklist);
+
+        let second = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetNotesChecklistVisible(false),
+            |_| Ok(()),
+        );
+        assert!(matches!(
+            second,
+            CatalogActionOutcome::RolledBack {
+                category: CatalogFailureCategory::Validation,
+                ..
+            }
+        ));
+        assert!(profile.notes_display.show_checklist);
+    }
+
+    #[test]
+    fn catalog_keeps_widget_specific_notes_options_out_of_the_widget_list() {
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let output = context.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1_200.0, 2_400.0))),
+                ..RawInput::default()
+            },
+            |ui| {
+                let _ = paint_catalog(ui, &WidgetProfile::default(), None);
+            },
+        );
+        let text = output
+            .platform_output
+            .accesskit_update
+            .expect("catalog accessibility tree")
+            .nodes
+            .into_iter()
+            .flat_map(|(_, node)| {
+                [
+                    node.label().map(str::to_owned),
+                    node.value().map(str::to_owned),
+                ]
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert!(!text.iter().any(|value| value == "Show note"));
+        assert!(!text.iter().any(|value| value == "Show checklist"));
     }
 
     #[test]

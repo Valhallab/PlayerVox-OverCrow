@@ -329,6 +329,24 @@ live Plasma Wayland section can validate compositor-level placement, stacking,
 focus, and D-Bus dispatch. Keep the requested evidence; automated smoke results
 alone are not acceptance of the final Wayland placement fix.
 
+## Cross-backend renderer suspension and sizing
+
+Repeat this bounded check on X11, Plasma 6 Wayland, and Hyprland 0.55+ Wayland:
+
+1. Start a selected game, open OverCrow, and resize a widget with passive
+   visibility to a deliberately tall interactive height. Return to Passive and
+   confirm the panel fits its content without a large empty region. Reopen the
+   overlay and confirm the original interactive height and position return.
+2. Move to another workspace so the overlay surface is hidden for at least 30
+   seconds, then return. The renderer must remain responsive, show no
+   “Application Not Responding” prompt, and still open and close normally.
+3. On Wayland, confirm the hidden interval does not block the compositor event
+   loop. On X11, confirm the existing VSync path remains responsive and widget
+   geometry is unchanged.
+
+This live check is required because repository tests cannot make a real
+compositor suspend and restore a surface.
+
 ## Stabilized Warframe widget acceptance on Hyprland
 
 Run this sequence in order in one real Hyprland 0.55 session. Do not count the
@@ -373,7 +391,7 @@ provider checks.
    payload for five minutes; after that payload ages past five minutes it must
    be cleared and shown unavailable, not redated as fresh.
 
-3. **Enter Interactive and exercise Market.** Press `Meta+Alt+O`. Confirm mode
+3. **Enter Interactive and exercise Market and Notes.** Press `Meta+Alt+O`. Confirm mode
    changes to `Interactive`, the scrim appears, the overlay takes focus, and
    widget controls become available. In Market, enter a query, choose an item,
    wait for orders, and copy a generated trade message. Only this step may
@@ -385,6 +403,13 @@ provider checks.
    inspect it again. It may show the last selected information, but must expose
    no search field, item selection, copy control, or new Market network request.
    Re-enter Interactive before continuing.
+
+   Enable Notes, save a note, then add, check, and remove a checklist item.
+   Close and reopen the renderer and confirm that the saved content returns.
+   In Passive, the same content may remain visible but must expose no editor,
+   add, completion, removal, drag, or resize control. The local document must
+   be a regular `0600` file at
+   `${XDG_DATA_HOME:-$HOME/.local/share}/overcrow/notes/global.json`.
 
 4. **Verify activity identity and rotation.** Toggle completion for one current
    Sortie/Archon item and one invasion, close and reopen the renderer, and
@@ -412,6 +437,11 @@ provider checks.
    release. Reopen the overlay. The transient preview must be gone and the last
    completed width and height must remain. Repeat with a drag interruption and
    confirm only a completed drop changes stored position.
+
+   For Fissures, Market, Sortie & Archon, and Invasions, use a tall interactive
+   height, then return to Passive. Short content must remove unused vertical
+   space and long content must scroll within the game viewport. Re-enter
+   Interactive and confirm the stored height and position return unchanged.
 
    The committed widget data belongs in
    `$XDG_CONFIG_HOME/overcrow/widgets.json` (or

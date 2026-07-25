@@ -3,13 +3,15 @@ use std::sync::Arc;
 use crate::{
     branding::{BrandAssets, BrandSize, install_fonts, paint_brand},
     media::{MediaClient, MediaSnapshot},
+    notes::{LocalNotesRepository, NotesCommand, NotesService},
     preferences::{OverlayPreferences, PreferenceStore},
     runtime::{ProviderReadiness, SnapshotClient, SnapshotUpdate},
     session_clock::SessionClock,
     warframe::WarframeController,
     widgets::{
-        CatalogAction, CatalogActionOutcome, ManualStopwatchClock, WidgetManager,
-        apply_catalog_action, catalog_visible, manual_stopwatch_repaint_after, paint_catalog,
+        CatalogAction, CatalogActionOutcome, ManualStopwatchClock, NotesWidgetAction,
+        NotesWidgetState, WidgetManager, apply_catalog_action, catalog_visible,
+        manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog,
         route_manual_stopwatch_action, session_repaint_after as stopwatch_repaint_after,
     },
 };
@@ -149,6 +151,8 @@ pub struct OverlayApp {
     media_snapshot: Arc<MediaSnapshot>,
     media_revision: u64,
     media_readiness: ProviderReadiness,
+    notes_service: NotesService,
+    notes_state: NotesWidgetState,
     warframe: WarframeController,
     preferences: OverlayPreferences,
     preference_store: PreferenceStore,
@@ -163,6 +167,7 @@ impl OverlayApp {
         let repaint_context = creation_context.egui_ctx.clone();
         let client_repaint_context = repaint_context.clone();
         let media_repaint_context = repaint_context.clone();
+        let notes_repaint_context = repaint_context.clone();
         let media_readiness = ProviderReadiness::default();
         let media_callback_readiness = media_readiness.clone();
         let client = SnapshotClient::spawn(logger.clone(), move || {
@@ -172,6 +177,13 @@ impl OverlayApp {
             media_callback_readiness.mark_media();
             media_repaint_context.request_repaint();
         });
+        let notes_service = NotesService::spawn_with_logger(
+            LocalNotesRepository::from_environment(),
+            logger.clone(),
+            move || {
+                notes_repaint_context.request_repaint();
+            },
+        );
         creation_context
             .egui_ctx
             .send_viewport_cmd(egui::ViewportCommand::MousePassthrough(true));
@@ -194,6 +206,8 @@ impl OverlayApp {
             media_snapshot: Arc::new(MediaSnapshot::default()),
             media_revision: 0,
             media_readiness,
+            notes_service,
+            notes_state: NotesWidgetState::default(),
             warframe: WarframeController::new(&creation_context.egui_ctx, logger.clone()),
             preferences: preference_load.profile,
             preference_store,
@@ -283,6 +297,7 @@ impl OverlayApp {
         handle_catalog_outcome(&mut self.widgets, outcome, || {
             client.reload_widget_settings();
         });
+        context.request_repaint();
     }
 }
 
@@ -387,6 +402,36 @@ fn dispatch_manual_stopwatch_action(
     );
 }
 
+trait NotesCommandClient {
+    fn send_notes(&self, command: NotesCommand) -> Result<(), crate::notes::NotesError>;
+}
+
+impl NotesCommandClient for NotesService {
+    fn send_notes(&self, command: NotesCommand) -> Result<(), crate::notes::NotesError> {
+        self.send(command)
+    }
+}
+
+fn dispatch_notes_action(
+    client: &impl NotesCommandClient,
+    state: &mut NotesWidgetState,
+    mode: OverlayMode,
+    command: NotesCommand,
+) {
+    if !notes_action_allowed(mode, &command) {
+        return;
+    }
+    let previous = state.clone();
+    if let Err(error) = state.accept(&command) {
+        state.set_error(error);
+        return;
+    }
+    if let Err(error) = client.send_notes(command) {
+        *state = previous;
+        state.set_error(error);
+    }
+}
+
 impl eframe::App for OverlayApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         let now = Instant::now();
@@ -399,6 +444,9 @@ impl eframe::App for OverlayApp {
         {
             self.media_revision = snapshot.revision;
             self.media_snapshot = snapshot.value;
+        }
+        if let Some(update) = self.notes_service.take_latest() {
+            self.notes_state.apply_update(update);
         }
         self.warframe.sync(
             context,
@@ -502,6 +550,27 @@ impl eframe::App for OverlayApp {
             && let Some(action) = media.action
         {
             let _ = self.media_client.send(&self.media_snapshot, action);
+        }
+        let notes = self.widgets.render_notes(
+            ui,
+            self.state.snapshot(),
+            &mut self.notes_state,
+            &mut self.preferences,
+            WIDGET_MARGIN,
+        );
+        save_requested |= notes.save_requested;
+        for action in notes.actions {
+            match action {
+                NotesWidgetAction::Command(command) => dispatch_notes_action(
+                    &self.notes_service,
+                    &mut self.notes_state,
+                    self.state.snapshot().overlay_mode,
+                    command,
+                ),
+                NotesWidgetAction::Catalog(action) => {
+                    self.apply_catalog_action(ui.ctx(), action);
+                }
+            }
         }
 
         save_requested |= self.warframe.render(

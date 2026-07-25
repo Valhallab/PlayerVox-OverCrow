@@ -19,7 +19,10 @@ use serde_json::{Value, json};
 use tempfile::NamedTempFile;
 
 use super::{AtomicWriter, FileAtomicWriter, WIDGET_MAX_BYTES, WidgetSettingsStore, widget_paths};
-use crate::{WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile, WidgetProfileError};
+use crate::{
+    NotesDisplaySettings, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile,
+    WidgetProfileError,
+};
 
 fn profile_json() -> Value {
     serde_json::to_value(WidgetProfile::default()).unwrap()
@@ -68,6 +71,39 @@ fn defaults_keep_only_the_existing_session_widget_enabled() {
     assert!(!profile.warframe_market.show_in_passive);
     assert!(profile.warframe_sortie.show_in_passive);
     assert!(profile.warframe_invasions.show_in_passive);
+    assert_eq!(profile.notes_display, NotesDisplaySettings::default());
+}
+
+#[test]
+fn notes_display_must_keep_at_least_one_section_visible() {
+    let profile = WidgetProfile {
+        notes_display: NotesDisplaySettings {
+            show_note: false,
+            show_checklist: false,
+        },
+        ..WidgetProfile::default()
+    };
+
+    assert_eq!(
+        profile.validate(),
+        Err(WidgetProfileError::EmptyNotesDisplay)
+    );
+}
+
+#[test]
+fn schema_v1_profile_loads_with_default_notes_display_preferences() {
+    let temp = tempfile::tempdir().unwrap();
+    let current = temp.path().join("widgets.json");
+    let mut legacy = profile_json();
+    legacy["schema_version"] = json!(1);
+    legacy.as_object_mut().unwrap().remove("notes_display");
+    write_private(&current, &serde_json::to_vec(&legacy).unwrap());
+
+    let load = WidgetSettingsStore::from_paths(&current, temp.path().join("overlay.json")).load();
+
+    assert!(load.warning.is_none());
+    assert_eq!(load.profile.schema_version, WIDGET_SCHEMA_VERSION);
+    assert_eq!(load.profile.notes_display, NotesDisplaySettings::default());
 }
 
 #[test]

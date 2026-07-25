@@ -3,8 +3,9 @@ use overcrow_config::WARFRAME_MARKET_QUERY_MAX_CHARS;
 use overcrow_protocol::OverlayMode;
 
 use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, accent_error, accent_ok, apply_scale, meta_text,
-    panel_frame, resize_grip, title_text,
+    BODY_SIZE, META_SIZE, ResizeGripOutcome, accent_error, accent_ok, apply_scale,
+    fixed_panel_constraints, meta_text, panel_frame, report_fixed_panel_size, resize_grip,
+    title_text,
 };
 use crate::warframe::{
     MarketCommand, MarketOrder, MarketSnapshot, TradeSide, format_trade_line, format_whisper_line,
@@ -53,8 +54,8 @@ pub fn paint_warframe_market(
         .show(ui.ctx(), |ui| {
             apply_scale(ui, scale);
             panel_frame(transparent_background).show(ui, |ui| {
-                ui.set_min_size(panel_size);
-                ui.set_max_size(panel_size);
+                let safe_height = (viewport.height() - margin * 2.0).max(1.0);
+                fixed_panel_constraints(ui, panel_size, mode, safe_height);
 
                 ui.horizontal(|ui| {
                     ui.label(title_text("MARKET"));
@@ -102,11 +103,17 @@ pub fn paint_warframe_market(
                     ui.colored_label(accent_error(), egui::RichText::new(error).size(BODY_SIZE));
                 }
 
-                let content_h = (panel_size.y - if interactive { 72.0 } else { 48.0 }).max(80.0);
+                let available_height = if interactive {
+                    panel_size.y
+                } else {
+                    safe_height
+                };
+                let content_h =
+                    (available_height - if interactive { 72.0 } else { 48.0 }).max(80.0);
                 egui::ScrollArea::vertical()
                     .id_salt("market-scroll")
                     .max_height(content_h)
-                    .auto_shrink([false, false])
+                    .auto_shrink([false, !interactive])
                     .show(ui, |ui| {
                         if interactive {
                             for item in &snapshot.results {
@@ -207,9 +214,9 @@ pub fn paint_warframe_market(
             });
         });
 
-    // Report the content panel size for placement (stable), not fluctuating Area rect.
+    let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeMarketResponse {
-        size: panel_size,
+        size: report_fixed_panel_size(panel_size, measured, mode),
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,

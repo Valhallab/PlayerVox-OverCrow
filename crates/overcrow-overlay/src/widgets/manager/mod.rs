@@ -2,13 +2,13 @@ use eframe::egui::{Pos2, Vec2};
 use overcrow_config::{WidgetId, WidgetProfile};
 use overcrow_protocol::OverlayMode;
 
-use crate::media::MediaAction;
-
 use super::{
-    manual_stopwatch::ManualStopwatchAction, warframe_fissures::FissurePrefsAction,
-    warframe_invasions::InvasionPrefsAction, warframe_market::MarketUiAction,
-    warframe_sortie::SortiePrefsAction, warframe_status::StatusPrefsAction,
+    NotesWidgetAction, manual_stopwatch::ManualStopwatchAction,
+    warframe_fissures::FissurePrefsAction, warframe_invasions::InvasionPrefsAction,
+    warframe_market::MarketUiAction, warframe_sortie::SortiePrefsAction,
+    warframe_status::StatusPrefsAction,
 };
+use crate::media::MediaAction;
 
 mod builtin;
 mod layout;
@@ -24,6 +24,11 @@ pub struct ManualStopwatchRenderOutcome {
 pub struct MediaRenderOutcome {
     pub save_requested: bool,
     pub action: Option<MediaAction>,
+}
+
+pub struct NotesRenderOutcome {
+    pub save_requested: bool,
+    pub actions: Vec<NotesWidgetAction>,
 }
 
 pub struct WarframeStatusRenderOutcome {
@@ -65,7 +70,7 @@ struct ResizeSession {
 
 #[derive(Debug)]
 pub struct WidgetManager {
-    measured_sizes: [Vec2; 11],
+    measured_sizes: [[Vec2; 11]; 2],
     catalog_open: bool,
     catalog_message: Option<String>,
     resize: Option<ResizeSession>,
@@ -74,7 +79,7 @@ pub struct WidgetManager {
 impl Default for WidgetManager {
     fn default() -> Self {
         Self {
-            measured_sizes: [Vec2::ZERO; 11],
+            measured_sizes: [[Vec2::ZERO; 11]; 2],
             catalog_open: false,
             catalog_message: None,
             resize: None,

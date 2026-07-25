@@ -1,6 +1,3 @@
-// Task 12 consumes this crate-private seam; Task 11 establishes it independently.
-#![allow(dead_code)]
-
 mod model;
 mod service;
 mod store;
@@ -8,7 +5,8 @@ mod store;
 #[allow(unused_imports)]
 pub use model::{
     ChecklistItem, NOTES_IDENTIFIER_MAX_BYTES, NOTES_ITEM_MAX_BYTES, NOTES_ITEM_MAX_COUNT,
-    NOTES_NOTE_MAX_BYTES, NOTES_SCHEMA_VERSION, NotesDocument, NotesError, NotesProviderRef,
+    NOTES_NOTE_MAX_BYTES, NOTES_PAGE_MAX_COUNT, NOTES_SCHEMA_VERSION, NOTES_TITLE_MAX_BYTES,
+    NotePage, NotesDocument, NotesError, NotesProviderRef,
 };
 #[allow(unused_imports)]
 pub use service::{NotesCommand, NotesService, NotesUpdate};

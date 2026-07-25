@@ -113,7 +113,8 @@ PlayerVox support. No GitHub account is required.
 - **Performance** — host CPU, memory, and available temperatures.
 - **Manual stopwatch** — Core-owned timer with overlay controls and shortcuts.
 - **Media** — current MPRIS media with interactive playback controls.
-- **Notes** — a private local note and checklist.
+- **Notes** — private titled notes with independent note/checklist visibility,
+  horizontally scrollable tabs, and per-note checklists.
 - **Warframe status** — open-world cycles, daily reset, and Baro Ki'Teer.
 - **Fissures** — current Void Fissures with local filters.
 - **Market** — warframe.market search, orders, and trade templates.
@@ -123,6 +124,10 @@ PlayerVox support. No GitHub account is required.
 Warframe widgets appear only for Steam App ID `230410`. They use bounded,
 unauthenticated requests to the official Warframe world-state endpoint and
 warframe.market; they never access a game account or game memory.
+
+Resizable widgets keep their configured editing size in Interactive mode. In
+Passive mode their height follows visible content, up to the game viewport, so
+hidden sections and short content do not leave an empty panel.
 
 ## Safety
 
