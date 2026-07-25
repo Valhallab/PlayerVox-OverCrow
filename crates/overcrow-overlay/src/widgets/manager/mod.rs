@@ -3,7 +3,7 @@ use overcrow_config::{WidgetId, WidgetProfile};
 use overcrow_protocol::OverlayMode;
 
 use super::{
-    NotesWidgetAction, manual_stopwatch::ManualStopwatchAction,
+    NotesWidgetAction, TwitchChatAction, manual_stopwatch::ManualStopwatchAction,
     warframe_fissures::FissurePrefsAction, warframe_invasions::InvasionPrefsAction,
     warframe_market::MarketUiAction, warframe_sortie::SortiePrefsAction,
     warframe_status::StatusPrefsAction,
@@ -29,6 +29,11 @@ pub struct MediaRenderOutcome {
 pub struct NotesRenderOutcome {
     pub save_requested: bool,
     pub actions: Vec<NotesWidgetAction>,
+}
+
+pub struct TwitchRenderOutcome {
+    pub save_requested: bool,
+    pub actions: Vec<TwitchChatAction>,
 }
 
 pub struct WarframeStatusRenderOutcome {
@@ -70,7 +75,7 @@ struct ResizeSession {
 
 #[derive(Debug)]
 pub struct WidgetManager {
-    measured_sizes: [[Vec2; 11]; 2],
+    measured_sizes: [[Vec2; 12]; 2],
     catalog_open: bool,
     catalog_message: Option<String>,
     resize: Option<ResizeSession>,
@@ -79,7 +84,7 @@ pub struct WidgetManager {
 impl Default for WidgetManager {
     fn default() -> Self {
         Self {
-            measured_sizes: [[Vec2::ZERO; 11]; 2],
+            measured_sizes: [[Vec2::ZERO; 12]; 2],
             catalog_open: false,
             catalog_message: None,
             resize: None,

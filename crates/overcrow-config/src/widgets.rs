@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use serde::{Deserialize, Serialize};
 
-pub const WIDGET_SCHEMA_VERSION: u32 = 2;
+pub const WIDGET_SCHEMA_VERSION: u32 = 3;
 pub const WIDGET_SCALE_MIN: f32 = 0.75;
 pub const WIDGET_SCALE_MAX: f32 = 1.75;
 /// Minimum panel width (comfortable for Warframe panels without crushing text).
@@ -23,10 +23,11 @@ pub enum WidgetId {
     WarframeMarket,
     WarframeSortie,
     WarframeInvasions,
+    TwitchChat,
 }
 
 impl WidgetId {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Session,
         Self::Clock,
         Self::Performance,
@@ -38,6 +39,7 @@ impl WidgetId {
         Self::WarframeMarket,
         Self::WarframeSortie,
         Self::WarframeInvasions,
+        Self::TwitchChat,
     ];
 
     pub const fn default_position(self) -> WidgetPosition {
@@ -53,6 +55,7 @@ impl WidgetId {
             Self::WarframeMarket => WidgetPosition { x: 0.0, y: 0.45 },
             Self::WarframeSortie => WidgetPosition { x: 0.0, y: 0.18 },
             Self::WarframeInvasions => WidgetPosition { x: 1.0, y: 0.72 },
+            Self::TwitchChat => WidgetPosition { x: 1.0, y: 0.28 },
         }
     }
 
@@ -64,6 +67,7 @@ impl WidgetId {
             Self::WarframeMarket => (400.0, 420.0),
             Self::WarframeSortie => (400.0, 300.0),
             Self::WarframeInvasions => (440.0, 360.0),
+            Self::TwitchChat => (420.0, 360.0),
             Self::Notes => (360.0, 280.0),
             Self::Media => (320.0, 160.0),
             _ => (0.0, 0.0),
@@ -180,6 +184,8 @@ pub struct WidgetProfile {
     pub warframe_sortie: WidgetSettings,
     #[serde(default = "default_warframe_invasions")]
     pub warframe_invasions: WidgetSettings,
+    #[serde(default = "default_twitch_chat")]
+    pub twitch_chat: WidgetSettings,
     /// Legacy field kept so older `widgets.json` files still load.
     #[serde(default = "default_legacy_warframe_nightwave", skip_serializing)]
     pub warframe_nightwave: WidgetSettings,
@@ -205,6 +211,10 @@ fn default_warframe_invasions() -> WidgetSettings {
     WidgetSettings::with_passive(WidgetId::WarframeInvasions, false, true)
 }
 
+fn default_twitch_chat() -> WidgetSettings {
+    WidgetSettings::with_passive(WidgetId::TwitchChat, false, false)
+}
+
 fn default_legacy_warframe_nightwave() -> WidgetSettings {
     // Nightwave widget removed; keep a passive-disabled stub for old configs.
     WidgetSettings::with_passive(WidgetId::WarframeStatus, false, true)
@@ -226,6 +236,7 @@ impl Default for WidgetProfile {
             warframe_market: default_warframe_market(),
             warframe_sortie: default_warframe_sortie(),
             warframe_invasions: default_warframe_invasions(),
+            twitch_chat: default_twitch_chat(),
             warframe_nightwave: default_legacy_warframe_nightwave(),
         }
     }
@@ -245,6 +256,7 @@ impl WidgetProfile {
             WidgetId::WarframeMarket => &self.warframe_market,
             WidgetId::WarframeSortie => &self.warframe_sortie,
             WidgetId::WarframeInvasions => &self.warframe_invasions,
+            WidgetId::TwitchChat => &self.twitch_chat,
         }
     }
 
@@ -261,6 +273,7 @@ impl WidgetProfile {
             WidgetId::WarframeMarket => &mut self.warframe_market,
             WidgetId::WarframeSortie => &mut self.warframe_sortie,
             WidgetId::WarframeInvasions => &mut self.warframe_invasions,
+            WidgetId::TwitchChat => &mut self.twitch_chat,
         }
     }
 

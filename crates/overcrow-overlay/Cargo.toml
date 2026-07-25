@@ -11,6 +11,7 @@ arboard = "3"
 chrono = "0.4.45"
 eframe = { version = "0.35", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 futures-util = "0.3"
+keyring = "4.1"
 libc = "0.2"
 overcrow-config = { path = "../overcrow-config" }
 overcrow-logging = { path = "../overcrow-logging" }
@@ -19,8 +20,10 @@ serde.workspace = true
 serde_json.workspace = true
 tempfile = "3"
 tokio.workspace = true
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 ureq = { version = "3", default-features = true, features = ["json"] }
 url = "2.5"
+zeroize = { version = "1.9", features = ["derive"] }
 zbus.workspace = true
 
 [dev-dependencies]

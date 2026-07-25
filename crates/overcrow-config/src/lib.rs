@@ -1,6 +1,7 @@
 mod allowlist;
 mod model;
 mod store;
+mod twitch_prefs;
 mod warframe_prefs;
 mod widget_store;
 mod widgets;
@@ -12,6 +13,12 @@ pub use model::{
 pub use store::{
     CommittedSettingsSaveError, SETTINGS_DIAGNOSTIC_MAX_BYTES, SETTINGS_MAX_BYTES,
     SettingsDiagnostic, SettingsLoad, SettingsStore, settings_save_was_committed,
+};
+pub use twitch_prefs::{
+    TWITCH_CHANNEL_MAX_CHARS, TWITCH_FAVORITES_MAX, TWITCH_PASSIVE_LIFETIME_DEFAULT_SECS,
+    TWITCH_PASSIVE_LIFETIME_MAX_SECS, TWITCH_PASSIVE_LIFETIME_MIN_SECS, TWITCH_PREFS_MAX_BYTES,
+    TWITCH_PREFS_SCHEMA_VERSION, TwitchPrefs, TwitchPrefsError, TwitchPrefsLoad, TwitchPrefsStore,
+    normalize_twitch_channel,
 };
 pub use warframe_prefs::{
     FissureEra, FissureSource, StatusRow, WARFRAME_ACTIVITY_DONE_ENTRY_MAX_CHARS,

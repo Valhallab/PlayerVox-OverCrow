@@ -4,13 +4,13 @@ use super::{
     PassiveIntent, RevisionDecision, RevisionGate, SnapshotClient, SnapshotUpdate,
     VersionedHandling, apply_versioned, baseline_failure_for_error_name, command_channel,
     handle_command_response, handle_signal_json, owner_stream_decision, publish_json,
-    snapshot_channel,
+    set_authority, snapshot_channel,
 };
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect, VersionedCoreSnapshot};
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -59,6 +59,25 @@ fn connection_events_deduplicate_failures_and_report_recovery() {
         Some(ConnectionEvent::Disconnected("owner vanished".to_owned()))
     );
     assert_eq!(tracker.failed("owner vanished"), None);
+}
+
+#[test]
+fn core_authority_is_revoked_without_discarding_the_retained_snapshot() {
+    let authority = AtomicBool::new(false);
+    let repaints = AtomicUsize::new(0);
+
+    set_authority(&authority, true, &|| {
+        repaints.fetch_add(1, Ordering::SeqCst);
+    });
+    set_authority(&authority, true, &|| {
+        repaints.fetch_add(1, Ordering::SeqCst);
+    });
+    set_authority(&authority, false, &|| {
+        repaints.fetch_add(1, Ordering::SeqCst);
+    });
+
+    assert!(!authority.load(Ordering::SeqCst));
+    assert_eq!(repaints.load(Ordering::SeqCst), 2);
 }
 
 #[test]

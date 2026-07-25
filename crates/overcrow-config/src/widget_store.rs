@@ -124,7 +124,7 @@ fn read_profile(path: &Path) -> FileLoad<WidgetProfile> {
     match serde_json::from_slice::<WidgetProfile>(&contents)
         .map_err(|error| error.to_string())
         .and_then(|mut profile| {
-            if profile.schema_version == 1 {
+            if matches!(profile.schema_version, 1 | 2) {
                 profile.schema_version = crate::WIDGET_SCHEMA_VERSION;
             }
             profile.validate().map_err(|error| error.to_string())

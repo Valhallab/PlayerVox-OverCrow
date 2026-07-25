@@ -1,4 +1,13 @@
-use std::sync::Arc;
+use std::{
+    process::{Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver},
+    },
+    thread,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     branding::{BrandAssets, BrandSize, install_fonts, paint_brand},
@@ -7,19 +16,27 @@ use crate::{
     preferences::{OverlayPreferences, PreferenceStore},
     runtime::{ProviderReadiness, SnapshotClient, SnapshotUpdate},
     session_clock::SessionClock,
+    twitch::{
+        client::{TwitchClient, TwitchGate},
+        http::validate_verification_uri,
+        model::TwitchCommand,
+        prefs::{TwitchPrefsSaveOutcome, TwitchPrefsSaver},
+    },
     warframe::WarframeController,
     widgets::{
         CatalogAction, CatalogActionOutcome, ManualStopwatchClock, NotesWidgetAction,
-        NotesWidgetState, WidgetManager, apply_catalog_action, catalog_visible,
-        manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog,
+        NotesWidgetState, TwitchChatAction, TwitchWidgetState, WidgetManager, apply_catalog_action,
+        catalog_visible, manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog,
         route_manual_stopwatch_action, session_repaint_after as stopwatch_repaint_after,
+        twitch_passive_repaint_after,
     },
 };
 use eframe::egui;
-use overcrow_config::{WidgetId, settings_save_was_committed};
+use overcrow_config::{
+    TWITCH_FAVORITES_MAX, TwitchPrefs, TwitchPrefsStore, WidgetId, settings_save_was_committed,
+};
 use overcrow_logging::EventLogger;
 use overcrow_protocol::{CoreSnapshot, OverlayMode};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const APP_ID: &str = "io.github.overcrow.Overlay";
 const LICENSE_ID: &str = "AGPL-3.0-only";
@@ -42,7 +59,14 @@ struct ViewportUpdate {
 }
 
 impl ViewportUpdate {
-    fn from_snapshot(snapshot: &CoreSnapshot) -> Self {
+    fn from_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> Self {
+        if !core_authority {
+            return Self {
+                mouse_passthrough: true,
+                position: None,
+                size: None,
+            };
+        }
         let (position, size) = snapshot
             .active_game
             .as_ref()
@@ -62,8 +86,20 @@ impl ViewportUpdate {
     }
 }
 
-fn viewport_update_changed(previous: &CoreSnapshot, update: &ViewportUpdate) -> bool {
-    ViewportUpdate::from_snapshot(previous) != *update
+fn viewport_update_changed(
+    previous: &CoreSnapshot,
+    core_authority: bool,
+    update: &ViewportUpdate,
+) -> bool {
+    ViewportUpdate::from_snapshot(previous, core_authority) != *update
+}
+
+fn authoritative_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> CoreSnapshot {
+    if core_authority {
+        snapshot.clone()
+    } else {
+        CoreSnapshot::default()
+    }
 }
 
 fn confirmed_mode_event(
@@ -96,14 +132,14 @@ impl OverlayState {
         self.passive_pending = true;
     }
 
-    fn apply_snapshot(&mut self, update: SnapshotUpdate) -> ViewportUpdate {
+    fn apply_snapshot(&mut self, update: SnapshotUpdate, core_authority: bool) -> ViewportUpdate {
         if update.passive_confirmed {
             self.passive_pending = false;
         }
         if self.passive_pending {
-            return ViewportUpdate::from_snapshot(&self.snapshot);
+            return ViewportUpdate::from_snapshot(&self.snapshot, core_authority);
         }
-        let viewport = ViewportUpdate::from_snapshot(&update.snapshot);
+        let viewport = ViewportUpdate::from_snapshot(&update.snapshot, core_authority);
         self.snapshot = update.snapshot;
         viewport
     }
@@ -153,12 +189,18 @@ pub struct OverlayApp {
     media_readiness: ProviderReadiness,
     notes_service: NotesService,
     notes_state: NotesWidgetState,
+    twitch_client: TwitchClient,
+    twitch_state: TwitchWidgetState,
+    twitch_prefs: TwitchPrefs,
+    twitch_prefs_saver: TwitchPrefsSaver,
+    twitch_verification: VerificationLauncher,
     warframe: WarframeController,
     preferences: OverlayPreferences,
     preference_store: PreferenceStore,
     widgets: WidgetManager,
     brand: BrandAssets,
     about_open: bool,
+    core_authority: bool,
 }
 
 impl OverlayApp {
@@ -168,6 +210,8 @@ impl OverlayApp {
         let client_repaint_context = repaint_context.clone();
         let media_repaint_context = repaint_context.clone();
         let notes_repaint_context = repaint_context.clone();
+        let twitch_repaint_context = repaint_context.clone();
+        let twitch_settings_repaint_context = repaint_context.clone();
         let media_readiness = ProviderReadiness::default();
         let media_callback_readiness = media_readiness.clone();
         let client = SnapshotClient::spawn(logger.clone(), move || {
@@ -184,6 +228,9 @@ impl OverlayApp {
                 notes_repaint_context.request_repaint();
             },
         );
+        let twitch_client = TwitchClient::spawn(logger.clone(), move || {
+            twitch_repaint_context.request_repaint();
+        });
         creation_context
             .egui_ctx
             .send_viewport_cmd(egui::ViewportCommand::MousePassthrough(true));
@@ -196,6 +243,18 @@ impl OverlayApp {
                 format_args!("affected_widgets=all category=validation"),
             );
         }
+        let twitch_prefs_store = TwitchPrefsStore::from_environment();
+        let twitch_prefs_load = twitch_prefs_store.load();
+        if twitch_prefs_load.warning.is_some() {
+            eprintln!("OverCrow Twitch settings rejected; using defaults");
+            logger.warn(
+                "widget_settings_load_failed",
+                format_args!("widget=twitch_chat category=validation"),
+            );
+        }
+        let twitch_prefs_saver = TwitchPrefsSaver::spawn(twitch_prefs_store, move || {
+            twitch_settings_repaint_context.request_repaint();
+        });
         Self {
             logger: logger.clone(),
             client,
@@ -208,12 +267,18 @@ impl OverlayApp {
             media_readiness,
             notes_service,
             notes_state: NotesWidgetState::default(),
+            twitch_client,
+            twitch_state: TwitchWidgetState::default(),
+            twitch_prefs: twitch_prefs_load.prefs,
+            twitch_prefs_saver,
+            twitch_verification: VerificationLauncher::default(),
             warframe: WarframeController::new(&creation_context.egui_ctx, logger.clone()),
             preferences: preference_load.profile,
             preference_store,
             widgets: WidgetManager::default(),
             brand: BrandAssets::default(),
             about_open: false,
+            core_authority: false,
         }
     }
 
@@ -221,7 +286,7 @@ impl OverlayApp {
         let previous = self.state.snapshot().clone();
         let mode_event =
             confirmed_mode_event(previous.overlay_mode, self.state.passive_pending, &snapshot);
-        let update = self.state.apply_snapshot(snapshot);
+        let update = self.state.apply_snapshot(snapshot, self.core_authority);
         if let Some(mode) = mode_event {
             self.logger
                 .info("overlay_mode_confirmed", format_args!("mode={mode:?}"));
@@ -233,10 +298,27 @@ impl OverlayApp {
             .sync(self.state.snapshot().manual_stopwatch, received_at);
         self.client
             .set_manual_stopwatch_running(self.manual_stopwatch_clock.running());
-        if !viewport_update_changed(&previous, &update) {
+        if !viewport_update_changed(&previous, self.core_authority, &update) {
             return;
         }
 
+        Self::apply_viewport_update(context, update);
+    }
+
+    fn sync_core_authority(&mut self, context: &egui::Context) {
+        let authority = self.client.has_authority();
+        if authority == self.core_authority {
+            return;
+        }
+        let previous = ViewportUpdate::from_snapshot(self.state.snapshot(), self.core_authority);
+        self.core_authority = authority;
+        let update = ViewportUpdate::from_snapshot(self.state.snapshot(), self.core_authority);
+        if previous != update {
+            Self::apply_viewport_update(context, update);
+        }
+    }
+
+    fn apply_viewport_update(context: &egui::Context, update: ViewportUpdate) {
         context.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(
             update.mouse_passthrough,
         ));
@@ -253,6 +335,9 @@ impl OverlayApp {
             return;
         }
         self.state.begin_passive_request();
+        // Apply click-through immediately so the next pointer event cannot
+        // land on the full-screen surface while Core still reports Interactive.
+        context.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(true));
         self.logger
             .info("passive_requested", format_args!("source=overlay"));
         self.warframe.sync(
@@ -297,7 +382,250 @@ impl OverlayApp {
         handle_catalog_outcome(&mut self.widgets, outcome, || {
             client.reload_widget_settings();
         });
+        self.sync_twitch_gate();
         context.request_repaint();
+    }
+
+    fn sync_twitch_gate(&self) {
+        self.twitch_client.set_gate(twitch_gate(
+            self.client.has_authority(),
+            self.state.snapshot().active_game.is_some(),
+            self.preferences.settings(WidgetId::TwitchChat).enabled,
+            self.twitch_prefs.active_channel.clone(),
+        ));
+    }
+
+    fn commit_twitch_prefs(&mut self, candidate: TwitchPrefs) -> bool {
+        match self.twitch_prefs_saver.try_save(candidate) {
+            Ok(()) => true,
+            Err(error) => {
+                self.twitch_state.set_message(Some(
+                    if matches!(error, crate::twitch::prefs::TwitchPrefsSaveFailure::Busy) {
+                        "Twitch settings are still saving. Try again.".to_owned()
+                    } else {
+                        "Could not save Twitch widget settings.".to_owned()
+                    },
+                ));
+                self.logger.warn(
+                    "widget_settings_save_failed",
+                    format_args!("widget=twitch_chat category={}", error.category()),
+                );
+                false
+            }
+        }
+    }
+
+    fn apply_twitch_prefs_save(&mut self, outcome: &TwitchPrefsSaveOutcome) {
+        match outcome {
+            TwitchPrefsSaveOutcome::Durable(candidate) => {
+                self.twitch_prefs.clone_from(candidate);
+                self.twitch_state.set_message(None);
+            }
+            TwitchPrefsSaveOutcome::CommittedWithWarning(candidate) => {
+                self.twitch_prefs.clone_from(candidate);
+                self.twitch_state.set_message(Some(
+                    "Saved, but storage durability could not be confirmed.".to_owned(),
+                ));
+                self.logger.warn(
+                    "widget_settings_save_failed",
+                    format_args!("widget=twitch_chat category=durability"),
+                );
+            }
+            TwitchPrefsSaveOutcome::RolledBack(error) => {
+                self.twitch_state
+                    .set_message(Some("Could not save Twitch widget settings.".to_owned()));
+                self.logger.warn(
+                    "widget_settings_save_failed",
+                    format_args!("widget=twitch_chat category={}", error.category()),
+                );
+            }
+        }
+    }
+
+    fn dispatch_twitch_action(&mut self, action: TwitchChatAction) {
+        if self.state.snapshot().overlay_mode != OverlayMode::Interactive
+            || self.state.snapshot().active_game.is_none()
+        {
+            return;
+        }
+
+        match action {
+            TwitchChatAction::Command(TwitchCommand::SendMessage {
+                request_id,
+                generation,
+                channel,
+                text,
+                reply_to,
+            }) => {
+                if !self.twitch_client.try_send(TwitchCommand::SendMessage {
+                    request_id,
+                    generation,
+                    channel,
+                    text,
+                    reply_to,
+                }) {
+                    self.twitch_state.mark_send_rejected(request_id);
+                }
+            }
+            TwitchChatAction::Command(command) => {
+                if !self.twitch_client.try_send(command) {
+                    self.twitch_state
+                        .set_message(Some("Twitch is busy. Try again.".to_owned()));
+                }
+            }
+            TwitchChatAction::SetChannel(channel) => {
+                let mut candidate = self.twitch_prefs.clone();
+                candidate.active_channel = Some(channel.clone());
+                if self.commit_twitch_prefs(candidate) {
+                    self.twitch_state.set_channel_draft(&channel);
+                    self.sync_twitch_gate();
+                }
+            }
+            TwitchChatAction::ToggleFavorite(channel) => {
+                let mut candidate = self.twitch_prefs.clone();
+                if let Some(index) = candidate
+                    .favorites
+                    .iter()
+                    .position(|favorite| favorite == &channel)
+                {
+                    candidate.favorites.remove(index);
+                } else if candidate.favorites.len() < TWITCH_FAVORITES_MAX {
+                    candidate.favorites.push(channel);
+                } else {
+                    self.twitch_state
+                        .set_message(Some("Favorite channel limit reached.".to_owned()));
+                    return;
+                }
+                self.commit_twitch_prefs(candidate);
+            }
+            TwitchChatAction::MoveFavorite { from, to } => {
+                let mut candidate = self.twitch_prefs.clone();
+                if from < candidate.favorites.len() && to < candidate.favorites.len() {
+                    candidate.favorites.swap(from, to);
+                    self.commit_twitch_prefs(candidate);
+                }
+            }
+            TwitchChatAction::SetPassiveLifetime(seconds) => {
+                let mut candidate = self.twitch_prefs.clone();
+                candidate.passive_lifetime_secs = seconds;
+                self.commit_twitch_prefs(candidate);
+            }
+            TwitchChatAction::OpenVerification(uri) => {
+                if !self.twitch_verification.open(uri) {
+                    self.twitch_state
+                        .set_message(Some("Could not open Twitch in your browser.".to_owned()));
+                }
+            }
+        }
+    }
+}
+
+fn twitch_gate(
+    core_authority: bool,
+    active_game_authorized: bool,
+    widget_enabled: bool,
+    channel: Option<String>,
+) -> TwitchGate {
+    TwitchGate {
+        lifecycle_enabled: core_authority,
+        active_game_authorized,
+        widget_enabled,
+        channel,
+    }
+}
+
+#[derive(Clone, Default)]
+struct LaunchGate(Arc<AtomicBool>);
+
+impl LaunchGate {
+    fn try_acquire(&self) -> bool {
+        self.0
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+
+    fn release(&self) {
+        self.0.store(false, Ordering::Release);
+    }
+
+    fn active(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+struct VerificationLauncher {
+    gate: LaunchGate,
+    results: Receiver<bool>,
+    result_sender: mpsc::SyncSender<bool>,
+}
+
+impl Default for VerificationLauncher {
+    fn default() -> Self {
+        let (result_sender, results) = mpsc::sync_channel(1);
+        Self {
+            gate: LaunchGate::default(),
+            results,
+            result_sender,
+        }
+    }
+}
+
+impl VerificationLauncher {
+    fn open(&self, uri: String) -> bool {
+        if validate_verification_uri(&uri).is_err() || !self.gate.try_acquire() {
+            return false;
+        }
+        let gate = self.gate.clone();
+        let results = self.result_sender.clone();
+        let spawn = thread::Builder::new()
+            .name("overcrow-open-twitch".to_owned())
+            .spawn(move || {
+                let succeeded = run_xdg_open(uri);
+                gate.release();
+                let _ = results.try_send(succeeded);
+            });
+        if spawn.is_err() {
+            self.gate.release();
+            return false;
+        }
+        true
+    }
+
+    fn active(&self) -> bool {
+        self.gate.active()
+    }
+
+    fn take_result(&self) -> Option<bool> {
+        self.results.try_recv().ok()
+    }
+}
+
+fn run_xdg_open(uri: String) -> bool {
+    let Ok(mut child) = Command::new("/usr/bin/xdg-open")
+        .arg(uri)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    let deadline = Instant::now()
+        .checked_add(Duration::from_secs(5))
+        .unwrap_or_else(Instant::now);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Err(_) => return false,
+            Ok(None) if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(50));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return false;
+            }
+        }
     }
 }
 
@@ -314,6 +642,7 @@ fn settings_failure_target(widget_id: Option<WidgetId>) -> &'static str {
         Some(WidgetId::WarframeMarket) => "widget=warframe_market",
         Some(WidgetId::WarframeSortie) => "widget=warframe_sortie",
         Some(WidgetId::WarframeInvasions) => "widget=warframe_invasions",
+        Some(WidgetId::TwitchChat) => "widget=twitch_chat",
         None => "affected_widgets=layout",
     }
 }
@@ -439,6 +768,8 @@ impl eframe::App for OverlayApp {
         if let Some(snapshot) = self.client.take_latest() {
             self.apply_snapshot(context, snapshot);
         }
+        self.sync_core_authority(context);
+        let authoritative = authoritative_snapshot(self.state.snapshot(), self.core_authority);
         if self.media_readiness.take().media()
             && let Some(snapshot) = self.media_client.take_latest()
         {
@@ -448,26 +779,30 @@ impl eframe::App for OverlayApp {
         if let Some(update) = self.notes_service.take_latest() {
             self.notes_state.apply_update(update);
         }
-        self.warframe.sync(
-            context,
-            self.state.snapshot(),
-            &self.preferences,
-            now,
-            wall_secs,
-        );
-        if context.input(|input| input.key_pressed(egui::Key::Escape)) {
+        if let Some(snapshot) = self.twitch_client.take_latest() {
+            self.twitch_state
+                .apply_snapshot(snapshot.revision, snapshot.value);
+        }
+        if let Some(result) = self.twitch_prefs_saver.take_latest() {
+            self.apply_twitch_prefs_save(result.value.as_ref());
+        }
+        if self.twitch_verification.take_result() == Some(false) {
+            self.twitch_state
+                .set_message(Some("Could not open Twitch in your browser.".to_owned()));
+        }
+        self.twitch_state
+            .set_verification_opening(self.twitch_verification.active());
+        self.sync_twitch_gate();
+        self.warframe
+            .sync(context, &authoritative, &self.preferences, now, wall_secs);
+        if self.core_authority && context.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.request_passive(context);
         }
 
         let next_repaint = [
-            stopwatch_repaint_after(
-                self.state.snapshot(),
-                &self.preferences,
-                &self.session_clock,
-                now,
-            ),
+            stopwatch_repaint_after(&authoritative, &self.preferences, &self.session_clock, now),
             manual_stopwatch_repaint_after(
-                self.state.snapshot(),
+                &authoritative,
                 &self.preferences,
                 &self.manual_stopwatch_clock,
                 now,
@@ -479,9 +814,33 @@ impl eframe::App for OverlayApp {
         if let Some(delay) = next_repaint {
             context.request_repaint_after(delay);
         }
+        if authoritative.overlay_mode == OverlayMode::Passive
+            && authoritative.active_game.is_some()
+            && self.preferences.settings(WidgetId::TwitchChat).enabled
+            && self
+                .preferences
+                .settings(WidgetId::TwitchChat)
+                .show_in_passive
+            && let Some(delay) = twitch_passive_repaint_after(
+                self.twitch_state.snapshot(),
+                Duration::from_secs(self.twitch_prefs.passive_lifetime_secs.into()),
+                now,
+            )
+        {
+            context.request_repaint_after(delay);
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if !self.core_authority {
+            self.about_open = false;
+            self.widgets.sync_interaction_state(
+                OverlayMode::Passive,
+                false,
+                ui.input(|input| input.pointer.primary_down()),
+            );
+            return;
+        }
         if !controls_visible(self.state.snapshot()) {
             self.about_open = false;
         }
@@ -571,6 +930,20 @@ impl eframe::App for OverlayApp {
                     self.apply_catalog_action(ui.ctx(), action);
                 }
             }
+        }
+
+        let twitch = self.widgets.render_twitch(
+            ui,
+            self.state.snapshot(),
+            &mut self.twitch_state,
+            &self.twitch_prefs,
+            &mut self.preferences,
+            now,
+            WIDGET_MARGIN,
+        );
+        save_requested |= twitch.save_requested;
+        for action in twitch.actions {
+            self.dispatch_twitch_action(action);
         }
 
         save_requested |= self.warframe.render(

@@ -51,6 +51,7 @@ assert_exact_line 'WantedBy=default.target' "$core"
 
 assert_exact_line 'ExecStart=@OVERCROW_BINDIR@/overcrow-overlay' "$overlay"
 assert_exact_line 'Requires=overcrow-core.service' "$overlay"
+assert_exact_line 'Restart=on-failure' "$overlay"
 assert_absent '[Install]' "$overlay"
 assert_absent 'WantedBy=' "$overlay"
 

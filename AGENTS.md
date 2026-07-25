@@ -25,7 +25,7 @@ turning it into a large process.
 - `crates/overcrow-core`: game/window authority, telemetry, shortcuts,
   stopwatch state, session lifecycle, and D-Bus service.
 - `crates/overcrow-overlay`: egui renderer, widget manager, local providers,
-  and Warframe public-data clients.
+  Warframe public-data clients, and the bounded Twitch chat provider.
 - `crates/overcrow-hyprland`: Hyprland IPC, placement, focus protection, and
   dynamic shortcut bridge.
 - `crates/overcrow-control`: Control Center, Steam discovery, opt-in settings,
@@ -79,6 +79,10 @@ turning it into a large process.
   existing non-blocking logger. Use stable widget/provider IDs and categories
   only; never log raw errors, provider payloads, user content, paths, URLs,
   titles, queries, media metadata, notes, checklist text, or keystrokes.
+- Twitch diagnostics use only `widget=twitch_chat provider=twitch` and a fixed
+  failure category. Never log OAuth/device codes, account or channel names,
+  chat messages, replies, EventSub messages, Helix bodies, badge/emote
+  identifiers, favorites, or credential-store payloads.
 
 ## Efficient workflow
 

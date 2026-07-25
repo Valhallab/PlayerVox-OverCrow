@@ -1,9 +1,10 @@
 use super::{
-    LICENSE_ID, ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient, OverlayState,
-    SOURCE_REPOSITORY_URL, ViewportUpdate, about_visible, confirmed_mode_event, controls_visible,
-    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
-    interactive_scrim, log_catalog_settings_outcome, settings_failure_target,
-    stopwatch_repaint_after, viewport_builder, viewport_update_changed,
+    LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient,
+    OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_visible, authoritative_snapshot,
+    confirmed_mode_event, controls_visible, dispatch_manual_stopwatch_action,
+    dispatch_notes_action, handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome,
+    settings_failure_target, stopwatch_repaint_after, twitch_gate, viewport_builder,
+    viewport_update_changed,
 };
 use crate::{
     notes::{NotesCommand, NotesDocument, NotesError, NotesUpdate},
@@ -402,7 +403,7 @@ mod catalog {
     }
 
     #[test]
-    fn catalog_keeps_widget_specific_notes_options_out_of_the_widget_list() {
+    fn catalog_keeps_widget_specific_options_out_of_the_widget_list() {
         let context = egui::Context::default();
         context.enable_accesskit();
         let output = context.run_ui(
@@ -431,6 +432,8 @@ mod catalog {
 
         assert!(!text.iter().any(|value| value == "Show note"));
         assert!(!text.iter().any(|value| value == "Show checklist"));
+        assert!(!text.iter().any(|value| value == "Connect Twitch"));
+        assert!(!text.iter().any(|value| value == "Passive lifetime"));
     }
 
     #[test]
@@ -613,14 +616,36 @@ fn x11_viewport_requests_the_portable_always_on_top_hint() {
 #[test]
 fn snapshot_update_tracks_game_geometry_and_input_mode() {
     assert_eq!(
-        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive)),
+        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true),
         ViewportUpdate {
             mouse_passthrough: true,
             position: Some([100.0, 200.0]),
             size: Some([1920.0, 1080.0]),
         }
     );
-    assert!(!ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive)).mouse_passthrough);
+    assert!(
+        !ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), true).mouse_passthrough
+    );
+}
+
+#[test]
+fn missing_core_authority_forces_passthrough_without_stale_geometry() {
+    assert_eq!(
+        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), false),
+        ViewportUpdate {
+            mouse_passthrough: true,
+            position: None,
+            size: None,
+        }
+    );
+}
+
+#[test]
+fn missing_core_authority_hides_retained_runtime_state() {
+    let effective = authoritative_snapshot(&snapshot(OverlayMode::Interactive), false);
+
+    assert!(effective.active_game.is_none());
+    assert_eq!(effective.overlay_mode, OverlayMode::Passive);
 }
 
 #[test]
@@ -629,7 +654,7 @@ fn wayland_snapshot_leaves_geometry_to_the_compositor_bridge() {
     wayland.active_game.as_mut().expect("active game").backend = "wayland".to_owned();
 
     assert_eq!(
-        ViewportUpdate::from_snapshot(&wayland),
+        ViewportUpdate::from_snapshot(&wayland, true),
         ViewportUpdate {
             mouse_passthrough: false,
             position: None,
@@ -646,7 +671,8 @@ fn elapsed_time_updates_do_not_reconfigure_the_viewport() {
 
     assert!(!viewport_update_changed(
         &previous,
-        &ViewportUpdate::from_snapshot(&current)
+        true,
+        &ViewportUpdate::from_snapshot(&current, true)
     ));
 }
 
@@ -804,10 +830,10 @@ fn stale_interactive_after_escape_keeps_the_safe_interactive_surface() {
     let mut state = OverlayState::from_snapshot(snapshot(OverlayMode::Interactive));
     state.begin_passive_request();
 
-    let update = state.apply_snapshot(SnapshotUpdate::confirmed(
-        snapshot(OverlayMode::Interactive),
-        false,
-    ));
+    let update = state.apply_snapshot(
+        SnapshotUpdate::confirmed(snapshot(OverlayMode::Interactive), false),
+        true,
+    );
 
     assert!(state.passive_pending());
     assert_eq!(state.snapshot().overlay_mode, OverlayMode::Interactive);
@@ -820,7 +846,7 @@ fn unconfirmed_failure_snapshot_does_not_release_the_escape_latch() {
     let expected = state.snapshot().clone();
     state.begin_passive_request();
 
-    let update = state.apply_snapshot(SnapshotUpdate::unconfirmed(CoreSnapshot::default()));
+    let update = state.apply_snapshot(SnapshotUpdate::unconfirmed(CoreSnapshot::default()), true);
 
     assert!(state.passive_pending());
     assert_eq!(state.snapshot(), &expected);
@@ -832,10 +858,10 @@ fn confirmed_passive_releases_the_escape_latch() {
     let mut state = OverlayState::from_snapshot(snapshot(OverlayMode::Interactive));
     state.begin_passive_request();
 
-    state.apply_snapshot(SnapshotUpdate::confirmed(
-        snapshot(OverlayMode::Passive),
+    state.apply_snapshot(
+        SnapshotUpdate::confirmed(snapshot(OverlayMode::Passive), true),
         true,
-    ));
+    );
 
     assert!(!state.passive_pending());
     assert_eq!(state.snapshot().overlay_mode, OverlayMode::Passive);
@@ -845,16 +871,36 @@ fn confirmed_passive_releases_the_escape_latch() {
 fn interactive_can_reactivate_after_a_confirmed_passive() {
     let mut state = OverlayState::from_snapshot(snapshot(OverlayMode::Interactive));
     state.begin_passive_request();
-    state.apply_snapshot(SnapshotUpdate::confirmed(
-        snapshot(OverlayMode::Passive),
+    state.apply_snapshot(
+        SnapshotUpdate::confirmed(snapshot(OverlayMode::Passive), true),
         true,
-    ));
+    );
 
-    let update = state.apply_snapshot(SnapshotUpdate::confirmed(
-        snapshot(OverlayMode::Interactive),
-        false,
-    ));
+    let update = state.apply_snapshot(
+        SnapshotUpdate::confirmed(snapshot(OverlayMode::Interactive), false),
+        true,
+    );
 
     assert_eq!(state.snapshot().overlay_mode, OverlayMode::Interactive);
     assert!(!update.mouse_passthrough);
+}
+
+#[test]
+fn twitch_verification_launch_is_single_flight() {
+    let gate = LaunchGate::default();
+
+    assert!(gate.try_acquire());
+    assert!(!gate.try_acquire());
+    assert!(gate.active());
+    gate.release();
+    assert!(!gate.active());
+    assert!(gate.try_acquire());
+}
+
+#[test]
+fn twitch_gate_fails_closed_when_core_authority_is_lost() {
+    let gate = twitch_gate(false, true, true, Some("warframe".to_owned()));
+
+    assert!(!gate.lifecycle_enabled);
+    assert!(gate.active_game_authorized);
 }

@@ -7,7 +7,7 @@ pub struct WidgetDescriptor {
     pub description: &'static str,
 }
 
-pub const BUILTIN_WIDGETS: [WidgetDescriptor; 11] = [
+pub const BUILTIN_WIDGETS: [WidgetDescriptor; 12] = [
     WidgetDescriptor {
         id: WidgetId::Session,
         name: "Session",
@@ -62,5 +62,10 @@ pub const BUILTIN_WIDGETS: [WidgetDescriptor; 11] = [
         id: WidgetId::WarframeInvasions,
         name: "Invasions",
         description: "Active invasions, progress, and rewards.",
+    },
+    WidgetDescriptor {
+        id: WidgetId::TwitchChat,
+        name: "Twitch chat",
+        description: "Read and send messages in a selected public Twitch chat.",
     },
 ];

@@ -44,6 +44,7 @@ fn widget_ids_are_the_exact_stable_catalog() {
             WidgetId::WarframeMarket,
             WidgetId::WarframeSortie,
             WidgetId::WarframeInvasions,
+            WidgetId::TwitchChat,
         ]
     );
 }
@@ -71,6 +72,7 @@ fn defaults_keep_only_the_existing_session_widget_enabled() {
     assert!(!profile.warframe_market.show_in_passive);
     assert!(profile.warframe_sortie.show_in_passive);
     assert!(profile.warframe_invasions.show_in_passive);
+    assert!(!profile.twitch_chat.show_in_passive);
     assert_eq!(profile.notes_display, NotesDisplaySettings::default());
 }
 
@@ -107,6 +109,23 @@ fn schema_v1_profile_loads_with_default_notes_display_preferences() {
 }
 
 #[test]
+fn schema_v2_profile_loads_with_disabled_twitch_defaults() {
+    let temp = tempfile::tempdir().unwrap();
+    let current = temp.path().join("widgets.json");
+    let mut legacy = profile_json();
+    legacy["schema_version"] = json!(2);
+    legacy.as_object_mut().unwrap().remove("twitch_chat");
+    write_private(&current, &serde_json::to_vec(&legacy).unwrap());
+
+    let load = WidgetSettingsStore::from_paths(&current, temp.path().join("overlay.json")).load();
+
+    assert!(load.warning.is_none());
+    assert_eq!(load.profile.schema_version, WIDGET_SCHEMA_VERSION);
+    assert!(!load.profile.twitch_chat.enabled);
+    assert!(!load.profile.twitch_chat.show_in_passive);
+}
+
+#[test]
 fn widget_defaults_are_stable_and_pairwise_distinct() {
     let profile = WidgetProfile::default();
     let expected = [
@@ -127,6 +146,7 @@ fn widget_defaults_are_stable_and_pairwise_distinct() {
             WidgetId::WarframeInvasions,
             WidgetPosition { x: 1.0, y: 0.72 },
         ),
+        (WidgetId::TwitchChat, WidgetPosition { x: 1.0, y: 0.28 }),
     ];
 
     for (index, (id, position)) in expected.into_iter().enumerate() {

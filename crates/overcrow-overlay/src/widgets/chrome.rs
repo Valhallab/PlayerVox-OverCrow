@@ -67,15 +67,25 @@ pub fn meta_text(label: impl Into<String>) -> egui::RichText {
 }
 
 /// Gear icon that opens a compact options submenu (filters stay outside).
+///
+/// Uses [`egui::PopupCloseBehavior::CloseOnClickOutside`] so option panels can
+/// host text fields, sliders, and multi-step actions (for example Twitch
+/// channel entry and Device Code connect) without collapsing on every click.
+/// Callers that want a one-shot action to dismiss the panel should call
+/// [`egui::Ui::close`] after applying the action.
 pub fn options_menu(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let icon = egui::RichText::new("⚙")
         .size(META_SIZE + 2.0)
         .color(Color32::from_gray(175));
-    ui.menu_button(icon, |ui| {
-        ui.set_min_width(168.0);
-        ui.spacing_mut().item_spacing.y = 4.0;
-        add_contents(ui);
-    });
+    let config = egui::containers::menu::MenuConfig::new()
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    egui::containers::menu::MenuButton::new(icon)
+        .config(config)
+        .ui(ui, |ui| {
+            ui.set_min_width(168.0);
+            ui.spacing_mut().item_spacing.y = 4.0;
+            add_contents(ui);
+        });
 }
 
 pub fn cycle_state_color(state: &str) -> Color32 {

@@ -33,13 +33,16 @@ impl Reconciler {
         let report = if preserve_game {
             self.remembered_report(clients, monitors)
         } else {
-            match active_report {
-                Some(report) if !report.is_overlay() => {
+            match (active, active_report) {
+                (_, Some(report)) if !report.is_overlay() => {
                     self.last_reportable = Some(report.address.clone());
                     Some(report)
                 }
-                Some(_) => self.remembered_report(clients, monitors),
-                None => None,
+                // Overlay focus or an empty focus must not drop a still-mapped
+                // selected game. An explicitly reported but invalid window is
+                // ambiguous and therefore clears authority.
+                (_, Some(_)) | (None, None) => self.remembered_report(clients, monitors),
+                (Some(_), None) => None,
             }
         };
 
@@ -64,12 +67,26 @@ impl Reconciler {
             .find(|window| window.address == remembered.as_str())
             .and_then(|window| WindowReport::from_window(window, monitors))
             .filter(|candidate| !candidate.is_overlay())
+            .filter(|candidate| is_on_focused_workspace(candidate, monitors))
     }
+}
+
+fn is_on_focused_workspace(report: &WindowReport, monitors: &[HyprMonitor]) -> bool {
+    let mut focused = monitors.iter().filter(|monitor| monitor.focused);
+    let Some(monitor) = focused.next() else {
+        return false;
+    };
+    if focused.next().is_some() {
+        return false;
+    }
+    monitor
+        .active_workspace
+        .is_some_and(|workspace| workspace.id == report.workspace_id)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{HyprMonitor, HyprWindow, OVERLAY_APP_ID};
+    use crate::model::{HyprMonitor, HyprWindow, HyprWorkspaceId, OVERLAY_APP_ID};
 
     use super::Reconciler;
 
@@ -93,7 +110,12 @@ mod tests {
     }
 
     fn monitors() -> Vec<HyprMonitor> {
-        vec![HyprMonitor { id: 0, scale: 1.0 }]
+        vec![HyprMonitor {
+            id: 0,
+            scale: 1.0,
+            focused: true,
+            active_workspace: Some(HyprWorkspaceId { id: 1 }),
+        }]
     }
 
     #[test]
@@ -179,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_or_overlay_only_focus_fails_closed() {
+    fn missing_or_overlay_only_focus_fails_closed_without_a_prior_game() {
         let overlay = sample_window("0x20", OVERLAY_APP_ID, 0);
         let mut reconciler = Reconciler::new();
 
@@ -200,6 +222,59 @@ mod tests {
                 .report
                 .is_none()
         );
+    }
+
+    #[test]
+    fn empty_focus_retains_the_last_still_valid_game() {
+        let game = sample_window("0x10", "steam_app_1623730", 0);
+        let overlay = sample_window("0x20", OVERLAY_APP_ID, 0);
+        let mut reconciler = Reconciler::new();
+        reconciler.reconcile(
+            Some(&game),
+            &[game.clone(), overlay.clone()],
+            &monitors(),
+            false,
+        );
+
+        let retained = reconciler.reconcile(None, &[game.clone(), overlay], &monitors(), false);
+        assert_eq!(
+            retained.report.expect("retained report").address.as_str(),
+            "0x10"
+        );
+    }
+
+    #[test]
+    fn empty_focus_clears_a_game_outside_the_focused_workspace() {
+        let game = sample_window("0x10", "steam_app_1623730", 0);
+        let mut moved_game = game.clone();
+        moved_game.workspace = Some(crate::model::HyprWorkspace {
+            id: 2,
+            name: "2".to_owned(),
+        });
+        let mut reconciler = Reconciler::new();
+        reconciler.reconcile(Some(&game), std::slice::from_ref(&game), &monitors(), false);
+
+        let output =
+            reconciler.reconcile(None, std::slice::from_ref(&moved_game), &monitors(), false);
+
+        assert!(output.report.is_none());
+    }
+
+    #[test]
+    fn invalid_active_window_clears_the_remembered_game() {
+        let game = sample_window("0x10", "steam_app_1623730", 0);
+        let invalid_active = sample_window("invalid-address", "browser", 0);
+        let mut reconciler = Reconciler::new();
+        reconciler.reconcile(Some(&game), std::slice::from_ref(&game), &monitors(), false);
+
+        let output = reconciler.reconcile(
+            Some(&invalid_active),
+            &[game, invalid_active.clone()],
+            &monitors(),
+            false,
+        );
+
+        assert!(output.report.is_none());
     }
 
     #[test]

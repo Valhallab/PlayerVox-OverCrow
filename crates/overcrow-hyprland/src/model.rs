@@ -52,6 +52,15 @@ pub struct HyprWorkspace {
 pub struct HyprMonitor {
     pub id: i32,
     pub scale: f64,
+    #[serde(default)]
+    pub focused: bool,
+    #[serde(default, rename = "activeWorkspace")]
+    pub active_workspace: Option<HyprWorkspaceId>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+pub struct HyprWorkspaceId {
+    pub id: i32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -159,7 +168,12 @@ mod tests {
             }"#,
         )
         .expect("window JSON should decode");
-        let monitors = [HyprMonitor { id: 1, scale: 1.25 }];
+        let monitors = [HyprMonitor {
+            id: 1,
+            scale: 1.25,
+            focused: true,
+            active_workspace: Some(super::HyprWorkspaceId { id: 3 }),
+        }];
 
         let report = WindowReport::from_window(&window, &monitors).expect("valid report");
 
@@ -182,7 +196,12 @@ mod tests {
 
     #[test]
     fn rejects_missing_or_non_positive_workspace_ids() {
-        let monitors = [HyprMonitor { id: 0, scale: 1.0 }];
+        let monitors = [HyprMonitor {
+            id: 0,
+            scale: 1.0,
+            focused: true,
+            active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
+        }];
         for workspace in [
             String::new(),
             r#", "workspace":{"id":0,"name":"invalid"}"#.to_owned(),
@@ -207,7 +226,16 @@ mod tests {
         ] {
             let window: HyprWindow = serde_json::from_str(json).expect("fixture should decode");
             assert!(
-                WindowReport::from_window(&window, &[HyprMonitor { id: 0, scale: 1.0 }]).is_none()
+                WindowReport::from_window(
+                    &window,
+                    &[HyprMonitor {
+                        id: 0,
+                        scale: 1.0,
+                        focused: true,
+                        active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
+                    }],
+                )
+                .is_none()
             );
         }
     }
@@ -217,11 +245,23 @@ mod tests {
         let window = sample_window("0x1", "game", 0);
         for monitors in [
             Vec::new(),
-            vec![HyprMonitor { id: 1, scale: 1.0 }],
-            vec![HyprMonitor { id: 0, scale: 0.0 }],
+            vec![HyprMonitor {
+                id: 1,
+                scale: 1.0,
+                focused: true,
+                active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
+            }],
+            vec![HyprMonitor {
+                id: 0,
+                scale: 0.0,
+                focused: true,
+                active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
+            }],
             vec![HyprMonitor {
                 id: 0,
                 scale: f64::NAN,
+                focused: true,
+                active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
             }],
         ] {
             assert!(WindowReport::from_window(&window, &monitors).is_none());
@@ -230,7 +270,12 @@ mod tests {
 
     #[test]
     fn identifies_only_the_exact_overlay_class() {
-        let monitors = [HyprMonitor { id: 0, scale: 1.0 }];
+        let monitors = [HyprMonitor {
+            id: 0,
+            scale: 1.0,
+            focused: true,
+            active_workspace: Some(super::HyprWorkspaceId { id: 1 }),
+        }];
         assert!(
             WindowReport::from_window(&sample_window("0x2", OVERLAY_APP_ID, 0), &monitors)
                 .expect("overlay should normalize")

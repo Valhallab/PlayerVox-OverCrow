@@ -968,7 +968,12 @@ mod tests {
             Self {
                 active: Some(game.clone()),
                 clients: vec![game, overlay],
-                monitors: vec![HyprMonitor { id: 0, scale: 1.25 }],
+                monitors: vec![HyprMonitor {
+                    id: 0,
+                    scale: 1.25,
+                    focused: true,
+                    active_workspace: Some(crate::model::HyprWorkspaceId { id: 1 }),
+                }],
                 global_shortcuts: Vec::new(),
                 bindings: Vec::new(),
                 shortcut_backend: ShortcutBackend::Compatibility,
@@ -985,7 +990,12 @@ mod tests {
             Self {
                 active: None,
                 clients: Vec::new(),
-                monitors: vec![HyprMonitor { id: 0, scale: 1.0 }],
+                monitors: vec![HyprMonitor {
+                    id: 0,
+                    scale: 1.0,
+                    focused: true,
+                    active_workspace: Some(crate::model::HyprWorkspaceId { id: 1 }),
+                }],
                 global_shortcuts: Vec::new(),
                 bindings: Vec::new(),
                 shortcut_backend: ShortcutBackend::Compatibility,
@@ -1782,7 +1792,12 @@ mod tests {
         let browser_desktop = FakeDesktop {
             active: Some(browser.clone()),
             clients: vec![game, browser, overlay],
-            monitors: vec![HyprMonitor { id: 0, scale: 1.25 }],
+            monitors: vec![HyprMonitor {
+                id: 0,
+                scale: 1.25,
+                focused: true,
+                active_workspace: Some(crate::model::HyprWorkspaceId { id: 1 }),
+            }],
             global_shortcuts: Vec::new(),
             bindings: Vec::new(),
             shortcut_backend: ShortcutBackend::Compatibility,

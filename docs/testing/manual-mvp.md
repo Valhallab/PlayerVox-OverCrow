@@ -761,6 +761,47 @@ snapshot calls and steady worker wakeups in the unchanged states. Do not claim
 live performance acceptance without attaching these files and the functional
 Hyprland result.
 
+## Twitch chat acceptance
+
+Use a build compiled with the public `OVERCROW_TWITCH_CLIENT_ID`. Use a test
+account and a public channel where sending test messages is permitted. Repeat
+the visual/input checks on Hyprland, Plasma Wayland, and X11; one successful
+OAuth/network run is sufficient if the exact same package is used.
+
+1. With a selected game active, enable the Twitch widget and configure a
+   channel. Stop the game and confirm the connection closes and provider work
+   remains inert.
+2. Restart and focus the selected game. Open Interactive mode, open Twitch
+   options, and confirm the widget offers Device Code authorization without
+   displaying or requesting a Client Secret. An account authorized by an
+   earlier IRC build must be asked to authorize the new chat scopes once.
+3. Select **Connect Twitch**, verify the bounded code and Twitch activation URL,
+   then complete authorization. Restart OverCrow and confirm Secret Service
+   restores the session; separately record the explicit reconnect warning when
+   testing without Secret Service.
+4. Select an arbitrary public channel that is not owned by the authenticated
+   account. Confirm chat joins even when that channel is offline.
+5. Add, remove, reorder, and select favorites. Restart and confirm only the
+   selected channel, order, and passive lifetime return—never old messages or a
+   draft.
+6. Receive messages containing display-name colors, badge/emote metadata,
+   Unicode, and a reply. Confirm each username is bold and no badge/emote icon
+   is rendered; the complete text must remain visible.
+7. Send a normal message and a reply. Confirm each appears once, Enter cannot
+   inject another command, the 500-character UI limit is enforced, and a
+   rejected Helix send is not retried automatically.
+8. Scroll away from the bottom, receive messages, and verify the bounded new
+   message indicator. Return to the latest message, switch channels, and
+   confirm history, reply target, and draft clear.
+9. Return to Passive mode. Confirm recent rows fade at the configured lifetime,
+   old rows disappear, the panel fits content, and every Twitch control is
+   non-interactive and click-through.
+10. Move to another workspace, stop the game, disable the widget, disconnect
+    Twitch, and revoke the token externally in turn. Confirm connections close,
+    the overlay remains responsive, and logs contain only
+    `widget=twitch_chat provider=twitch` with fixed categories—no account,
+    channel, message, code, token, URL, badge, or emote data.
+
 ## Supported presentation boundary
 
 Acceptance covers **windowed and borderless-fullscreen windows only**. Exclusive

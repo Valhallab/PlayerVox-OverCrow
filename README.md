@@ -120,6 +120,8 @@ PlayerVox support. No GitHub account is required.
 - **Market** — warframe.market search, orders, and trade templates.
 - **Sortie & Archon** — the current three Sortie and Archon Hunt missions.
 - **Invasions** — current invasion missions, progress, and rewards.
+- **Twitch chat** — read and send messages in any selected public channel,
+  with ordered favorites, replies, and bold colorized usernames.
 
 Warframe widgets appear only for Steam App ID `230410`. They use bounded,
 unauthenticated requests to the official Warframe world-state endpoint and
@@ -128,6 +130,15 @@ warframe.market; they never access a game account or game memory.
 Resizable widgets keep their configured editing size in Interactive mode. In
 Passive mode their height follows visible content, up to the game viewport, so
 hidden sections and short content do not leave an empty panel.
+
+Twitch chat is disabled by default. It connects only while an explicitly
+selected game is active and the widget is enabled. Incoming chat uses Twitch
+EventSub and outgoing messages use the Helix API. Messages and drafts remain
+in memory; only the selected channel, favorites, and passive display lifetime
+are stored locally. Badge and emote images are intentionally not rendered.
+OAuth tokens use the desktop Secret Service when available and otherwise
+remain in memory until OverCrow exits. The release build contains a public
+Twitch application Client ID, never a Client Secret.
 
 ## Safety
 
@@ -185,6 +196,16 @@ The main local checks are:
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets --locked
+```
+
+Twitch support is enabled by default: the official PlayerVox OverCrow public
+Client ID is compiled into the overlay. That ID is not a secret (it ships in
+the binary). A Client Secret must never be added to the repository or build.
+
+Forks or alternate Twitch apps can override the ID at compile time:
+
+```sh
+OVERCROW_TWITCH_CLIENT_ID="<public-client-id>" cargo build --workspace
 ```
 
 Shell, KWin, packaging, and release checks are documented in

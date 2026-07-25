@@ -52,6 +52,30 @@ The local files are private, rotate at 2 MiB, retain three archives per
 component, and are never uploaded automatically. `overcrowctl logs` returns at
 most the newest 2,000 merged lines.
 
+## Twitch chat does not connect
+
+1. Confirm that the game is selected and active, and that the Twitch chat
+   widget itself is enabled.
+2. Open the widget options, choose a valid public channel, and select
+   **Connect Twitch** (first time) or **Reconnect chat** (when already signed
+   in). **Disconnect chat** closes chat and keeps your session;
+   **Sign out of Twitch** revokes the account and requires a new device code.
+   Upgrading from an IRC-based development build requires one new
+   authorization for `user:read:chat` and `user:write:chat`.
+3. If the widget says that Twitch is not configured, the installed build has
+   an empty Client ID (a non-default or custom build). Official PlayerVox
+   builds include the public Client ID. No account request was made.
+4. If secure credential storage is unavailable, the current connection may
+   still work but must be authorized again after restarting OverCrow.
+5. Disable and re-enable the widget to clear transient chat state. Do not put
+   access tokens, chat content, channel names, or provider responses in a bug
+   report.
+
+The chat may be joined while the channel is offline. OverCrow does not persist
+chat messages and does not connect when no authorized game is active. It
+renders chat as text with bold usernames; badge and emote images are not part
+of this version.
+
 ## Report a problem
 
 Open **Diagnostics → Report a problem** in the Control Center:

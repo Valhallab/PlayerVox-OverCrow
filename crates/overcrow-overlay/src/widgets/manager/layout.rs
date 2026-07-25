@@ -293,5 +293,6 @@ fn widget_index(id: WidgetId) -> usize {
         WidgetId::WarframeMarket => 8,
         WidgetId::WarframeSortie => 9,
         WidgetId::WarframeInvasions => 10,
+        WidgetId::TwitchChat => 11,
     }
 }

@@ -406,7 +406,15 @@ mod tests {
             fixture.ipc().query("monitors").await.expect("query works");
 
         assert_eq!(server.await.expect("server completes"), "j/monitors");
-        assert_eq!(monitors, vec![HyprMonitor { id: 0, scale: 1.25 }]);
+        assert_eq!(
+            monitors,
+            vec![HyprMonitor {
+                id: 0,
+                scale: 1.25,
+                focused: false,
+                active_workspace: None,
+            }]
+        );
     }
 
     #[tokio::test]

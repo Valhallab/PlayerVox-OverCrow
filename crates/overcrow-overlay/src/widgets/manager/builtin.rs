@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use eframe::egui;
-use overcrow_config::{WidgetId, WidgetProfile};
+use overcrow_config::{TwitchPrefs, WidgetId, WidgetProfile};
 use overcrow_protocol::CoreSnapshot;
 
 use crate::{
@@ -14,12 +14,13 @@ use crate::{
         notes::{NotesWidgetState, paint_notes},
         performance::paint_performance,
         session::{paint_session, session_draggable, session_visible},
+        twitch_chat::{TwitchWidgetState, paint_twitch_chat},
     },
 };
 
 use super::{
-    ManualStopwatchRenderOutcome, MediaRenderOutcome, NotesRenderOutcome, WidgetManager,
-    widget_draggable, widget_visible,
+    ManualStopwatchRenderOutcome, MediaRenderOutcome, NotesRenderOutcome, TwitchRenderOutcome,
+    WidgetManager, widget_draggable, widget_visible,
 };
 
 impl WidgetManager {
@@ -341,6 +342,73 @@ impl WidgetManager {
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         NotesRenderOutcome {
+            save_requested: self.finish_resizable_panel(
+                id,
+                core_snapshot.overlay_mode,
+                viewport,
+                margin,
+                profile,
+                response.size,
+                response.position,
+                response.dragged,
+                response.drag_stopped,
+                response.resize,
+            ),
+            actions: response.actions,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_twitch(
+        &mut self,
+        ui: &mut egui::Ui,
+        core_snapshot: &CoreSnapshot,
+        state: &mut TwitchWidgetState,
+        twitch_prefs: &TwitchPrefs,
+        profile: &mut WidgetProfile,
+        now: Instant,
+        margin: f32,
+    ) -> TwitchRenderOutcome {
+        let id = WidgetId::TwitchChat;
+        if !widget_visible(
+            id,
+            core_snapshot.overlay_mode,
+            core_snapshot.active_game.is_some(),
+            profile,
+        ) {
+            return TwitchRenderOutcome {
+                save_requested: false,
+                actions: Vec::new(),
+            };
+        }
+
+        let viewport = ui.max_rect();
+        let position =
+            self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
+        let can_move = self.can_move_panel(
+            ui,
+            id,
+            core_snapshot.overlay_mode,
+            core_snapshot.active_game.is_some(),
+            position,
+            panel_size,
+        );
+        let response = paint_twitch_chat(
+            ui,
+            position,
+            panel_size,
+            state,
+            twitch_prefs,
+            profile.settings(id).scale,
+            core_snapshot.overlay_mode,
+            profile.settings(id).transparent_background,
+            can_move,
+            margin,
+            now,
+        );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
+        TwitchRenderOutcome {
             save_requested: self.finish_resizable_panel(
                 id,
                 core_snapshot.overlay_mode,

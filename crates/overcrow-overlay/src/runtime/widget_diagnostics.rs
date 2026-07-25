@@ -6,6 +6,7 @@ pub(crate) enum Provider {
     LocalNotes,
     WarframeWorldstate,
     WarframeMarket,
+    Twitch,
 }
 
 impl Provider {
@@ -17,6 +18,7 @@ impl Provider {
                 "provider=warframe_worldstate affected_widgets=warframe_status,warframe_fissures,warframe_sortie,warframe_invasions"
             }
             Self::WarframeMarket => "widget=warframe_market provider=warframe_market",
+            Self::Twitch => "widget=twitch_chat provider=twitch",
         }
     }
 }
@@ -152,6 +154,10 @@ mod tests {
         assert_eq!(
             Provider::WarframeMarket.fields(),
             "widget=warframe_market provider=warframe_market"
+        );
+        assert_eq!(
+            Provider::Twitch.fields(),
+            "widget=twitch_chat provider=twitch"
         );
     }
 

@@ -131,6 +131,12 @@ struct ConnectionEventTracker {
     last_failure: Option<String>,
 }
 
+struct ConnectionMonitor<'a> {
+    events: &'a mut ConnectionEventTracker,
+    logger: &'a EventLogger,
+    authority: &'a AtomicBool,
+}
+
 impl ConnectionEventTracker {
     fn connected(&mut self) -> Option<ConnectionEvent> {
         if self.connected {
@@ -481,6 +487,7 @@ pub struct SnapshotClient {
     snapshots: SnapshotReceiver,
     commands: CommandSender,
     shutdown: tokio::sync::watch::Sender<bool>,
+    authority: Arc<AtomicBool>,
 }
 
 impl SnapshotClient {
@@ -488,6 +495,8 @@ impl SnapshotClient {
         let (snapshot_sender, snapshots) = snapshot_channel();
         let (commands, command_receiver) = command_channel();
         let (shutdown, shutdown_receiver) = tokio::sync::watch::channel(false);
+        let authority = Arc::new(AtomicBool::new(false));
+        let worker_authority = Arc::clone(&authority);
 
         let _ = thread::Builder::new()
             .name("overcrow-dbus-client".to_owned())
@@ -498,6 +507,7 @@ impl SnapshotClient {
                     shutdown_receiver,
                     logger,
                     request_repaint,
+                    worker_authority,
                 );
             });
 
@@ -505,6 +515,7 @@ impl SnapshotClient {
             snapshots,
             commands,
             shutdown,
+            authority,
         }
     }
 
@@ -524,11 +535,19 @@ impl SnapshotClient {
             snapshots,
             commands,
             shutdown,
+            authority: Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub fn take_latest(&self) -> Option<SnapshotUpdate> {
         self.snapshots.take_latest()
+    }
+
+    /// Returns whether the retained snapshot still belongs to a live Core
+    /// authority. Display state may intentionally outlive this signal while
+    /// the D-Bus client reconnects, but network providers must fail closed.
+    pub fn has_authority(&self) -> bool {
+        self.authority.load(Ordering::Acquire)
     }
 
     /// Retained for the UI API; Core state changes now arrive through signals.
@@ -563,6 +582,7 @@ fn run_worker(
     shutdown: tokio::sync::watch::Receiver<bool>,
     logger: EventLogger,
     request_repaint: impl Fn(),
+    authority: Arc<AtomicBool>,
 ) {
     let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -581,6 +601,7 @@ fn run_worker(
         shutdown,
         logger,
         request_repaint,
+        authority,
     ));
 }
 
@@ -590,23 +611,31 @@ async fn run_client(
     mut shutdown: tokio::sync::watch::Receiver<bool>,
     logger: EventLogger,
     request_repaint: impl Fn(),
+    authority: Arc<AtomicBool>,
 ) {
     let mut backoff = Backoff::new(INITIAL_BACKOFF, MAXIMUM_BACKOFF);
     let mut passive_intent = PassiveIntent::default();
     let mut connection_events = ConnectionEventTracker::default();
     loop {
         let result = tokio::select! {
-            () = wait_for_shutdown(&mut shutdown) => return,
+            () = wait_for_shutdown(&mut shutdown) => {
+                set_authority(&authority, false, &request_repaint);
+                return;
+            },
             result = connection_cycle(
                 &snapshots,
                 &commands,
                 &request_repaint,
                 &mut backoff,
                 &mut passive_intent,
-                &mut connection_events,
-                &logger,
+                ConnectionMonitor {
+                    events: &mut connection_events,
+                    logger: &logger,
+                    authority: &authority,
+                },
             ) => result,
         };
+        set_authority(&authority, false, &request_repaint);
         if let Err(error) = result
             && let Some(event) = connection_events.failed(error)
         {
@@ -639,8 +668,7 @@ async fn connection_cycle(
     request_repaint: &impl Fn(),
     backoff: &mut Backoff,
     passive_intent: &mut PassiveIntent,
-    connection_events: &mut ConnectionEventTracker,
-    logger: &EventLogger,
+    monitor: ConnectionMonitor<'_>,
 ) -> zbus::Result<()> {
     let connection = zbus::Connection::session().await?;
     let proxy = Core1Proxy::new(&connection).await?;
@@ -654,8 +682,8 @@ async fn connection_cycle(
             Err(error) if baseline_failure(&error) == BaselineFailure::Legacy => {
                 drop(owner_changes);
                 drop(signals);
-                if let Some(event) = connection_events.connected() {
-                    event.emit(logger);
+                if let Some(event) = monitor.events.connected() {
+                    event.emit(monitor.logger);
                 }
                 return legacy_connection_cycle(
                     &proxy,
@@ -664,14 +692,15 @@ async fn connection_cycle(
                     request_repaint,
                     backoff,
                     passive_intent,
+                    monitor.authority,
                 )
                 .await;
             }
             Err(error) => return Err(error),
         };
     let baseline = decode_versioned(&baseline_json).map_err(malformed_versioned_error)?;
-    if let Some(event) = connection_events.connected() {
-        event.emit(logger);
+    if let Some(event) = monitor.events.connected() {
+        event.emit(monitor.logger);
     }
     let mut gate = RevisionGate::default();
     let _ = apply_versioned(
@@ -681,6 +710,7 @@ async fn connection_cycle(
         passive_intent,
         request_repaint,
     );
+    set_authority(monitor.authority, true, request_repaint);
     backoff.reset();
 
     if !passive_intent.absorb_commands(commands) {
@@ -807,6 +837,7 @@ async fn legacy_connection_cycle(
     request_repaint: &impl Fn(),
     backoff: &mut Backoff,
     passive_intent: &mut PassiveIntent,
+    authority: &AtomicBool,
 ) -> zbus::Result<()> {
     loop {
         if !passive_intent.absorb_commands(commands) {
@@ -850,12 +881,19 @@ async fn legacy_connection_cycle(
         passive_intent.record_response(response.as_ref().ok_or(()));
         if response.is_some() {
             backoff.reset();
+            set_authority(authority, true, request_repaint);
         }
 
         tokio::select! {
             () = commands.notified() => {}
             () = tokio::time::sleep(LEGACY_POLL_INTERVAL) => {}
         }
+    }
+}
+
+fn set_authority(authority: &AtomicBool, value: bool, request_repaint: &impl Fn()) {
+    if authority.swap(value, Ordering::AcqRel) != value {
+        request_repaint();
     }
 }
 

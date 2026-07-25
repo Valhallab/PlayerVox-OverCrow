@@ -6,20 +6,33 @@ mod placement;
 mod preferences;
 mod runtime;
 mod session_clock;
+pub mod twitch;
 mod warframe;
 pub mod widgets;
+
+use std::process::ExitCode;
 
 use app::{APP_ID, OverlayApp, is_x11_session, viewport_builder};
 use overcrow_config::{SettingsLoad, SettingsStore};
 use overcrow_logging::{Component, EventLogger, LoggerRuntime};
 
-fn main() -> eframe::Result {
+fn main() -> ExitCode {
     let settings_load = SettingsStore::from_environment().load();
     if let Some(warning) = &settings_load.warning {
         eprintln!("OverCrow lifecycle settings rejected; remaining inert: {warning}");
     }
 
-    run_if_lifecycle_allows(&settings_load, run_overlay)
+    match run_if_lifecycle_allows(&settings_load, run_overlay) {
+        Ok(false) => ExitCode::SUCCESS,
+        Ok(true) => {
+            eprintln!("OverCrow overlay event loop ended unexpectedly");
+            ExitCode::FAILURE
+        }
+        Err(error) => {
+            eprintln!("OverCrow overlay failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn run_overlay() -> eframe::Result {
@@ -72,12 +85,12 @@ fn lifecycle_allows_start(load: &SettingsLoad) -> bool {
 fn run_if_lifecycle_allows<E>(
     load: &SettingsLoad,
     start: impl FnOnce() -> Result<(), E>,
-) -> Result<(), E> {
+) -> Result<bool, E> {
     if !lifecycle_allows_start(load) {
-        return Ok(());
+        return Ok(false);
     }
 
-    start()
+    start().map(|()| true)
 }
 
 #[cfg(test)]
@@ -114,13 +127,22 @@ mod tests {
     fn rejected_settings_do_not_create_the_overlay() {
         let mut entered = false;
 
-        run_if_lifecycle_allows(&settings_load(false), || {
+        let started = run_if_lifecycle_allows(&settings_load(false), || {
             entered = true;
             Ok::<_, ()>(())
         })
         .unwrap();
 
+        assert!(!started);
         assert!(!entered);
+    }
+
+    #[test]
+    fn an_unexpected_successful_event_loop_return_is_reported_as_started() {
+        assert!(
+            run_if_lifecycle_allows(&settings_load(true), || Ok::<_, ()>(()))
+                .expect("event loop result")
+        );
     }
 
     #[test]

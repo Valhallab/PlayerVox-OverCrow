@@ -8,6 +8,7 @@ mod notes;
 mod performance;
 mod registry;
 mod session;
+mod twitch_chat;
 mod warframe_fissures;
 mod warframe_invasions;
 mod warframe_market;
@@ -31,6 +32,10 @@ pub use registry::{BUILTIN_WIDGETS, WidgetDescriptor};
 pub use session::{
     format_session_elapsed, session_draggable, session_repaint_after, session_visible,
 };
+pub use twitch_chat::{
+    TwitchChatAction, TwitchChatResponse, TwitchWidgetState, passive_message_alpha,
+    twitch_passive_repaint_after,
+};
 pub use warframe_fissures::{FissurePrefsAction, apply_fissure_prefs_action};
 pub use warframe_invasions::{InvasionPrefsAction, apply_invasion_prefs_action};
 pub use warframe_market::MarketUiAction;
@@ -52,3 +57,7 @@ mod warframe_tests;
 #[cfg(test)]
 #[path = "notes_tests.rs"]
 mod notes_tests;
+
+#[cfg(test)]
+#[path = "twitch_chat_tests.rs"]
+mod twitch_chat_tests;

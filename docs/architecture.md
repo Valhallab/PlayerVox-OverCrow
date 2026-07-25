@@ -70,6 +70,8 @@ Private user files live below `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`:
 - `settings.json` stores the master switch and selected games;
 - `widgets.json` stores the global widget profile and normalized geometry;
 - `warframe.json` stores Warframe filters and local activity preferences.
+- `twitch.json` stores one normalized active channel, up to 20 ordered
+  favorites, and the passive message lifetime.
 
 Private note content lives separately below
 `${XDG_DATA_HOME:-$HOME/.local/share}/overcrow/notes/global.json`. The bounded
@@ -88,6 +90,11 @@ and Passive modes. Interactive resize changes the persisted panel size;
 Passive content-fit measurements affect placement only and never overwrite
 saved geometry.
 
+Twitch OAuth credentials are not stored in these files. They use one versioned
+desktop Secret Service entry. If Secret Service is unavailable, the active
+credentials stay only in zeroizing process memory and the user must reconnect
+after restart. Twitch messages, drafts, and replies are never persisted.
+
 ## External providers
 
 MPRIS uses the user-session D-Bus. Warframe data uses only allowlisted HTTPS
@@ -97,6 +104,19 @@ shown indefinitely.
 
 Provider logging contains stable component IDs and fixed failure categories,
 never responses, queries, notes, media titles, paths, or other user content.
+
+Twitch chat is owned by one renderer worker and remains inert until the
+application lifecycle, selected active game, widget, channel, and credential
+gates are all valid. It uses Device Code OAuth, allowlisted Twitch HTTPS,
+EventSub WebSocket for incoming chat, and Helix for subscriptions and outgoing
+messages. Commands use a bounded queue; EventSub deliveries are deduplicated
+in a bounded set and snapshots coalesce to the newest 200-message ring.
+Responses, WebSocket messages, strings, retries, and shutdown operations are
+bounded. Usernames render as bold text; badge and emote assets are
+intentionally ignored. Losing active-game authority closes the chat
+connection; disabling the widget, switching channel, signing out, or stopping
+the renderer also clears the relevant transient private state. Passive
+presentation remains read-only and click-through.
 
 The native Control Center reads recent diagnostics through the hardened
 private log reader. It returns at most the newest 500 sanitized lines and
