@@ -8,6 +8,7 @@ import {
   memoryStorage,
   snapshot,
 } from './test/fixtures';
+import { APP_VERSION } from './version';
 
 describe('Control Center onboarding', () => {
   it('starts disabled and does not scan games before the user starts setup', async () => {
@@ -150,9 +151,9 @@ describe('Control Center dashboard', () => {
     storage.setItem('overcrow.onboardingVersion', '1');
     render(<App client={memoryClient(snapshot())} storage={storage} />);
 
-    expect(await screen.findByText('v0.1.0-pre-alpha.2')).toBeVisible();
+    expect(await screen.findByText(`v${APP_VERSION}`)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'About' }));
-    expect(screen.getByText('Version 0.1.0-pre-alpha.2')).toBeVisible();
+    expect(screen.getByText(`Version ${APP_VERSION}`)).toBeVisible();
   });
 
   it('locks the lifecycle action while OverCrow is starting', async () => {

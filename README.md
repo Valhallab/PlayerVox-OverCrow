@@ -1,8 +1,7 @@
 # OverCrow
 
-OverCrow is an opt-in, external game overlay for Linux, built by Valhallab and
-distributed under the PlayerVox brand. It provides movable widgets without
-injecting code into the game process.
+OverCrow is an opt-in external Linux game overlay built by Valhallab and
+distributed under the PlayerVox brand. It adds movable widgets without injection.
 
 The project is usable today on its primary Hyprland target, but remains an
 early release. Plasma and X11 need more real-machine coverage before they can
@@ -35,7 +34,7 @@ yay -S overcrow-bin
 
 `paru -S overcrow-bin` works as an alternative. Without an AUR helper,
 download the package from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.2)
+[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.3)
 and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
 
 Nothing starts during installation. Open **PlayerVox OverCrow** from the
@@ -66,12 +65,8 @@ User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcr
 
 The pre-alpha release contains one complete x86_64 package and its checksum:
 
-- `overcrow-bin-0.1.0prealpha2-1-x86_64.pkg.tar.zst`
+- `overcrow-bin-0.1.0prealpha3-1-x86_64.pkg.tar.zst`
 - `SHA256SUMS`
-
-Maintainers prepare future releases with `./scripts/prepare-release.sh` from a
-clean `master` checkout after the
-[real-machine pre-alpha checklist](docs/testing/pre-alpha-release.md) passes.
 
 ## Using OverCrow
 
@@ -98,15 +93,13 @@ overcrowctl logs
 ./scripts/diagnose.sh
 ```
 
-Logs stay local under
-`${XDG_STATE_HOME:-$HOME/.local/state}/overcrow/logs/`. They rotate, are bounded,
-and exclude titles, paths, keystrokes, notes, media metadata, and provider
-payloads. See [troubleshooting](docs/troubleshooting.md) for recovery steps.
+Logs stay local under `${XDG_STATE_HOME:-$HOME/.local/state}/overcrow/logs/`.
+They rotate, are bounded, and exclude private content. See
+[troubleshooting](docs/troubleshooting.md) for recovery steps.
 
-To report a bug, open **Diagnostics → Report a problem**. OverCrow prepares an
-exact preview in memory; nothing is uploaded automatically. You decide whether
-to include sanitized logs, then explicitly send the reviewed report to
-PlayerVox support. No GitHub account is required.
+To report a bug, open **Diagnostics → Report a problem**. Review the exact
+in-memory preview and optional sanitized logs before explicitly sending it to
+PlayerVox support. Nothing is uploaded automatically. No GitHub account is required.
 
 ## Built-in widgets
 
@@ -120,7 +113,7 @@ PlayerVox support. No GitHub account is required.
 - **Notes** — private titled notes with independent note/checklist visibility,
   horizontally scrollable tabs, and per-note checklists.
 - **Twitch chat** — read and send messages in any selected public channel,
-  with ordered favorites, replies, and bold colorized usernames.
+  with ordered favorites, replies, native emotes, and colorized usernames.
 
 ### Warframe
 
@@ -180,13 +173,9 @@ Security issues should be reported privately as described in
 
 ## Architecture
 
-OverCrow separates lifecycle, game authority, rendering, and compositor
-integration into small Rust processes. State is delivered through versioned
-D-Bus snapshots and bounded/coalescing events, with limited reconciliation for
-missed notifications.
-
-See [docs/architecture.md](docs/architecture.md) for the process model,
-display contracts, persistence, providers, and security boundaries.
+Small Rust processes separate lifecycle, game authority, rendering, and
+compositor integration. See [docs/architecture.md](docs/architecture.md) for
+the D-Bus event flow, display contracts, persistence, providers, and security.
 
 ## Development
 
@@ -206,11 +195,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets --locked
 ```
 
-Twitch support is enabled by default: the official PlayerVox OverCrow public
-Client ID is compiled into the overlay. That ID is not a secret (it ships in
-the binary). A Client Secret must never be added to the repository or build.
-
-Forks or alternate Twitch apps can override the ID at compile time:
+Twitch uses a compiled public Client ID, never a Client Secret. Forks can
+override it at compile time:
 
 ```sh
 OVERCROW_TWITCH_CLIENT_ID="<public-client-id>" cargo build --workspace

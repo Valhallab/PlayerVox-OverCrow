@@ -1,18 +1,18 @@
-# PlayerVox OverCrow 0.1.0 — Pre-alpha 2
+# PlayerVox OverCrow 0.1.0 — Pre-alpha 3
 
-This is the second public technical preview of PlayerVox OverCrow. Expect bugs,
+This is the third public technical preview of PlayerVox OverCrow. Expect bugs,
 rough edges, and compatibility gaps. Please disable OverCrow and attach the
 sanitized Diagnostics logs when reporting a problem.
 
-## What is included
+## What changed
 
-- Opt-in external overlay with movable built-in widgets
-- Steam game discovery and per-game authorization
-- Passive click-through and interactive overlay modes
-- Resident system tray with synchronized Start, Stop, Open, and Quit actions
-- Single-instance Control Center with close-to-tray behavior
-- Local, bounded Diagnostics logs
-- One complete native Arch package
+- Redesigned PlayerVox overlay, widget library, and compact widget controls
+- Reliable widget movement, resizing, scaling, passive sizing, and top-left anchoring
+- Multi-note workspace with titled tabs, independent notes, and checklists
+- Twitch chat with channel favorites, sending, replies, and bounded native emotes
+- Private in-app support reporting with an exact user-reviewed preview
+- Product version shown in the Control Center, overlay, and About surfaces
+- Hardened renderer, provider, portal diagnostics, and bounded external work
 
 OverCrow does not inject code, hook graphics APIs, read game memory, inspect
 packets, or modify game files.

@@ -1,7 +1,7 @@
 # Pre-alpha release acceptance
 
 Run this checklist on the real Arch desktop before publishing
-`v0.1.0-pre-alpha.2`. Check only results you personally observe.
+`v0.1.0-pre-alpha.3`. Check only results you personally observe.
 
 ## 1. Candidate integrity
 
@@ -18,7 +18,7 @@ ls -lh
 
 ```sh
 sudo pacman -Rns overcrow-bin 2>/dev/null || true
-sudo pacman -U overcrow-bin-0.1.0prealpha2-1-x86_64.pkg.tar.zst
+sudo pacman -U overcrow-bin-0.1.0prealpha3-1-x86_64.pkg.tar.zst
 overcrow-control
 ```
 

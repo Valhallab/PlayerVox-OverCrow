@@ -524,7 +524,7 @@ mod tests {
         assert_eq!(report.created_at, "1970-01-01T00:00:00.000Z");
         assert_eq!(report.report_id, "oc-7f69c535-6d20-47fb-bc98-df4db4f7071d");
         assert!(report.content.contains("> The overlay froze."));
-        assert!(report.content.contains("- OverCrow: 0.1.0-pre-alpha.2"));
+        assert!(report.content.contains("- OverCrow: 0.1.0-pre-alpha.3"));
         assert!(report.content.contains("- Operating system: Arch Linux"));
         assert!(report.content.contains("- Selected Steam App IDs: 4242"));
         assert!(report.content.contains("- Selected native games: 1"));
