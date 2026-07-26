@@ -36,8 +36,10 @@ qdbus_program='/usr/bin/qdbus6'
 # metadata/main fingerprint pair. This history is append-only: new releases
 # add a current pair and retain every supported reviewed legacy pair. Never add
 # a fingerprint from an untrusted installed package.
-kwin_current_metadata_sha256='72844f4e860c98974fa240a4fb1620d0ea25db6cd9facfe46dde3dbdb9adeb70'
+kwin_current_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
 kwin_current_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
+kwin_legacy_pre_alpha_2_metadata_sha256='72844f4e860c98974fa240a4fb1620d0ea25db6cd9facfe46dde3dbdb9adeb70'
+kwin_legacy_pre_alpha_2_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
 kwin_legacy_pre_alpha_1_metadata_sha256='d3f2a92714dbd0fb2c497341d9ae7eabd5498e7c87047a77dd7dcf9c54889f83'
 kwin_legacy_pre_alpha_1_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
 kwin_legacy_0_1_0_metadata_sha256='90526be045929587ff25ba1d028e07201925e80dd8bcac72bc5a1ca6297be670'
@@ -307,6 +309,9 @@ kwin_package_version() {
     case "$overcrow_metadata_digest:$overcrow_main_digest" in
         "$kwin_current_metadata_sha256:$kwin_current_main_sha256")
             printf '%s\n' current
+            ;;
+        "$kwin_legacy_pre_alpha_2_metadata_sha256:$kwin_legacy_pre_alpha_2_main_sha256")
+            printf '%s\n' legacy-pre-alpha-2
             ;;
         "$kwin_legacy_pre_alpha_1_metadata_sha256:$kwin_legacy_pre_alpha_1_main_sha256")
             printf '%s\n' legacy-pre-alpha-1
