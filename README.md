@@ -142,7 +142,8 @@ Twitch chat is disabled by default. It connects only while an explicitly
 selected game is active and the widget is enabled. Incoming chat uses Twitch
 EventSub and outgoing messages use the Helix API. Messages and drafts remain
 in memory; only the selected channel, favorites, and passive display lifetime
-are stored locally. Badge and emote images are intentionally not rendered.
+are stored locally. Native Twitch emotes use static PNGs from Twitch's CDN with
+a bounded in-memory cache and text fallback; badge images are not rendered.
 OAuth tokens use the desktop Secret Service when available and otherwise
 remain in memory until OverCrow exits. The release build contains a public
 Twitch application Client ID, never a Client Secret.

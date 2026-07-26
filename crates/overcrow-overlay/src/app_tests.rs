@@ -1,24 +1,30 @@
 use super::{
-    LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient,
-    OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_content_size, about_visible,
-    authoritative_snapshot, catalog_outside_click, confirmed_mode_event, controls_visible,
-    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
-    interactive_scrim, log_catalog_settings_outcome, paint_control_notices, paint_widget_catalog,
-    settings_failure_target, stopwatch_repaint_after, twitch_gate, viewport_builder,
+    APP_VERSION, LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT,
+    NotesCommandClient, OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_content_size,
+    about_visible, authoritative_snapshot, catalog_outside_click, confirmed_mode_event,
+    controls_visible, dispatch_manual_stopwatch_action, dispatch_notes_action,
+    handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
+    paint_control_notices, paint_overlay_version, paint_widget_catalog, settings_failure_target,
+    stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate, viewport_builder,
     viewport_update_changed, widget_actions_allowed,
 };
 use crate::{
+    branding::{BrandAssets, install_fonts},
     notes::{NotesCommand, NotesDocument, NotesError, NotesUpdate},
     placement::screen_position,
     preferences::OverlayPreferences,
     runtime::SnapshotUpdate,
     session_clock::SessionClock,
+    twitch::{
+        client::TwitchGate,
+        model::{TwitchConnectionState, TwitchSnapshot},
+    },
     widgets::{
-        ManualStopwatchAction, NotesWidgetState, format_session_elapsed,
+        ManualStopwatchAction, NotesWidgetState, format_session_elapsed, install_theme,
         session_draggable as stopwatch_draggable, session_visible as stopwatch_visible,
     },
 };
-use eframe::egui::{Rect as EguiRect, WindowLevel, pos2, vec2};
+use eframe::egui::{RawInput, Rect as EguiRect, WindowLevel, pos2, vec2};
 use overcrow_config::WidgetPosition;
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect};
 use std::{
@@ -102,6 +108,81 @@ fn about_copy_exposes_license_origin_and_public_source() {
         SOURCE_REPOSITORY_URL,
         "https://github.com/Valhallab/PlayerVox-OverCrow"
     );
+    assert_eq!(APP_VERSION, env!("CARGO_PKG_VERSION"));
+}
+
+#[test]
+fn interactive_version_is_painted_as_discreet_overlay_chrome() {
+    let context = eframe::egui::Context::default();
+    context.enable_accesskit();
+    install_fonts(&context);
+    install_theme(&context);
+    let output = context.run_ui(
+        RawInput {
+            screen_rect: Some(EguiRect::from_min_size(
+                pos2(0.0, 0.0),
+                vec2(1_280.0, 720.0),
+            )),
+            ..RawInput::default()
+        },
+        |ui| {
+            paint_overlay_version(ui.ctx());
+        },
+    );
+
+    let labels = accessible_labels(&output);
+    assert!(
+        labels.iter().any(|label| label == APP_VERSION),
+        "{labels:?}"
+    );
+}
+
+#[test]
+fn about_window_has_no_native_title_bar_and_ends_with_the_version() {
+    let context = eframe::egui::Context::default();
+    context.enable_accesskit();
+    install_fonts(&context);
+    install_theme(&context);
+    let mut brand = BrandAssets::default();
+    let output = context.run_ui(
+        RawInput {
+            screen_rect: Some(EguiRect::from_min_size(
+                pos2(0.0, 0.0),
+                vec2(1_280.0, 720.0),
+            )),
+            ..RawInput::default()
+        },
+        |ui| {
+            let _ = paint_about_window(ui.ctx(), vec2(1_280.0, 720.0), &mut brand);
+        },
+    );
+    let labels = accessible_labels(&output);
+
+    assert!(!labels.iter().any(|label| label == "Close window"));
+    assert!(labels.iter().any(|label| label == "Close"), "{labels:?}");
+    assert!(!labels.iter().any(|label| label == "×"), "{labels:?}");
+    assert!(
+        labels.iter().any(|label| label.contains(APP_VERSION)),
+        "{labels:?}"
+    );
+}
+
+fn accessible_labels(output: &eframe::egui::FullOutput) -> Vec<String> {
+    output
+        .platform_output
+        .accesskit_update
+        .as_ref()
+        .expect("accessibility tree")
+        .nodes
+        .iter()
+        .flat_map(|(_, node)| {
+            [
+                node.label().map(str::to_owned),
+                node.value().map(str::to_owned),
+            ]
+        })
+        .flatten()
+        .collect()
 }
 
 #[test]
@@ -1290,4 +1371,37 @@ fn twitch_gate_fails_closed_when_core_authority_is_lost() {
 
     assert!(!gate.lifecycle_enabled);
     assert!(gate.active_game_authorized);
+}
+
+#[test]
+fn twitch_emotes_require_the_exact_open_authorized_chat_gate() {
+    let gate = twitch_gate(true, true, true, Some("warframe".to_owned()));
+    let joined = TwitchSnapshot {
+        channel: Some("warframe".to_owned()),
+        connection: TwitchConnectionState::Joined,
+        ..TwitchSnapshot::default()
+    };
+
+    assert!(twitch_emotes_allowed(&gate, &joined));
+    assert!(!twitch_emotes_allowed(
+        &TwitchGate {
+            lifecycle_enabled: false,
+            ..gate.clone()
+        },
+        &joined
+    ));
+    assert!(!twitch_emotes_allowed(
+        &gate,
+        &TwitchSnapshot {
+            channel: Some("other".to_owned()),
+            ..joined.clone()
+        }
+    ));
+    assert!(!twitch_emotes_allowed(
+        &gate,
+        &TwitchSnapshot {
+            connection: TwitchConnectionState::Reconnecting,
+            ..joined
+        }
+    ));
 }

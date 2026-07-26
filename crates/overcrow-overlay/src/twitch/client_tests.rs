@@ -391,6 +391,35 @@ fn twitch_worker_drops_one_malformed_notification_without_reconnecting() {
 }
 
 #[test]
+fn twitch_worker_publishes_normalized_incoming_chat() {
+    let harness = harness(1);
+    join_chat(&harness, 0);
+
+    harness.incoming[0]
+        .send(Ok(
+            r#"{"metadata":{"message_id":"delivery-normalized","message_type":"notification","subscription_type":"channel.chat.message","subscription_version":"1"},"payload":{"event":{"broadcaster_user_id":"100","chatter_user_id":"7","chatter_user_login":"alice_login","chatter_user_name":"","message_id":"message-normalized","color":"","message":{"text":"Hello\u0001chat"},"reply":{"parent_message_id":"","parent_message_body":"Invalid optional reply","parent_user_name":"Alice"}}}}"#
+                .to_owned(),
+        ))
+        .expect("chat notification");
+
+    let snapshot = wait_for_snapshot(&harness.client, |snapshot| {
+        snapshot
+            .messages
+            .iter()
+            .any(|message| message.id == "message-normalized")
+    });
+    let message = snapshot
+        .messages
+        .iter()
+        .find(|message| message.id == "message-normalized")
+        .expect("normalized incoming message");
+    assert_eq!(message.display_name, "alice_login");
+    assert_eq!(message.text, "Hello chat");
+    assert_eq!(message.reply, None);
+    assert_eq!(snapshot.connection, TwitchConnectionState::Joined);
+}
+
+#[test]
 fn twitch_send_uses_helix_result_and_reconciles_the_eventsub_echo() {
     let harness = harness(1);
     let joined = join_chat(&harness, 0);

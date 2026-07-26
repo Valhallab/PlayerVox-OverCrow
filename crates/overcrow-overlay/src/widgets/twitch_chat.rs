@@ -3,29 +3,42 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui::{self, Color32, Vec2, vec2};
+use eframe::egui::{
+    self, Color32, FontFamily, Vec2,
+    text::{LayoutJob, TextFormat},
+    vec2,
+};
 use overcrow_config::{
     TWITCH_CHANNEL_MAX_CHARS, TWITCH_FAVORITES_MAX, TWITCH_PASSIVE_LIFETIME_MAX_SECS,
     TWITCH_PASSIVE_LIFETIME_MIN_SECS, TwitchPrefs, normalize_twitch_channel,
 };
 use overcrow_protocol::OverlayMode;
 
-use crate::twitch::model::{
-    TWITCH_MESSAGE_MAX_CHARS, TwitchCommand, TwitchConnectionState, TwitchFailureCategory,
-    TwitchMessage, TwitchSendReceiptState, TwitchSendState, TwitchSnapshot,
+use crate::{
+    branding::{UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY},
+    twitch::{
+        emotes::TwitchEmotes,
+        model::{
+            TWITCH_MESSAGE_MAX_CHARS, TwitchCommand, TwitchConnectionState, TwitchFailureCategory,
+            TwitchMessage, TwitchMessageFragment, TwitchReplyContext, TwitchSendReceiptState,
+            TwitchSendState, TwitchSnapshot,
+        },
+    },
 };
 
 use super::{
     WidgetGlyph,
     chrome::{
         ACCENT, ResizeGripOutcome, TEXT_MUTED, TEXT_PRIMARY, accent_error, accent_ok, accent_warn,
-        apply_scale, eyebrow_text, fixed_panel_constraints, meta_text, paint_widget_glyph,
-        panel_frame, primary_button, resize_grip, singleline_text_edit, standard_button,
-        status_pill, tab_button, title_text,
+        apply_scale, current_content_scale, eyebrow_text, fixed_panel_constraints, meta_text,
+        paint_widget_glyph, panel_frame, primary_button, resize_grip, singleline_text_edit,
+        standard_button, status_pill, tab_button, title_text,
     },
 };
 
 const PASSIVE_VISIBLE_MAX: usize = 12;
+const INLINE_REPLY_CONTROL_SIZE: f32 = 18.0;
+const INLINE_EMOTE_BASE_HEIGHT: f32 = 20.0;
 /// Favorite star (filled). Use a plain glyph; avoid exotic icons that render as tofu.
 const FAVORITE_STAR_ON: &str = "★";
 const FAVORITE_STAR_YELLOW: Color32 = Color32::from_rgb(255, 200, 60);
@@ -63,6 +76,7 @@ pub struct TwitchWidgetState {
     next_request_id: u64,
     pending_request_id: Option<u64>,
     verification_opening: bool,
+    emotes: Option<TwitchEmotes>,
 }
 
 impl Default for TwitchWidgetState {
@@ -83,11 +97,19 @@ impl Default for TwitchWidgetState {
             next_request_id: 1,
             pending_request_id: None,
             verification_opening: false,
+            emotes: None,
         }
     }
 }
 
 impl TwitchWidgetState {
+    pub fn with_emotes(emotes: TwitchEmotes) -> Self {
+        Self {
+            emotes: Some(emotes),
+            ..Self::default()
+        }
+    }
+
     pub fn snapshot(&self) -> &Arc<TwitchSnapshot> {
         &self.snapshot
     }
@@ -102,6 +124,9 @@ impl TwitchWidgetState {
             .map(message_identity)
             .map(str::to_owned);
         if snapshot.generation != self.generation {
+            if let Some(emotes) = &mut self.emotes {
+                emotes.reset();
+            }
             self.generation = snapshot.generation;
             self.draft.clear();
             self.reply_target = None;
@@ -145,8 +170,50 @@ impl TwitchWidgetState {
             }
         }
         self.previous_message_count = snapshot.messages.len();
+        if let Some(emotes) = &mut self.emotes {
+            emotes.retain_referenced(snapshot.messages.iter().rev().flat_map(|message| {
+                message
+                    .fragments
+                    .iter()
+                    .filter_map(|fragment| match fragment {
+                        TwitchMessageFragment::Emote { id, .. } => Some(id.as_str()),
+                        TwitchMessageFragment::Text(_) => None,
+                    })
+            }));
+        }
         self.revision = revision;
         self.snapshot = snapshot;
+    }
+
+    pub fn poll_emotes(&mut self, context: &egui::Context, now: Instant) {
+        if let Some(emotes) = &mut self.emotes {
+            emotes.poll(context, now);
+        }
+    }
+
+    pub fn set_emotes_enabled(&mut self, enabled: bool) {
+        if let Some(emotes) = &mut self.emotes {
+            emotes.set_enabled(enabled);
+        }
+    }
+
+    fn emote_texture(&mut self, id: &str, now: Instant) -> Option<egui::TextureHandle> {
+        self.emotes
+            .as_mut()
+            .and_then(|emotes| emotes.texture(id, now))
+    }
+
+    #[cfg(test)]
+    pub(super) fn insert_test_emote(
+        &mut self,
+        context: &egui::Context,
+        id: &str,
+        image: egui::ColorImage,
+    ) {
+        let emotes = self.emotes.get_or_insert_with(TwitchEmotes::disabled);
+        emotes.set_enabled(true);
+        emotes.retain_referenced(std::iter::once(id));
+        emotes.insert_test_texture(context, id, image);
     }
 
     pub fn set_draft(&mut self, value: String) {
@@ -647,7 +714,32 @@ fn paint_chat(
     }
 }
 
-fn paint_message(
+pub(super) fn paint_message(
+    ui: &mut egui::Ui,
+    state: &mut TwitchWidgetState,
+    message: &TwitchMessage,
+    alpha: f32,
+    interactive: bool,
+) {
+    if message.reply.is_some() {
+        let grouped = egui::Frame::new()
+            .inner_margin(egui::Margin {
+                left: 6,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            })
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 1.0;
+                paint_message_content(ui, state, message, alpha, interactive);
+            });
+        paint_reply_rail(ui, grouped.response.rect, alpha);
+    } else {
+        paint_message_content(ui, state, message, alpha, interactive);
+    }
+}
+
+fn paint_message_content(
     ui: &mut egui::Ui,
     state: &mut TwitchWidgetState,
     message: &TwitchMessage,
@@ -655,48 +747,192 @@ fn paint_message(
     interactive: bool,
 ) {
     if let Some(reply) = &message.reply {
-        // ASCII-only prefix: specialty arrows often render as empty boxes
-        // with the overlay font.
-        ui.label(
-            egui::RichText::new(format!("re {}: {}", reply.display_name, reply.body))
-                .small()
-                .color(TEXT_MUTED.gamma_multiply(alpha)),
-        );
+        paint_reply_context(ui, reply, alpha);
     }
-    // Single label avoids horizontal_wrapped empty chips before the name.
     let body_color = TEXT_PRIMARY.gamma_multiply(alpha);
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = 4.0;
-        let (marker, _) = ui.allocate_exact_size(Vec2::new(2.0, 14.0), egui::Sense::hover());
-        ui.painter()
-            .rect_filled(marker, 1.0, ACCENT.gamma_multiply(alpha * 0.55));
-        ui.label(username_text(message, alpha));
-        ui.label(egui::RichText::new(&message.text).color(body_color));
-        match message.send_state {
-            TwitchSendState::Pending => {
-                ui.label(egui::RichText::new("sending…").small().color(accent_warn()));
+    ui.scope(|ui| {
+        ui.spacing_mut().interact_size.y = INLINE_REPLY_CONTROL_SIZE;
+        let row = ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            ui.label(username_text(message, alpha));
+            ui.add_space(4.0);
+            paint_message_fragments(ui, state, message, body_color);
+            match message.send_state {
+                TwitchSendState::Pending => {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("sending…").small().color(accent_warn()));
+                }
+                TwitchSendState::Failed => {
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new("not sent")
+                            .small()
+                            .color(accent_error()),
+                    );
+                }
+                TwitchSendState::Received => {}
             }
-            TwitchSendState::Failed => {
-                ui.label(
-                    egui::RichText::new("not sent")
-                        .small()
-                        .color(accent_error()),
-                );
+            if interactive
+                && message.send_state == TwitchSendState::Received
+                && !message.id.is_empty()
+                && !message.id.starts_with("local:")
+            {
+                ui.add_space(2.0);
+                Some(reply_action(ui, &message.display_name))
+            } else {
+                None
             }
-            TwitchSendState::Received => {}
-        }
-        if interactive
-            && message.send_state == TwitchSendState::Received
-            && !message.id.is_empty()
-            && !message.id.starts_with("local:")
-            && ui
-                .add(standard_button("Reply"))
-                .on_hover_text("Reply to this message")
-                .clicked()
-        {
-            state.set_reply(message.id.clone(), message.display_name.clone());
+        });
+        if let Some(reply) = row.inner {
+            if ui.rect_contains_pointer(row.response.rect) {
+                paint_reply_action(ui, &reply, alpha);
+            }
+            if reply.clicked() {
+                state.set_reply(message.id.clone(), message.display_name.clone());
+            }
         }
     });
+}
+
+fn paint_reply_rail(ui: &egui::Ui, content: egui::Rect, alpha: f32) {
+    let rect = egui::Rect::from_min_max(
+        content.left_top(),
+        egui::pos2(content.left() + 2.0, content.bottom()),
+    );
+    ui.painter().rect_filled(
+        rect,
+        egui::CornerRadius::same(1),
+        ACCENT.gamma_multiply(0.65 * alpha),
+    );
+}
+
+fn paint_message_fragments(
+    ui: &mut egui::Ui,
+    state: &mut TwitchWidgetState,
+    message: &TwitchMessage,
+    color: Color32,
+) {
+    if message.fragments.is_empty() {
+        paint_message_text(ui, &message.text, color);
+        return;
+    }
+    let now = Instant::now();
+    for fragment in &message.fragments {
+        match fragment {
+            TwitchMessageFragment::Text(text) => paint_message_text(ui, text, color),
+            TwitchMessageFragment::Emote { id, alt } => {
+                let Some(texture) = state.emote_texture(id, now) else {
+                    paint_message_text(ui, alt, color);
+                    continue;
+                };
+                let source_size = texture.size_vec2();
+                let height = INLINE_EMOTE_BASE_HEIGHT * current_content_scale(ui);
+                let width =
+                    (height * source_size.x / source_size.y).clamp(height * 0.2, height * 4.0);
+                ui.add(
+                    egui::Image::new(&texture)
+                        .fit_to_exact_size(vec2(width, height))
+                        .tint(Color32::WHITE.gamma_multiply(color.a() as f32 / 255.0))
+                        .alt_text(alt),
+                );
+            }
+        }
+    }
+}
+
+fn paint_message_text(ui: &mut egui::Ui, text: &str, color: Color32) {
+    ui.label(
+        egui::RichText::new(text)
+            .family(FontFamily::Name(UI_REGULAR_FAMILY.into()))
+            .color(color),
+    );
+}
+
+fn paint_reply_context(ui: &mut egui::Ui, reply: &TwitchReplyContext, alpha: f32) {
+    let color = TEXT_MUTED.gamma_multiply(alpha);
+    let body_font = egui::TextStyle::Small.resolve(ui.style());
+    let mut author_font = body_font.clone();
+    author_font.family = FontFamily::Name(UI_SEMIBOLD_FAMILY.into());
+    let mut text = LayoutJob::default();
+    text.append(
+        &format!("{}: ", reply.display_name),
+        0.0,
+        TextFormat {
+            font_id: author_font,
+            color,
+            ..TextFormat::default()
+        },
+    );
+    text.append(
+        &reply.body,
+        0.0,
+        TextFormat {
+            font_id: body_font,
+            color,
+            ..TextFormat::default()
+        },
+    );
+
+    ui.scope(|ui| {
+        ui.spacing_mut().interact_size.y = INLINE_REPLY_CONTROL_SIZE;
+        ui.add(egui::Label::new(text).truncate())
+            .on_hover_text(format!("Reply to {}", reply.display_name));
+    });
+}
+
+fn reply_action(ui: &mut egui::Ui, display_name: &str) -> egui::Response {
+    let (_, response) =
+        ui.allocate_exact_size(Vec2::splat(INLINE_REPLY_CONTROL_SIZE), egui::Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), "Reply")
+    });
+    response.on_hover_text(format!("Reply to {display_name}"))
+}
+
+fn paint_reply_action(ui: &egui::Ui, response: &egui::Response, alpha: f32) {
+    let color = if response.hovered() {
+        ACCENT
+    } else {
+        TEXT_MUTED.gamma_multiply(0.68 * alpha)
+    };
+    paint_reply_icon(ui.painter(), response.rect.shrink(3.0), color);
+}
+
+fn paint_reply_icon(painter: &egui::Painter, rect: egui::Rect, color: Color32) {
+    let stroke = egui::Stroke::new(1.35, color);
+    let center = rect.center();
+    let tip = egui::pos2(rect.left(), center.y);
+    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
+        [
+            egui::pos2(rect.right(), rect.bottom()),
+            egui::pos2(rect.right(), center.y),
+            egui::pos2(rect.right() - rect.width() * 0.2, center.y),
+            tip,
+        ],
+        false,
+        Color32::TRANSPARENT,
+        stroke,
+    ));
+    painter.line_segment(
+        [
+            tip,
+            egui::pos2(
+                rect.left() + rect.width() * 0.34,
+                rect.top() + rect.height() * 0.18,
+            ),
+        ],
+        stroke,
+    );
+    painter.line_segment(
+        [
+            tip,
+            egui::pos2(
+                rect.left() + rect.width() * 0.34,
+                rect.bottom() - rect.height() * 0.18,
+            ),
+        ],
+        stroke,
+    );
 }
 
 pub(super) fn username_text(message: &TwitchMessage, alpha: f32) -> egui::RichText {
@@ -707,6 +943,7 @@ pub(super) fn username_text(message: &TwitchMessage, alpha: f32) -> egui::RichTe
         .gamma_multiply(alpha);
     egui::RichText::new(format!("{}:", message.display_name))
         .strong()
+        .family(FontFamily::Name(UI_SEMIBOLD_FAMILY.into()))
         .color(name_color)
 }
 

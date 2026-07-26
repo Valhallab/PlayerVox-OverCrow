@@ -73,8 +73,10 @@ most the newest 2,000 merged lines.
 
 The chat may be joined while the channel is offline. OverCrow does not persist
 chat messages and does not connect when no authorized game is active. It
-renders chat as text with bold usernames; badge and emote images are not part
-of this version.
+renders usernames in semibold and messages in regular text. Native Twitch
+emotes are fetched as bounded static PNGs from Twitch's CDN; a failed,
+unsupported, or malformed emote remains visible as its text (for example,
+`LUL`). Badge images and third-party emote providers are not supported.
 
 ## Report a problem
 

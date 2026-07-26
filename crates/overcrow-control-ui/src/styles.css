@@ -746,6 +746,14 @@ input:disabled + .switch {
   text-transform: capitalize;
 }
 
+.sidebar__version {
+  margin-top: 9px;
+  color: var(--subtle);
+  font-size: 0.61rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
 .dashboard {
   min-width: 0;
   padding: 28px clamp(28px, 4vw, 54px) 52px;
@@ -1329,6 +1337,12 @@ input:disabled + .switch {
 .about-card code {
   color: var(--lime);
   font-size: 0.72rem;
+}
+
+.about-card .about-card__version {
+  margin-top: 18px;
+  color: var(--subtle);
+  font-size: 0.7rem;
 }
 
 .notice {

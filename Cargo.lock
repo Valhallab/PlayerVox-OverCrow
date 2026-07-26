@@ -3669,6 +3669,7 @@ dependencies = [
  "chrono",
  "eframe",
  "futures-util",
+ "image",
  "keyring",
  "libc",
  "overcrow-config",

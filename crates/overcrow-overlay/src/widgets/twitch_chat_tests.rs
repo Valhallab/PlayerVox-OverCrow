@@ -4,20 +4,23 @@ use std::{
 };
 
 use eframe::egui::{
-    Event, RawInput, Rect,
+    Event, FontFamily, RawInput, Rect,
     accesskit::{Action as AccessKitAction, ActionRequest, TreeId},
     pos2, vec2,
 };
 use overcrow_config::{TWITCH_PASSIVE_LIFETIME_DEFAULT_SECS, TwitchPrefs, WIDGET_PANEL_MIN};
 use overcrow_protocol::OverlayMode;
 
+use super::chrome::{ACCENT, apply_scale, install_theme};
 use super::twitch_chat::{
-    TwitchChatAction, TwitchWidgetState, paint_favorite_indicator, paint_header, paint_twitch_chat,
-    paint_twitch_options, passive_message_alpha, twitch_passive_repaint_after, username_text,
+    TwitchChatAction, TwitchWidgetState, paint_favorite_indicator, paint_header, paint_message,
+    paint_twitch_chat, paint_twitch_options, passive_message_alpha, twitch_passive_repaint_after,
+    username_text,
 };
+use crate::branding::{UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY, install_fonts};
 use crate::twitch::model::{
-    TwitchConnectionState, TwitchMessage, TwitchSendReceipt, TwitchSendReceiptState,
-    TwitchSendState, TwitchSnapshot,
+    TwitchConnectionState, TwitchMessage, TwitchMessageFragment, TwitchReplyContext,
+    TwitchSendReceipt, TwitchSendReceiptState, TwitchSendState, TwitchSnapshot,
 };
 
 fn painted_text(output: &eframe::egui::FullOutput) -> Vec<String> {
@@ -37,6 +40,7 @@ fn message(id: &str, age: Duration, now: Instant) -> TwitchMessage {
         display_name: "Alice".to_owned(),
         name_color: Some([145, 255, 0]),
         text: format!("message {id}"),
+        fragments: vec![TwitchMessageFragment::Text(format!("message {id}"))],
         reply: None,
         received_at: now - age,
         client_nonce: None,
@@ -57,6 +61,7 @@ fn paint_twitch_widget_at_size(
     panel_size: eframe::egui::Vec2,
 ) -> eframe::egui::FullOutput {
     let context = eframe::egui::Context::default();
+    install_fonts(&context);
     context.enable_accesskit();
     context.run_ui(
         RawInput {
@@ -78,6 +83,46 @@ fn paint_twitch_widget_at_size(
                 24.0,
                 Instant::now(),
             );
+        },
+    )
+}
+
+fn paint_twitch_messages(
+    messages: &[TwitchMessage],
+    interactive: bool,
+) -> eframe::egui::FullOutput {
+    paint_twitch_messages_at_width(messages, interactive, 420.0)
+}
+
+fn paint_twitch_messages_at_width(
+    messages: &[TwitchMessage],
+    interactive: bool,
+    width: f32,
+) -> eframe::egui::FullOutput {
+    paint_twitch_messages_at_scale(messages, interactive, width, 1.0)
+}
+
+fn paint_twitch_messages_at_scale(
+    messages: &[TwitchMessage],
+    interactive: bool,
+    width: f32,
+    scale: f32,
+) -> eframe::egui::FullOutput {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    context.enable_accesskit();
+    let mut state = TwitchWidgetState::default();
+    context.run_ui(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 120.0))),
+            ..RawInput::default()
+        },
+        |ui| {
+            apply_scale(ui, scale);
+            for message in messages {
+                paint_message(ui, &mut state, message, 1.0, interactive);
+            }
         },
     )
 }
@@ -142,8 +187,297 @@ fn twitch_username_is_exactly_bold_text_without_an_icon_prefix() {
         username_text(&message, 1.0),
         eframe::egui::RichText::new("Alice:")
             .strong()
+            .family(FontFamily::Name(UI_SEMIBOLD_FAMILY.into()))
             .color(eframe::egui::Color32::from_rgb(145, 255, 0))
     );
+}
+
+#[test]
+fn twitch_username_is_semibold_while_message_text_stays_regular() {
+    let output = paint_twitch_messages(
+        &[message("typography", Duration::ZERO, Instant::now())],
+        false,
+    );
+    let family = |label: &str| {
+        output.shapes.iter().find_map(|shape| match &shape.shape {
+            eframe::egui::Shape::Text(text) if text.galley.job.text == label => text
+                .galley
+                .job
+                .sections
+                .first()
+                .map(|section| section.format.font_id.family.clone()),
+            _ => None,
+        })
+    };
+
+    assert_eq!(
+        family("Alice:"),
+        Some(FontFamily::Name(UI_SEMIBOLD_FAMILY.into()))
+    );
+    assert_eq!(
+        family("message typography"),
+        Some(FontFamily::Name(UI_REGULAR_FAMILY.into()))
+    );
+}
+
+#[test]
+fn twitch_messages_do_not_paint_an_accent_rail_before_the_username() {
+    let now = Instant::now();
+    let output = paint_twitch_messages(&[message("visible", Duration::ZERO, now)], true);
+    let rail_color = ACCENT.gamma_multiply(0.55);
+    let has_accent_rail = output.shapes.iter().any(|shape| match &shape.shape {
+        eframe::egui::Shape::Rect(rect) => {
+            (rect.rect.width() - 2.0).abs() < 0.1
+                && (rect.rect.height() - 14.0).abs() < 0.1
+                && rect.fill == rail_color
+        }
+        _ => false,
+    });
+
+    assert!(!has_accent_rail);
+}
+
+#[test]
+fn twitch_reply_context_and_response_share_one_accent_rail() {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    let now = Instant::now();
+    let parent = message("parent", Duration::ZERO, now);
+    let mut reply = message("reply", Duration::ZERO, now);
+    reply.reply = Some(TwitchReplyContext {
+        message_id: "parent".to_owned(),
+        display_name: "Alice".to_owned(),
+        body: "message parent".to_owned(),
+    });
+    let unrelated = message("unrelated", Duration::ZERO, now);
+    let snapshot = TwitchSnapshot {
+        messages: vec![parent, reply, unrelated],
+        ..TwitchSnapshot::default()
+    };
+    let mut state = TwitchWidgetState::default();
+    state.apply_snapshot(1, Arc::new(snapshot.clone()));
+
+    let output = context.run_ui(RawInput::default(), |ui| {
+        for message in &snapshot.messages {
+            paint_message(ui, &mut state, message, 1.0, true);
+        }
+    });
+    let rail_color = ACCENT.gamma_multiply(0.65);
+    let rails = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            eframe::egui::Shape::Rect(rect) => ((rect.rect.width() - 2.0).abs() < 0.1
+                && rect.fill == rail_color)
+                .then_some(rect.rect),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(rails.len(), 1, "{rails:?}");
+    assert!(
+        rails[0].height() > 24.0,
+        "rail must span the recap and reply: {rails:?}"
+    );
+}
+
+#[test]
+fn twitch_native_emote_texture_replaces_its_text_fallback() {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    let now = Instant::now();
+    let mut message = message("emote", Duration::ZERO, now);
+    message.text = "LUL".to_owned();
+    message.fragments = vec![TwitchMessageFragment::Emote {
+        id: "425618".to_owned(),
+        alt: "LUL".to_owned(),
+    }];
+    let mut state = TwitchWidgetState::default();
+    state.insert_test_emote(
+        &context,
+        "425618",
+        eframe::egui::ColorImage::filled([28, 28], eframe::egui::Color32::from_rgb(255, 0, 255)),
+    );
+
+    let output = context.run_ui(RawInput::default(), |ui| {
+        paint_message(ui, &mut state, &message, 1.0, false);
+    });
+
+    assert!(!painted_text(&output).iter().any(|text| text == "LUL"));
+    assert!(output.shapes.iter().any(|shape| match &shape.shape {
+        eframe::egui::Shape::Rect(rect) => {
+            rect.brush.is_some() && (rect.rect.height() - 20.0).abs() < 0.1
+        }
+        _ => false,
+    }));
+}
+
+#[test]
+fn twitch_reply_action_icon_is_hidden_until_the_message_is_hovered() {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    context.enable_accesskit();
+    let message = message("hover", Duration::ZERO, Instant::now());
+    let mut state = TwitchWidgetState::default();
+    let first = context.run_ui(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(420.0, 120.0))),
+            ..RawInput::default()
+        },
+        |ui| paint_message(ui, &mut state, &message, 1.0, true),
+    );
+    assert!(!has_reply_curve(&first));
+    let body = painted_bounds(&first, "message hover");
+
+    let hovered = context.run_ui(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(420.0, 120.0))),
+            events: vec![Event::PointerMoved(body.center())],
+            ..RawInput::default()
+        },
+        |ui| paint_message(ui, &mut state, &message, 1.0, true),
+    );
+    assert!(has_reply_curve(&hovered));
+}
+
+fn has_reply_curve(output: &eframe::egui::FullOutput) -> bool {
+    output
+        .shapes
+        .iter()
+        .any(|shape| matches!(shape.shape, eframe::egui::Shape::CubicBezier(_)))
+}
+
+#[test]
+fn twitch_reply_action_is_compact_and_does_not_expand_message_spacing() {
+    let now = Instant::now();
+    let output = paint_twitch_messages(
+        &[
+            message("first", Duration::ZERO, now),
+            message("second", Duration::ZERO, now),
+        ],
+        true,
+    );
+    let reply = accessible_bounds(&output, "Reply");
+    let first = painted_bounds(&output, "message first");
+    let second = painted_bounds(&output, "message second");
+
+    assert!(reply.width() <= 18.5, "{reply:?}");
+    assert!(reply.height() <= 18.5, "{reply:?}");
+    assert!(
+        second.top() - first.top() <= 26.0,
+        "reply action expanded message spacing: first={first:?}, second={second:?}"
+    );
+}
+
+#[test]
+fn compact_twitch_reply_action_sets_the_exact_reply_target() {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    context.enable_accesskit();
+    let message = message("parent", Duration::ZERO, Instant::now());
+    let mut state = TwitchWidgetState::default();
+    let first = context.run_ui(RawInput::default(), |ui| {
+        paint_message(ui, &mut state, &message, 1.0, true);
+    });
+    let reply = first
+        .platform_output
+        .accesskit_update
+        .expect("accessibility tree")
+        .nodes
+        .into_iter()
+        .find_map(|(id, node)| (node.label() == Some("Reply")).then_some(id))
+        .expect("reply control");
+
+    let _ = context.run_ui(
+        RawInput {
+            events: vec![Event::AccessKitActionRequest(ActionRequest {
+                action: AccessKitAction::Click,
+                target_tree: TreeId::ROOT,
+                target_node: reply,
+                data: None,
+            })],
+            ..RawInput::default()
+        },
+        |ui| {
+            paint_message(ui, &mut state, &message, 1.0, true);
+        },
+    );
+
+    assert_eq!(
+        state.reply_target(),
+        Some(&super::twitch_chat::TwitchReplyTarget {
+            message_id: "parent".to_owned(),
+            display_name: "Alice".to_owned(),
+        })
+    );
+}
+
+#[test]
+fn twitch_reply_context_is_one_compact_author_and_excerpt_line() {
+    let now = Instant::now();
+    let mut reply_message = message("reply", Duration::ZERO, now);
+    let long_author = "B".repeat(128);
+    let long_excerpt = "Earlier message ".repeat(32);
+    reply_message.reply = Some(TwitchReplyContext {
+        message_id: "parent".to_owned(),
+        display_name: long_author.clone(),
+        body: long_excerpt.clone(),
+    });
+    let output = paint_twitch_messages_at_width(&[reply_message], true, WIDGET_PANEL_MIN);
+    let text = painted_text(&output);
+    let combined = format!("{long_author}: {long_excerpt}");
+    let context = painted_bounds(&output, &combined);
+
+    assert!(
+        !text.iter().any(|value| value.starts_with("re ")),
+        "{text:?}"
+    );
+    assert!(
+        context.height() <= 18.5,
+        "reply context must remain one compact line: {context:?}"
+    );
+    assert!(
+        context.right() <= WIDGET_PANEL_MIN + 0.5,
+        "reply context escaped the minimum-width widget: {context:?}"
+    );
+}
+
+#[test]
+fn twitch_reply_author_and_excerpt_follow_the_same_widget_scale() {
+    let now = Instant::now();
+    let mut reply_message = message("reply", Duration::ZERO, now);
+    reply_message.reply = Some(TwitchReplyContext {
+        message_id: "parent".to_owned(),
+        display_name: "Bob".to_owned(),
+        body: "Earlier message".to_owned(),
+    });
+    let output = paint_twitch_messages_at_scale(&[reply_message], true, 420.0, 1.5);
+    let reply = output
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            eframe::egui::Shape::Text(text) if text.galley.job.text == "Bob: Earlier message" => {
+                Some(&text.galley.job)
+            }
+            _ => None,
+        })
+        .expect("reply context");
+    let sizes = reply
+        .sections
+        .iter()
+        .map(|section| section.format.font_id.size)
+        .collect::<Vec<_>>();
+
+    assert_eq!(sizes.len(), 2, "{sizes:?}");
+    assert!(
+        (sizes[0] - sizes[1]).abs() <= 0.1,
+        "author and excerpt used different scales: {sizes:?}"
+    );
+    assert!(sizes[0] > 12.0, "non-default scale was ignored: {sizes:?}");
 }
 
 #[test]

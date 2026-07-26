@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { en } from '../i18n/en';
+import { APP_VERSION } from '../version';
 import type {
   ControlLogSnapshot,
   ControlSnapshot,
@@ -86,6 +87,7 @@ export function Dashboard(props: DashboardProps) {
             <small>{snapshot.compatibility.desktop} · {snapshot.compatibility.session}</small>
           </div>
         </div>
+        <div className="sidebar__version">v{APP_VERSION}</div>
       </aside>
 
       <main className="dashboard">
@@ -180,6 +182,7 @@ export function Dashboard(props: DashboardProps) {
             <p>{en.dashboard.aboutBody}</p>
             <p>{en.dashboard.license}</p>
             <code>{en.dashboard.source}</code>
+            <p className="about-card__version">{en.dashboard.version} {APP_VERSION}</p>
           </div>
         )}
       </main>

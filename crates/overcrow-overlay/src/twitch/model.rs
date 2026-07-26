@@ -4,6 +4,21 @@ pub const TWITCH_MESSAGE_BUFFER_MAX: usize = 200;
 pub const TWITCH_PENDING_SEND_MAX: usize = 8;
 pub const TWITCH_MESSAGE_MAX_CHARS: usize = 500;
 pub const TWITCH_DISPLAY_NAME_MAX_CHARS: usize = 128;
+pub const TWITCH_EMOTE_ID_MAX_BYTES: usize = 128;
+
+pub(super) fn valid_twitch_emote_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= TWITCH_EMOTE_ID_MAX_BYTES
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TwitchMessageFragment {
+    Text(String),
+    Emote { id: String, alt: String },
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TwitchConnectionState {
@@ -47,6 +62,7 @@ pub struct ParsedChatMessage {
     pub display_name: String,
     pub name_color: Option<[u8; 3]>,
     pub text: String,
+    pub fragments: Vec<TwitchMessageFragment>,
     pub reply: Option<TwitchReplyContext>,
 }
 
@@ -63,6 +79,7 @@ pub struct TwitchMessage {
     pub display_name: String,
     pub name_color: Option<[u8; 3]>,
     pub text: String,
+    pub fragments: Vec<TwitchMessageFragment>,
     pub reply: Option<TwitchReplyContext>,
     pub received_at: Instant,
     pub client_nonce: Option<String>,
@@ -76,6 +93,7 @@ impl TwitchMessage {
             display_name: parsed.display_name,
             name_color: parsed.name_color,
             text: parsed.text,
+            fragments: parsed.fragments,
             reply: parsed.reply,
             received_at,
             client_nonce: None,
@@ -177,6 +195,7 @@ impl MessageBuffer {
             id: String::new(),
             display_name,
             name_color: None,
+            fragments: vec![TwitchMessageFragment::Text(text.clone())],
             text,
             reply: None,
             received_at,

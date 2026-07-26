@@ -145,6 +145,16 @@ describe('Control Center dashboard', () => {
     expect(screen.getByRole('checkbox', { name: /Example Game.*Steam · App 4242/ })).toBeChecked();
   });
 
+  it('shows the release version below compatibility and on the About page', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    render(<App client={memoryClient(snapshot())} storage={storage} />);
+
+    expect(await screen.findByText('v0.1.0-pre-alpha.2')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'About' }));
+    expect(screen.getByText('Version 0.1.0-pre-alpha.2')).toBeVisible();
+  });
+
   it('locks the lifecycle action while OverCrow is starting', async () => {
     const storage = memoryStorage();
     storage.setItem('overcrow.onboardingVersion', '1');

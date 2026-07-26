@@ -786,12 +786,16 @@ OAuth/network run is sufficient if the exact same package is used.
 5. Add, remove, reorder, and select favorites. Restart and confirm only the
    selected channel, order, and passive lifetime return—never old messages or a
    draft.
-6. Receive messages containing display-name colors, badge/emote metadata,
-   Unicode, and a reply. Confirm each username is bold and no badge/emote icon
-   is rendered; the complete text must remain visible.
+6. Receive messages containing display-name colors, native Twitch emotes,
+   badge metadata, Unicode, and a reply. Confirm usernames use semibold text,
+   message content remains regular, native emotes render as static images, and
+   badge images remain absent. Block the CDN temporarily and confirm each emote
+   falls back to its complete text.
 7. Send a normal message and a reply. Confirm each appears once, Enter cannot
    inject another command, the 500-character UI limit is enforced, and a
-   rejected Helix send is not retried automatically.
+   rejected Helix send is not retried automatically. Confirm the reply arrow
+   appears only while hovering a message and that the contextual parent recap
+   and reply body share one green relationship rail.
 8. Scroll away from the bottom, receive messages, and verify the bounded new
    message indicator. Return to the latest message, switch channels, and
    confirm history, reply target, and draft clear.

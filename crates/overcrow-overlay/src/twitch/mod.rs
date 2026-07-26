@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod client;
 pub mod credentials;
+pub mod emotes;
 pub mod eventsub;
 pub mod http;
 pub mod model;

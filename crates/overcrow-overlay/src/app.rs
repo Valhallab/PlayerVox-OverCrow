@@ -18,8 +18,9 @@ use crate::{
     session_clock::SessionClock,
     twitch::{
         client::{TwitchClient, TwitchGate},
+        emotes::TwitchEmotes,
         http::validate_verification_uri,
-        model::TwitchCommand,
+        model::{TwitchCommand, TwitchConnectionState, TwitchSnapshot},
         prefs::{TwitchPrefsSaveOutcome, TwitchPrefsSaver},
     },
     warframe::{WarframeActionBatch, WarframeController, is_warframe_active},
@@ -40,6 +41,7 @@ use overcrow_logging::EventLogger;
 use overcrow_protocol::{CoreSnapshot, OverlayMode};
 
 pub const APP_ID: &str = "io.github.overcrow.Overlay";
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE_ID: &str = "AGPL-3.0-only";
 const NOTICE_TEXT: &str = include_str!("../../../NOTICE");
 const SOURCE_REPOSITORY_URL: &str = "https://github.com/Valhallab/PlayerVox-OverCrow";
@@ -213,6 +215,7 @@ impl OverlayApp {
         let media_repaint_context = repaint_context.clone();
         let notes_repaint_context = repaint_context.clone();
         let twitch_repaint_context = repaint_context.clone();
+        let twitch_emote_repaint_context = repaint_context.clone();
         let twitch_settings_repaint_context = repaint_context.clone();
         let media_readiness = ProviderReadiness::default();
         let media_callback_readiness = media_readiness.clone();
@@ -232,6 +235,9 @@ impl OverlayApp {
         );
         let twitch_client = TwitchClient::spawn(logger.clone(), move || {
             twitch_repaint_context.request_repaint();
+        });
+        let twitch_emotes = TwitchEmotes::spawn(logger.clone(), move || {
+            twitch_emote_repaint_context.request_repaint();
         });
         creation_context
             .egui_ctx
@@ -270,7 +276,7 @@ impl OverlayApp {
             notes_service,
             notes_state: NotesWidgetState::default(),
             twitch_client,
-            twitch_state: TwitchWidgetState::default(),
+            twitch_state: TwitchWidgetState::with_emotes(twitch_emotes),
             twitch_prefs: twitch_prefs_load.prefs,
             twitch_prefs_saver,
             twitch_verification: VerificationLauncher::default(),
@@ -393,13 +399,16 @@ impl OverlayApp {
         }
     }
 
-    fn sync_twitch_gate(&self) {
-        self.twitch_client.set_gate(twitch_gate(
+    fn sync_twitch_gate(&mut self) {
+        let gate = twitch_gate(
             self.client.has_authority(),
             self.state.snapshot().active_game.is_some(),
             self.preferences.settings(WidgetId::TwitchChat).enabled,
             self.twitch_prefs.active_channel.clone(),
-        ));
+        );
+        let emotes_enabled = twitch_emotes_allowed(&gate, self.twitch_state.snapshot());
+        self.twitch_client.set_gate(gate);
+        self.twitch_state.set_emotes_enabled(emotes_enabled);
     }
 
     fn commit_twitch_prefs(&mut self, candidate: TwitchPrefs) -> bool {
@@ -539,6 +548,15 @@ fn twitch_gate(
         widget_enabled,
         channel,
     }
+}
+
+fn twitch_emotes_allowed(gate: &TwitchGate, snapshot: &TwitchSnapshot) -> bool {
+    gate.lifecycle_enabled
+        && gate.active_game_authorized
+        && gate.widget_enabled
+        && gate.channel.is_some()
+        && gate.channel == snapshot.channel
+        && snapshot.connection == TwitchConnectionState::Joined
 }
 
 #[derive(Clone, Default)]
@@ -807,6 +825,7 @@ impl eframe::App for OverlayApp {
             self.twitch_state
                 .apply_snapshot(snapshot.revision, snapshot.value);
         }
+        self.twitch_state.poll_emotes(context, now);
         if let Some(result) = self.twitch_prefs_saver.take_latest() {
             self.apply_twitch_prefs_save(result.value.as_ref());
         }
@@ -1092,6 +1111,7 @@ impl eframe::App for OverlayApp {
         }
 
         if controls_visible(self.state.snapshot()) {
+            paint_overlay_version(ui.ctx());
             let catalog_was_open = self.widgets.catalog_open();
             let mut toggle_catalog = false;
             let mut toggle_about = false;
@@ -1179,95 +1199,8 @@ impl eframe::App for OverlayApp {
             }
 
             if about_visible(self.state.snapshot(), self.about_open) {
-                let mut open = self.about_open;
-                let about_content_size = about_content_size(ui.max_rect().size());
-                let about_frame = egui::Frame::window(ui.style())
-                    .fill(PANEL_FILL)
-                    .stroke(egui::Stroke::new(1.0, PANEL_STROKE_STRONG))
-                    .corner_radius(16)
-                    .inner_margin(egui::Margin::same(22));
-                egui::Window::new("About PlayerVox OverCrow")
-                    .id(egui::Id::new("overlay-about"))
-                    .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                    .collapsible(false)
-                    .resizable(false)
-                    .default_width(about_content_size.x)
-                    .frame(about_frame)
-                    .open(&mut open)
-                    .show(ui.ctx(), |ui| {
-                        egui::ScrollArea::vertical()
-                            .max_height(about_content_size.y)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| {
-                                ui.set_width(about_content_size.x);
-                                paint_brand(ui, &mut self.brand, BrandSize::Md);
-                                ui.add_space(14.0);
-                                ui.label(
-                                    egui::RichText::new(
-                                        "Your games. Your overlay. Your control.",
-                                    )
-                                    .size(20.0)
-                                    .strong(),
-                                );
-                                ui.add_space(4.0);
-                                ui.label(
-                                    egui::RichText::new(
-                                        "A lightweight external overlay that stays outside your game process.",
-                                    )
-                                        .color(TEXT_MUTED),
-                                );
-                                ui.add_space(16.0);
-                                egui::Frame::new()
-                                    .fill(egui::Color32::from_white_alpha(8))
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        egui::Color32::from_white_alpha(22),
-                                    ))
-                                    .corner_radius(10)
-                                    .inner_margin(egui::Margin::same(14))
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            egui::RichText::new("OPEN SOURCE")
-                                                .size(10.0)
-                                                .strong()
-                                                .color(ACCENT),
-                                        );
-                                        ui.add_space(4.0);
-                                        ui.horizontal(|ui| {
-                                            ui.label("License");
-                                            ui.monospace(LICENSE_ID);
-                                        });
-                                        ui.add_space(8.0);
-                                        ui.label(
-                                            egui::RichText::new(NOTICE_TEXT.trim())
-                                                .size(11.0)
-                                                .color(TEXT_MUTED),
-                                        );
-                                    });
-                                ui.add_space(14.0);
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.hyperlink_to(
-                                        "View source on GitHub",
-                                        SOURCE_REPOSITORY_URL,
-                                    );
-                                    ui.separator();
-                                    ui.label(
-                                        egui::RichText::new("No warranty")
-                                            .size(11.0)
-                                            .color(TEXT_MUTED),
-                                    );
-                                });
-                                ui.add_space(8.0);
-                                ui.label(
-                                    egui::RichText::new(
-                                        "PlayerVox trademark use is governed separately by TRADEMARKS.md.",
-                                    )
-                                    .size(11.0)
-                                    .color(TEXT_MUTED),
-                                );
-                            });
-                    });
-                self.about_open = open;
+                self.about_open =
+                    paint_about_window(ui.ctx(), ui.max_rect().size(), &mut self.brand);
             }
         }
 
@@ -1307,6 +1240,134 @@ fn about_content_size(viewport: egui::Vec2) -> egui::Vec2 {
         (viewport.x - 96.0).clamp(180.0, 460.0),
         (viewport.y - 160.0).clamp(120.0, 520.0),
     )
+}
+
+fn paint_overlay_version(context: &egui::Context) {
+    egui::Area::new(egui::Id::new("overlay-version"))
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -10.0))
+        .interactable(false)
+        .show(context, |ui| {
+            ui.label(
+                egui::RichText::new(APP_VERSION)
+                    .monospace()
+                    .size(9.0)
+                    .color(TEXT_MUTED.gamma_multiply(0.62)),
+            );
+        });
+}
+
+fn paint_about_window(
+    context: &egui::Context,
+    viewport: egui::Vec2,
+    brand: &mut BrandAssets,
+) -> bool {
+    let content_size = about_content_size(viewport);
+    let frame = egui::Frame::window(&context.style_of(egui::Theme::Dark))
+        .fill(PANEL_FILL)
+        .stroke(egui::Stroke::new(1.0, PANEL_STROKE_STRONG))
+        .corner_radius(16)
+        .inner_margin(egui::Margin::same(22));
+    let mut open = true;
+    let mut close_requested = false;
+
+    egui::Window::new("PlayerVox OverCrow")
+        .id(egui::Id::new("overlay-about"))
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .title_bar(false)
+        .resizable(false)
+        .default_width(content_size.x)
+        .frame(frame)
+        .open(&mut open)
+        .show(context, |ui| {
+            ui.set_width(content_size.x);
+            let header = ui.horizontal(|ui| {
+                paint_brand(ui, brand, BrandSize::Md);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    close_requested = about_close_button(ui).clicked();
+                });
+            });
+            ui.add_space(14.0);
+            let scroll_height = (content_size.y - header.response.rect.height() - 14.0).max(48.0);
+            egui::ScrollArea::vertical()
+                .max_height(scroll_height)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    ui.set_width(content_size.x);
+                    ui.label(
+                        egui::RichText::new("Your games. Your overlay. Your control.")
+                            .size(20.0)
+                            .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(
+                            "A lightweight external overlay that stays outside your game process.",
+                        )
+                        .color(TEXT_MUTED),
+                    );
+                    ui.add_space(16.0);
+                    egui::Frame::new()
+                        .fill(egui::Color32::from_white_alpha(8))
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(22)))
+                        .corner_radius(10)
+                        .inner_margin(egui::Margin::same(14))
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new("OPEN SOURCE")
+                                    .size(10.0)
+                                    .strong()
+                                    .color(ACCENT),
+                            );
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                ui.label("License");
+                                ui.monospace(LICENSE_ID);
+                            });
+                            ui.add_space(8.0);
+                            ui.label(
+                                egui::RichText::new(NOTICE_TEXT.trim())
+                                    .size(11.0)
+                                    .color(TEXT_MUTED),
+                            );
+                        });
+                    ui.add_space(14.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.hyperlink_to("View source on GitHub", SOURCE_REPOSITORY_URL);
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new("No warranty")
+                                .size(11.0)
+                                .color(TEXT_MUTED),
+                        );
+                    });
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(
+                            "PlayerVox trademark use is governed separately by TRADEMARKS.md.",
+                        )
+                        .size(11.0)
+                        .color(TEXT_MUTED),
+                    );
+                    ui.add_space(18.0);
+                    ui.label(
+                        egui::RichText::new(format!("Version {APP_VERSION}"))
+                            .monospace()
+                            .size(10.0)
+                            .color(TEXT_MUTED.gamma_multiply(0.72)),
+                    );
+                });
+        });
+
+    open && !close_requested
+}
+
+fn about_close_button(ui: &mut egui::Ui) -> egui::Response {
+    let response = ui
+        .add(egui::Button::new(egui::RichText::new("×").size(20.0).color(TEXT_MUTED)).frame(false));
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), "Close")
+    });
+    response.on_hover_text("Close")
 }
 
 fn shortcut_hint(ui: &mut egui::Ui, key: &str, action: &str) {

@@ -678,6 +678,10 @@ async fn run_provider(
                         diagnostics.failed(match error {
                             EventSubParseError::Oversized => FailureCategory::Validation,
                             EventSubParseError::Malformed => FailureCategory::Parse,
+                            EventSubParseError::InvalidEnvelope => FailureCategory::Response,
+                            EventSubParseError::InvalidRouting => FailureCategory::Routing,
+                            EventSubParseError::InvalidIdentity => FailureCategory::Identity,
+                            EventSubParseError::InvalidContent => FailureCategory::Content,
                         });
                         continue;
                     }

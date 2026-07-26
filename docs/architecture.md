@@ -105,18 +105,31 @@ shown indefinitely.
 Provider logging contains stable component IDs and fixed failure categories,
 never responses, queries, notes, media titles, paths, or other user content.
 
-Twitch chat is owned by one renderer worker and remains inert until the
-application lifecycle, selected active game, widget, channel, and credential
-gates are all valid. It uses Device Code OAuth, allowlisted Twitch HTTPS,
-EventSub WebSocket for incoming chat, and Helix for subscriptions and outgoing
-messages. Commands use a bounded queue; EventSub deliveries are deduplicated
-in a bounded set and snapshots coalesce to the newest 200-message ring.
+The Twitch chat connection is owned by one renderer provider worker and remains
+inert until the application lifecycle, selected active game, widget, channel,
+and credential gates are all valid. It uses Device Code OAuth, allowlisted
+Twitch HTTPS, EventSub WebSocket for incoming chat, and Helix for subscriptions
+and outgoing messages. Commands use a bounded queue; EventSub deliveries are
+deduplicated in a bounded set and snapshots coalesce to the newest 200-message
+ring.
 Responses, WebSocket messages, strings, retries, and shutdown operations are
-bounded. Usernames render as bold text; badge and emote assets are
-intentionally ignored. Losing active-game authority closes the chat
-connection; disabling the widget, switching channel, signing out, or stopping
-the renderer also clears the relevant transient private state. Passive
-presentation remains read-only and click-through.
+bounded. EventSub fragments preserve native Twitch emotes while malformed
+optional fragments fall back to the validated message text.
+
+Static emote PNGs are loaded off the render thread from the exact
+`static-cdn.jtvnw.net` HTTPS host with redirects and credentials disabled.
+Request/result queues, encoded bytes, decoded dimensions, pending identities,
+and the memory-only texture cache all have fixed limits. The asset worker is
+event-driven, stops before draining queued requests, and waits at shutdown only
+for its current bounded request. Failed or unavailable assets remain readable
+as their original text. Badge assets and third-party emote providers are
+ignored.
+
+Usernames use the semibold UI family while message content stays regular.
+Losing active-game authority closes the chat connection; disabling the widget,
+switching channel, signing out, or stopping the renderer also clears the
+relevant transient private state. Passive presentation remains read-only and
+click-through.
 
 The native Control Center reads recent diagnostics through the hardened
 private log reader. It returns at most the newest 500 sanitized lines and
