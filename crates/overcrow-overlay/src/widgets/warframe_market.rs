@@ -2,10 +2,13 @@ use eframe::egui::{self, Color32, Layout, Sense, Stroke, Vec2, vec2};
 use overcrow_config::WARFRAME_MARKET_QUERY_MAX_CHARS;
 use overcrow_protocol::OverlayMode;
 
-use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, accent_error, accent_ok, apply_scale,
-    fixed_panel_constraints, meta_text, panel_frame, report_fixed_panel_size, resize_grip,
-    title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, BODY_SIZE, META_SIZE, ResizeGripOutcome, TEXT_MUTED, TEXT_PRIMARY, accent_error,
+        accent_ok, apply_scale, fixed_panel_constraints, meta_text, metric_tile, panel_frame,
+        primary_button, resize_grip, scaled_content_font_size, status_pill, widget_identity,
+    },
 };
 use crate::warframe::{
     MarketCommand, MarketOrder, MarketSnapshot, TradeSide, format_trade_line, format_whisper_line,
@@ -38,6 +41,7 @@ pub fn paint_warframe_market(
     mode: OverlayMode,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> WarframeMarketResponse {
     let mut actions = Vec::new();
@@ -49,22 +53,43 @@ pub fn paint_warframe_market(
     let response = egui::Area::new(egui::Id::new("warframe-market-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
                 let safe_height = (viewport.height() - margin * 2.0).max(1.0);
-                fixed_panel_constraints(ui, panel_size, mode, safe_height);
+                fixed_panel_constraints(ui, panel_size, mode, safe_height, transparent_background);
 
                 ui.horizontal(|ui| {
-                    ui.label(title_text("MARKET"));
-                    if snapshot.selected.is_some() && snapshot.selected_fetched_at_secs > 0 {
-                        ui.label(meta_text(format!(
-                            "auto refresh {}s",
-                            crate::warframe::MARKET_ORDERS_REFRESH_SECS
-                        )));
-                    }
+                    let detail =
+                        if snapshot.selected.is_some() && snapshot.selected_fetched_at_secs > 0 {
+                            format!(
+                                "AUTO REFRESH · {}S",
+                                crate::warframe::MARKET_ORDERS_REFRESH_SECS
+                            )
+                        } else {
+                            "TRADE ASSISTANT".to_owned()
+                        };
+                    widget_identity(ui, WidgetGlyph::Market, "MARKET", Some(&detail));
+                    ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                        status_pill(
+                            ui,
+                            if snapshot.selected.is_some() {
+                                "TRACKING"
+                            } else {
+                                "READY"
+                            },
+                            if snapshot.selected.is_some() {
+                                ACCENT
+                            } else {
+                                TEXT_MUTED
+                            },
+                        );
+                    });
                 });
                 ui.add_space(4.0);
 
@@ -76,7 +101,7 @@ pub fn paint_warframe_market(
                                 .desired_width((panel_size.x - 168.0).max(100.0))
                                 .hint_text("Item…"),
                         );
-                        if ui.button("Search").clicked() {
+                        if ui.add(primary_button("Search")).clicked() {
                             actions.push(MarketUiAction::Command(MarketCommand::Search(
                                 draft_query.clone(),
                             )));
@@ -100,7 +125,10 @@ pub fn paint_warframe_market(
                     ui.label(meta_text(status.clone()));
                 }
                 if let Some(error) = &snapshot.error {
-                    ui.colored_label(accent_error(), egui::RichText::new(error).size(BODY_SIZE));
+                    ui.colored_label(
+                        accent_error(),
+                        egui::RichText::new(error).size(scaled_content_font_size(ui, BODY_SIZE)),
+                    );
                 }
 
                 let available_height = if interactive {
@@ -124,7 +152,8 @@ pub fn paint_warframe_market(
                                 if ui
                                     .selectable_label(
                                         selected,
-                                        egui::RichText::new(&item.name).size(BODY_SIZE),
+                                        egui::RichText::new(&item.name)
+                                            .size(scaled_content_font_size(ui, BODY_SIZE)),
                                     )
                                     .clicked()
                                 {
@@ -142,20 +171,30 @@ pub fn paint_warframe_market(
                             }
                             ui.label(
                                 egui::RichText::new(&selected.name)
-                                    .size(BODY_SIZE + 2.0)
+                                    .size(scaled_content_font_size(ui, BODY_SIZE + 2.0))
                                     .strong()
                                     .color(Color32::from_gray(245)),
                             );
 
                             ui.add_space(6.0);
                             ui.horizontal(|ui| {
-                                price_stat(ui, "Min sell", selected.lowest_sell);
+                                price_stat(
+                                    ui,
+                                    "Min sell",
+                                    selected.lowest_sell,
+                                    transparent_background,
+                                );
                                 ui.add_space(16.0);
-                                price_stat(ui, "Max buy", selected.highest_buy);
+                                price_stat(
+                                    ui,
+                                    "Max buy",
+                                    selected.highest_buy,
+                                    transparent_background,
+                                );
                                 ui.add_space(16.0);
                                 ui.label(
                                     egui::RichText::new(format!("{} orders", selected.order_count))
-                                        .size(META_SIZE)
+                                        .size(scaled_content_font_size(ui, META_SIZE))
                                         .color(Color32::from_gray(170)),
                                 );
                             });
@@ -208,15 +247,17 @@ pub fn paint_warframe_market(
                             }
                         }
                     });
-
-                let panel_rect = ui.min_rect();
-                resize = resize_grip(ui, panel_rect, mode == OverlayMode::Interactive);
             });
+            resize = resize_grip(
+                ui,
+                frame.response.rect,
+                input_enabled && mode == OverlayMode::Interactive,
+            );
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeMarketResponse {
-        size: report_fixed_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -225,23 +266,11 @@ pub fn paint_warframe_market(
     }
 }
 
-fn price_stat(ui: &mut egui::Ui, label: &str, price: Option<u32>) {
-    ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(label)
-                .size(META_SIZE)
-                .color(Color32::from_gray(170)),
-        );
-        let value = price
-            .map(|p| format!("{p}p"))
-            .unwrap_or_else(|| "—".to_owned());
-        ui.label(
-            egui::RichText::new(value)
-                .size(BODY_SIZE + 1.0)
-                .strong()
-                .color(Color32::from_gray(240)),
-        );
-    });
+fn price_stat(ui: &mut egui::Ui, label: &str, price: Option<u32>, transparent_background: bool) {
+    let value = price
+        .map(|p| format!("{p}p"))
+        .unwrap_or_else(|| "—".to_owned());
+    metric_tile(ui, label, &value, transparent_background);
 }
 
 fn copy_or_check(
@@ -337,7 +366,7 @@ fn paint_orders_combined(
 fn paint_section_header_row(ui: &mut egui::Ui, title: &str, interactive: bool) {
     ui.label(
         egui::RichText::new(title)
-            .size(META_SIZE)
+            .size(scaled_content_font_size(ui, META_SIZE))
             .strong()
             .color(Color32::from_gray(200)),
     );
@@ -373,9 +402,9 @@ fn paint_order_row(
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new(&order.trader)
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .strong()
-                .color(Color32::from_gray(230)),
+                .color(TEXT_PRIMARY),
         );
     });
 
@@ -383,7 +412,7 @@ fn paint_order_row(
         ui.label(
             egui::RichText::new(format!("{}p", order.platinum))
                 .monospace()
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .strong()
                 .color(Color32::from_gray(235)),
         );

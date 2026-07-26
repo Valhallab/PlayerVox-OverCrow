@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use eframe::egui::{
-    self, Event, RawInput, Rect,
+    self, Event, PointerButton, RawInput, Rect,
     accesskit::{Action as AccessKitAction, ActionRequest, Role, TreeId},
     pos2, vec2,
 };
@@ -366,6 +366,80 @@ fn interactive_checklist_control_exposes_checkbox_semantics() {
 }
 
 #[test]
+fn checklist_remove_action_uses_a_compact_hit_target() {
+    let context = egui::Context::default();
+    context.enable_accesskit();
+    let mut document = NotesDocument::default();
+    document.add_item("Removable entry").unwrap();
+    let mut state = NotesWidgetState::default();
+    state.apply_update(update(document, false, None));
+
+    let output = paint_notes_frame(&context, &mut state, Vec::new());
+    let bounds = output
+        .platform_output
+        .accesskit_update
+        .expect("accessibility tree")
+        .nodes
+        .into_iter()
+        .find_map(|(_, node)| {
+            (node.label() == Some("Remove entry"))
+                .then(|| node.bounds())
+                .flatten()
+        })
+        .expect("remove entry control");
+
+    assert!(bounds.x1 - bounds.x0 <= 22.5, "{bounds:?}");
+    assert!(bounds.y1 - bounds.y0 <= 22.5, "{bounds:?}");
+}
+
+#[test]
+fn note_tabs_keep_add_action_in_the_strip_without_widget_header() {
+    let context = egui::Context::default();
+    context.enable_accesskit();
+    let mut document = NotesDocument::default();
+    document.add_note("Second tab").unwrap();
+    let mut state = NotesWidgetState::default();
+    state.apply_update(update(document, false, None));
+
+    let output = paint_notes_frame(&context, &mut state, Vec::new());
+    let nodes = output
+        .platform_output
+        .accesskit_update
+        .expect("accessibility tree")
+        .nodes;
+    let text = nodes
+        .iter()
+        .filter_map(|(_, node)| node.label().map(str::to_owned))
+        .collect::<Vec<_>>();
+    assert!(!text.iter().any(|label| label == "NOTES"), "{text:?}");
+    assert!(
+        !text.iter().any(|label| label == "LOCAL WORKSPACE"),
+        "{text:?}"
+    );
+
+    let bounds = |label: &str| {
+        nodes
+            .iter()
+            .find_map(|(_, node)| {
+                (node.label() == Some(label))
+                    .then(|| node.bounds())
+                    .flatten()
+            })
+            .unwrap_or_else(|| panic!("missing {label:?} control in {text:?}"))
+    };
+    let second = bounds("Second tab");
+    let add = bounds("Add note");
+    let second_center = (second.y0 + second.y1) * 0.5;
+    let add_center = (add.y0 + add.y1) * 0.5;
+
+    assert!(
+        (second_center - add_center).abs() <= 1.0,
+        "{second:?} {add:?}"
+    );
+    assert!(add.x0 >= second.x1, "{second:?} {add:?}");
+}
+
+#[test]
 fn hiding_note_removes_tabs_title_editor_and_body_as_one_block() {
     let context = egui::Context::default();
     context.enable_accesskit();
@@ -423,6 +497,204 @@ fn hiding_checklist_removes_heading_input_and_entries_as_one_block() {
     assert!(!text.iter().any(|value| value == "Hidden entry"));
 }
 
+#[test]
+fn interactive_resize_grip_matches_the_visible_panel_corner() {
+    let context = egui::Context::default();
+    context.enable_accesskit();
+    let mut state = NotesWidgetState::default();
+    state.apply_update(update(NotesDocument::default(), false, None));
+    let input = || RawInput {
+        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+        ..RawInput::default()
+    };
+    let _ = context.run_ui(input(), |ui| {
+        let _ = paint_notes(
+            ui,
+            pos2(80.0, 60.0),
+            vec2(360.0, 280.0),
+            &mut state,
+            NotesDisplaySettings::default(),
+            1.0,
+            OverlayMode::Interactive,
+            false,
+            false,
+            true,
+            0.0,
+        );
+    });
+    let response = std::cell::RefCell::new(None);
+    let output = context.run_ui(input(), |ui| {
+        response.replace(Some(paint_notes(
+            ui,
+            pos2(80.0, 60.0),
+            vec2(360.0, 280.0),
+            &mut state,
+            NotesDisplaySettings::default(),
+            1.0,
+            OverlayMode::Interactive,
+            false,
+            false,
+            true,
+            0.0,
+        )));
+    });
+    let response = response.into_inner().expect("notes response");
+    let grip = output
+        .platform_output
+        .accesskit_update
+        .expect("accessibility tree")
+        .nodes
+        .into_iter()
+        .find_map(|(_, node)| {
+            (node.label() == Some("Resize widget"))
+                .then(|| node.bounds())
+                .flatten()
+        })
+        .expect("resize grip");
+
+    let panel_max = response.position + response.size;
+    assert!((grip.x1 as f32 - panel_max.x).abs() <= 0.5);
+    assert!((grip.y1 as f32 - panel_max.y).abs() <= 0.5);
+}
+
+#[test]
+fn interactive_resize_grip_reports_a_real_pointer_drag() {
+    let context = egui::Context::default();
+    let mut state = NotesWidgetState::default();
+    state.apply_update(update(NotesDocument::default(), false, None));
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let panel_position = pos2(80.0, 60.0);
+    let panel_size = vec2(360.0, 280.0);
+    let grip = panel_position + panel_size - vec2(8.0, 8.0);
+
+    let paint = |input: RawInput, state: &mut NotesWidgetState, mode: OverlayMode| {
+        let response = std::cell::RefCell::new(None);
+        let _ = context.run_ui(input, |ui| {
+            response.replace(Some(paint_notes(
+                ui,
+                panel_position,
+                panel_size,
+                state,
+                NotesDisplaySettings::default(),
+                1.0,
+                mode,
+                false,
+                false,
+                true,
+                0.0,
+            )));
+        });
+        response.into_inner().expect("notes response")
+    };
+
+    let _ = paint(
+        RawInput {
+            screen_rect: Some(viewport),
+            ..RawInput::default()
+        },
+        &mut state,
+        OverlayMode::Passive,
+    );
+    let _ = paint(
+        RawInput {
+            screen_rect: Some(viewport),
+            ..RawInput::default()
+        },
+        &mut state,
+        OverlayMode::Interactive,
+    );
+    let _pressed = paint(
+        RawInput {
+            screen_rect: Some(viewport),
+            events: vec![
+                Event::PointerMoved(grip),
+                Event::PointerButton {
+                    pos: grip,
+                    button: PointerButton::Primary,
+                    pressed: true,
+                    modifiers: Default::default(),
+                },
+            ],
+            ..RawInput::default()
+        },
+        &mut state,
+        OverlayMode::Interactive,
+    );
+    let dragged = paint(
+        RawInput {
+            screen_rect: Some(viewport),
+            events: vec![Event::PointerMoved(grip + vec2(48.0, 32.0))],
+            ..RawInput::default()
+        },
+        &mut state,
+        OverlayMode::Interactive,
+    );
+    assert!(dragged.resize.dragging, "grip lost the active drag");
+    assert!(
+        dragged.resize.drag_delta.x >= 47.0 && dragged.resize.drag_delta.y >= 31.0,
+        "{:?}",
+        dragged.resize.drag_delta
+    );
+    let released = paint(
+        RawInput {
+            screen_rect: Some(viewport),
+            events: vec![Event::PointerButton {
+                pos: grip + vec2(48.0, 32.0),
+                button: PointerButton::Primary,
+                pressed: false,
+                modifiers: Default::default(),
+            }],
+            ..RawInput::default()
+        },
+        &mut state,
+        OverlayMode::Interactive,
+    );
+    assert!(
+        released.resize.drag_stopped,
+        "grip did not report the pointer release"
+    );
+}
+
+#[test]
+fn interactive_panel_size_is_stable_with_or_without_background() {
+    for transparent_background in [false, true] {
+        let context = egui::Context::default();
+        let mut state = NotesWidgetState::default();
+        state.apply_update(update(NotesDocument::default(), false, None));
+        let size = Cell::new(egui::Vec2::ZERO);
+        let _ = context.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+                ..RawInput::default()
+            },
+            |ui| {
+                size.set(
+                    paint_notes(
+                        ui,
+                        pos2(80.0, 60.0),
+                        vec2(360.0, 280.0),
+                        &mut state,
+                        NotesDisplaySettings::default(),
+                        1.0,
+                        OverlayMode::Interactive,
+                        transparent_background,
+                        false,
+                        true,
+                        0.0,
+                    )
+                    .size,
+                );
+            },
+        );
+
+        assert_eq!(
+            size.get(),
+            vec2(360.0, 280.0),
+            "transparent={transparent_background}"
+        );
+    }
+}
+
 fn paint_notes_size(
     context: &egui::Context,
     state: &mut NotesWidgetState,
@@ -447,6 +719,7 @@ fn paint_notes_size(
                     mode,
                     false,
                     false,
+                    true,
                     0.0,
                 )
                 .size,
@@ -487,6 +760,7 @@ fn paint_notes_frame_with_display(
                 OverlayMode::Interactive,
                 false,
                 false,
+                true,
                 0.0,
             );
         },

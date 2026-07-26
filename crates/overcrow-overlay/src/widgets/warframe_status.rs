@@ -2,10 +2,14 @@ use eframe::egui::{self, Color32, Layout, Sense, Stroke, Vec2, vec2};
 use overcrow_config::{StatusRow, WarframePrefs};
 use overcrow_protocol::OverlayMode;
 
-use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, accent_error, accent_ok, accent_warn,
-    apply_scale, cycle_state_color, meta_text, options_menu, panel_frame, resize_grip, timer_color,
-    title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, BODY_SIZE, META_SIZE, ResizeGripOutcome, TEXT_PRIMARY, TIMER_SIZE, accent_error,
+        accent_ok, accent_warn, apply_scale, current_content_scale, cycle_state_color, filter_chip,
+        meta_text, panel_content_width, panel_frame, resize_grip, scaled_content_font_size,
+        timer_color, widget_identity,
+    },
 };
 use crate::warframe::{WorldstateSnapshot, format_remaining};
 
@@ -53,6 +57,7 @@ pub fn paint_warframe_status(
     now_secs: u64,
     transparent_background: bool,
     interactive: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> WarframeStatusResponse {
     let panel_size = super::chrome::clamp_panel_size(panel_size);
@@ -66,32 +71,42 @@ pub fn paint_warframe_status(
     let response = egui::Area::new(egui::Id::new("warframe-status-panel"))
         .current_pos(current_position)
         .movable(interactive)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
                 if horizontal {
                     // Content-width bar; while editing keep a usable min width.
                     if editing {
-                        ui.set_min_width(HORIZONTAL_EDIT_MIN_WIDTH);
+                        ui.set_min_width(panel_content_width(
+                            HORIZONTAL_EDIT_MIN_WIDTH,
+                            transparent_background,
+                        ));
                     }
                 } else {
                     // Fixed width (user-resizable); height follows content.
-                    ui.set_min_width(panel_size.x);
-                    ui.set_max_width(panel_size.x);
+                    let content_width = panel_content_width(panel_size.x, transparent_background);
+                    ui.set_min_width(content_width);
+                    ui.set_max_width(content_width);
                 }
 
                 if editing {
                     paint_status_header(ui, prefs, horizontal, &mut actions);
                     ui.add_space(4.0);
                 } else if !horizontal {
-                    ui.label(title_text("WARFRAME"));
+                    widget_identity(ui, WidgetGlyph::Warframe, "WARFRAME", Some("WORLDSTATE"));
                     ui.add_space(4.0);
                 }
 
                 if let Some(error) = &snapshot.error {
-                    ui.colored_label(accent_error(), egui::RichText::new(error).size(BODY_SIZE));
+                    ui.colored_label(
+                        accent_error(),
+                        egui::RichText::new(error).size(scaled_content_font_size(ui, BODY_SIZE)),
+                    );
                 }
                 if snapshot.cycles.is_empty()
                     && snapshot.baro.is_none()
@@ -107,28 +122,18 @@ pub fn paint_warframe_status(
                         paint_status_row(ui, &item.name, &item.state, item.state_color, &item.time);
                     }
                 }
-
-                let panel_rect = ui.min_rect();
-                // Vertical only: width grip. Horizontal size is content-driven.
-                // Grip stays enabled even when Area move is suppressed near the corner.
-                resize = resize_grip(ui, panel_rect, editing && !horizontal);
             });
+            // Vertical only: width grip. Horizontal size is content-driven.
+            resize = resize_grip(
+                ui,
+                frame.response.rect,
+                input_enabled && editing && !horizontal,
+            );
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
-    let reported_size = if horizontal {
-        if editing {
-            vec2(measured.x.max(HORIZONTAL_EDIT_MIN_WIDTH), measured.y)
-        } else {
-            measured
-        }
-    } else {
-        // Keep chosen width; shrink height to the last row (no empty footer).
-        vec2(panel_size.x, measured.y)
-    };
-
     WarframeStatusResponse {
-        size: reported_size,
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -203,38 +208,48 @@ fn paint_status_header(
     actions: &mut Vec<StatusPrefsAction>,
 ) {
     ui.horizontal(|ui| {
-        if !horizontal {
-            ui.label(title_text("WARFRAME"));
-            ui.add_space(6.0);
-        }
-        ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-            options_menu(ui, |ui| {
-                let mut horizontal = prefs.status_horizontal;
-                if ui.checkbox(&mut horizontal, "Horizontal bar").changed() {
-                    actions.push(StatusPrefsAction::ToggleHorizontal);
-                }
-                let mut seconds = prefs.show_status_seconds;
-                if ui.checkbox(&mut seconds, "Seconds").changed() {
-                    actions.push(StatusPrefsAction::ToggleSeconds);
-                }
-            });
-        });
+        widget_identity(
+            ui,
+            WidgetGlyph::Warframe,
+            "WARFRAME",
+            Some(if horizontal {
+                "STATUS BAR"
+            } else {
+                "WORLDSTATE"
+            }),
+        );
     });
     // Filters: which cycles / utilities to show.
     ui.horizontal_wrapped(|ui| {
         for row in StatusRow::ALL {
             let mut visible = prefs.status_row_visible(row);
-            if ui
-                .checkbox(
-                    &mut visible,
-                    egui::RichText::new(row.label()).size(META_SIZE),
-                )
-                .changed()
+            if filter_chip(
+                ui,
+                &mut visible,
+                egui::RichText::new(row.label()).size(scaled_content_font_size(ui, META_SIZE)),
+                ACCENT,
+            )
+            .clicked()
             {
                 actions.push(StatusPrefsAction::ToggleRow(row));
             }
         }
     });
+}
+
+pub(crate) fn paint_status_options(
+    ui: &mut egui::Ui,
+    prefs: &WarframePrefs,
+    actions: &mut Vec<StatusPrefsAction>,
+) {
+    let mut horizontal = prefs.status_horizontal;
+    if ui.checkbox(&mut horizontal, "Horizontal bar").changed() {
+        actions.push(StatusPrefsAction::ToggleHorizontal);
+    }
+    let mut seconds = prefs.show_status_seconds;
+    if ui.checkbox(&mut seconds, "Seconds").changed() {
+        actions.push(StatusPrefsAction::ToggleSeconds);
+    }
 }
 
 /// Single forced row: cells separated like the overlay control bar.
@@ -259,8 +274,9 @@ fn paint_status_bar(ui: &mut egui::Ui, items: &[StatusItem]) {
 }
 
 fn paint_bar_separator(ui: &mut egui::Ui) {
-    let height = BAR_NAME_SIZE + BAR_CELL_GAP + BAR_TIMER_SIZE + 2.0;
-    let (rect, _) = ui.allocate_exact_size(vec2(BAR_SEP_PAD * 2.0, height), Sense::hover());
+    let scale = current_content_scale(ui);
+    let height = (BAR_NAME_SIZE + BAR_CELL_GAP + BAR_TIMER_SIZE + 2.0) * scale;
+    let (rect, _) = ui.allocate_exact_size(vec2(BAR_SEP_PAD * 2.0 * scale, height), Sense::hover());
     let x = rect.center().x;
     ui.painter().line_segment(
         [
@@ -272,19 +288,20 @@ fn paint_bar_separator(ui: &mut egui::Ui) {
 }
 
 fn paint_status_bar_cell(ui: &mut egui::Ui, item: &StatusItem) {
+    let scale = current_content_scale(ui);
     ui.vertical(|ui| {
-        ui.spacing_mut().item_spacing.y = BAR_CELL_GAP;
+        ui.spacing_mut().item_spacing.y = BAR_CELL_GAP * scale;
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.spacing_mut().item_spacing.x = 4.0 * scale;
             ui.label(
                 egui::RichText::new(&item.name)
-                    .size(BAR_NAME_SIZE)
+                    .size(scaled_content_font_size(ui, BAR_NAME_SIZE))
                     .strong()
-                    .color(Color32::from_gray(230)),
+                    .color(TEXT_PRIMARY),
             );
             ui.label(
                 egui::RichText::new(&item.state)
-                    .size(BAR_STATE_SIZE)
+                    .size(scaled_content_font_size(ui, BAR_STATE_SIZE))
                     .strong()
                     .color(item.state_color),
             );
@@ -292,7 +309,7 @@ fn paint_status_bar_cell(ui: &mut egui::Ui, item: &StatusItem) {
         ui.label(
             egui::RichText::new(&item.time)
                 .monospace()
-                .size(BAR_TIMER_SIZE)
+                .size(scaled_content_font_size(ui, BAR_TIMER_SIZE))
                 .strong()
                 .color(timer_color()),
         );
@@ -303,13 +320,13 @@ fn paint_status_row(ui: &mut egui::Ui, name: &str, state: &str, state_color: Col
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(name)
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .strong()
-                .color(Color32::from_gray(230)),
+                .color(TEXT_PRIMARY),
         );
         ui.label(
             egui::RichText::new(state)
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .strong()
                 .color(state_color),
         );
@@ -317,7 +334,7 @@ fn paint_status_row(ui: &mut egui::Ui, name: &str, state: &str, state_color: Col
             ui.label(
                 egui::RichText::new(time)
                     .monospace()
-                    .size(TIMER_SIZE)
+                    .size(scaled_content_font_size(ui, TIMER_SIZE))
                     .strong()
                     .color(timer_color()),
             );

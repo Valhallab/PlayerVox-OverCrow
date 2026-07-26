@@ -45,7 +45,6 @@ fn manual_stopwatch_formats_zero_and_exposes_paused_controls() {
     let view = ManualStopwatchPresentation::new(Duration::ZERO, false, OverlayMode::Interactive);
 
     assert_eq!(view.elapsed, "00:00:00.00");
-    assert_eq!(view.status, "PAUSED");
     assert_eq!(view.toggle_label, "Start");
     assert!(view.controls_visible);
 }
@@ -59,7 +58,6 @@ fn manual_stopwatch_running_presentation_exposes_pause_and_shortcuts() {
     );
 
     assert_eq!(view.elapsed, "01:01:01.25");
-    assert_eq!(view.status, "RUNNING");
     assert_eq!(view.toggle_label, "Pause");
     assert!(view.controls_visible);
     assert_eq!(view.shortcut_footer, Some(("Super+Alt+P", "Super+Alt+R")));

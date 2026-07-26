@@ -20,8 +20,8 @@ use tempfile::NamedTempFile;
 
 use super::{AtomicWriter, FileAtomicWriter, WIDGET_MAX_BYTES, WidgetSettingsStore, widget_paths};
 use crate::{
-    NotesDisplaySettings, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile,
-    WidgetProfileError,
+    ClockDisplaySettings, NotesDisplaySettings, PerformanceDisplaySettings, PerformanceLayout,
+    WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile, WidgetProfileError,
 };
 
 fn profile_json() -> Value {
@@ -74,6 +74,50 @@ fn defaults_keep_only_the_existing_session_widget_enabled() {
     assert!(profile.warframe_invasions.show_in_passive);
     assert!(!profile.twitch_chat.show_in_passive);
     assert_eq!(profile.notes_display, NotesDisplaySettings::default());
+    assert_eq!(
+        profile.clock_display,
+        ClockDisplaySettings { show_date: true }
+    );
+    assert_eq!(
+        profile.performance_display,
+        PerformanceDisplaySettings {
+            layout: PerformanceLayout::Horizontal,
+        }
+    );
+}
+
+#[test]
+fn missing_common_display_settings_load_with_backward_compatible_defaults() {
+    let mut legacy = profile_json();
+    legacy.as_object_mut().unwrap().remove("clock_display");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("performance_display");
+
+    let profile: WidgetProfile = serde_json::from_value(legacy).unwrap();
+
+    assert_eq!(profile.clock_display, ClockDisplaySettings::default());
+    assert_eq!(
+        profile.performance_display,
+        PerformanceDisplaySettings::default()
+    );
+}
+
+#[test]
+fn common_display_settings_round_trip() {
+    let profile = WidgetProfile {
+        clock_display: ClockDisplaySettings { show_date: false },
+        performance_display: PerformanceDisplaySettings {
+            layout: PerformanceLayout::Vertical,
+        },
+        ..WidgetProfile::default()
+    };
+
+    let encoded = serde_json::to_vec(&profile).unwrap();
+    let decoded: WidgetProfile = serde_json::from_slice(&encoded).unwrap();
+
+    assert_eq!(decoded, profile);
 }
 
 #[test]

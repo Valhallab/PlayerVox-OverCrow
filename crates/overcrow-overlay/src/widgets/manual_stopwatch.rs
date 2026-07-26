@@ -4,7 +4,10 @@ use eframe::egui;
 use overcrow_config::{WidgetId, WidgetProfile};
 use overcrow_protocol::{CoreSnapshot, ManualStopwatchSnapshot, OverlayMode};
 
-use super::widget_visible;
+use super::{
+    chrome::{ACCENT, TEXT_MUTED, primary_button, standard_button, value_text},
+    widget_visible,
+};
 
 const MANUAL_STOPWATCH_OPTIMISM: Duration = Duration::from_secs(3);
 
@@ -165,7 +168,6 @@ impl ManualStopwatchClock {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManualStopwatchPresentation {
     pub elapsed: String,
-    pub status: &'static str,
     pub toggle_label: &'static str,
     pub controls_visible: bool,
     pub shortcut_footer: Option<(&'static str, &'static str)>,
@@ -176,7 +178,6 @@ impl ManualStopwatchPresentation {
         let interaction = ManualStopwatchInteractionPolicy::new(mode);
         Self {
             elapsed: format_manual_stopwatch_elapsed(elapsed),
-            status: if running { "RUNNING" } else { "PAUSED" },
             toggle_label: if running { "Pause" } else { "Start" },
             controls_visible: interaction.controls_visible,
             shortcut_footer: interaction.shortcut_footer,
@@ -266,8 +267,10 @@ pub fn paint_manual_stopwatch(
     elapsed: Duration,
     running: bool,
     mode: OverlayMode,
+    scale: f32,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> ManualStopwatchResponse {
     let presentation = ManualStopwatchPresentation::new(elapsed, running, mode);
@@ -276,46 +279,55 @@ pub fn paint_manual_stopwatch(
     let response = egui::Area::new(egui::Id::new("manual-stopwatch-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(presentation.controls_visible)
+        .interactable(input_enabled && presentation.controls_visible)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
+            super::chrome::apply_scale(ui, scale);
             super::chrome::compact_panel_frame(transparent_background).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("STOPWATCH")
-                            .size(11.0)
-                            .color(egui::Color32::from_gray(170)),
-                    );
-                    ui.label(
-                        egui::RichText::new(presentation.status)
-                            .size(11.0)
-                            .color(egui::Color32::from_gray(190)),
-                    );
-                });
                 ui.label(
-                    egui::RichText::new(&presentation.elapsed)
+                    value_text(&presentation.elapsed, 30.0 * scale)
                         .monospace()
-                        .strong()
-                        .size(30.0),
+                        .color(egui::Color32::WHITE),
                 );
 
                 if presentation.controls_visible {
                     ui.horizontal(|ui| {
-                        if ui.button(presentation.toggle_label).clicked() {
+                        if ui.add(primary_button(presentation.toggle_label)).clicked() {
                             action = Some(ManualStopwatchAction::Toggle);
                         }
-                        if ui.button("Reset").clicked() {
+                        if ui.add(standard_button("Reset")).clicked() {
                             action = Some(ManualStopwatchAction::Reset);
                         }
                     });
-                    ui.separator();
+                    ui.add_space(3.0);
                     if let Some((toggle_shortcut, reset_shortcut)) = presentation.shortcut_footer {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(toggle_shortcut).monospace().strong());
-                            ui.label("start/pause");
+                            ui.label(
+                                egui::RichText::new(toggle_shortcut)
+                                    .monospace()
+                                    .strong()
+                                    .color(ACCENT),
+                            );
+                            ui.label(
+                                egui::RichText::new("start/pause")
+                                    .size(11.0 * scale)
+                                    .color(TEXT_MUTED),
+                            );
                             ui.separator();
-                            ui.label(egui::RichText::new(reset_shortcut).monospace().strong());
-                            ui.label("reset");
+                            ui.label(
+                                egui::RichText::new(reset_shortcut)
+                                    .monospace()
+                                    .strong()
+                                    .color(ACCENT),
+                            );
+                            ui.label(
+                                egui::RichText::new("reset")
+                                    .size(11.0 * scale)
+                                    .color(TEXT_MUTED),
+                            );
                         });
                     }
                 }

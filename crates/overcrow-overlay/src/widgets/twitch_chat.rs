@@ -15,23 +15,27 @@ use crate::twitch::model::{
     TwitchMessage, TwitchSendReceiptState, TwitchSendState, TwitchSnapshot,
 };
 
-use super::chrome::{
-    ResizeGripOutcome, accent_error, accent_ok, accent_warn, apply_scale, fixed_panel_constraints,
-    meta_text, options_menu, panel_frame, report_fixed_panel_size, resize_grip, title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, ResizeGripOutcome, TEXT_MUTED, TEXT_PRIMARY, accent_error, accent_ok, accent_warn,
+        apply_scale, eyebrow_text, fixed_panel_constraints, meta_text, paint_widget_glyph,
+        panel_frame, primary_button, resize_grip, singleline_text_edit, standard_button,
+        status_pill, tab_button, title_text,
+    },
 };
 
 const PASSIVE_VISIBLE_MAX: usize = 12;
 /// Favorite star (filled). Use a plain glyph; avoid exotic icons that render as tofu.
 const FAVORITE_STAR_ON: &str = "★";
-const FAVORITE_STAR_OFF: &str = "☆";
 const FAVORITE_STAR_YELLOW: Color32 = Color32::from_rgb(255, 200, 60);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TwitchChatAction {
     Command(TwitchCommand),
     SetChannel(String),
+    ClearChannel,
     ToggleFavorite(String),
-    MoveFavorite { from: usize, to: usize },
     SetPassiveLifetime(u32),
     OpenVerification(String),
 }
@@ -221,6 +225,10 @@ impl TwitchWidgetState {
         self.message = message.map(|message| message.chars().take(180).collect());
     }
 
+    pub fn message(&self) -> Option<&str> {
+        self.message.as_deref()
+    }
+
     pub fn sync_channel_draft(&mut self, prefs: &TwitchPrefs) {
         // Seed only once. Re-filling whenever the field is empty made it
         // impossible to clear the box to type a different channel.
@@ -276,6 +284,7 @@ pub fn paint_twitch_chat(
     mode: OverlayMode,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
     now: Instant,
 ) -> TwitchChatResponse {
@@ -290,26 +299,28 @@ pub fn paint_twitch_chat(
     let response = egui::Area::new(egui::Id::new("twitch-chat-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(interactive)
+        .interactable(input_enabled && interactive)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
-                fixed_panel_constraints(ui, panel_size, mode, safe_height);
-                paint_header(ui, state, prefs, interactive, &mut actions);
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
+                fixed_panel_constraints(ui, panel_size, mode, safe_height, transparent_background);
+                paint_header(ui, state, prefs);
                 if let Some(message) = &state.message {
                     ui.colored_label(accent_error(), egui::RichText::new(message).small());
                 }
                 ui.add_space(4.0);
                 paint_chat(ui, state, prefs, interactive, panel_size, now, &mut actions);
-                let panel_rect = ui.min_rect();
-                resize = resize_grip(ui, panel_rect, interactive);
             });
+            resize = resize_grip(ui, frame.response.rect, input_enabled && interactive);
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     TwitchChatResponse {
-        size: report_fixed_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -318,94 +329,73 @@ pub fn paint_twitch_chat(
     }
 }
 
-fn paint_header(
-    ui: &mut egui::Ui,
-    state: &mut TwitchWidgetState,
-    prefs: &TwitchPrefs,
-    interactive: bool,
-    actions: &mut Vec<TwitchChatAction>,
-) {
+pub(super) fn paint_header(ui: &mut egui::Ui, state: &mut TwitchWidgetState, prefs: &TwitchPrefs) {
     let snapshot = Arc::clone(&state.snapshot);
     ui.horizontal(|ui| {
-        ui.label(title_text("TWITCH CHAT"));
-        let channel = snapshot.channel.as_deref().unwrap_or("select a channel");
-        ui.label(meta_text(format!("#{channel}")));
-        ui.label(
-            egui::RichText::new(connection_label(&snapshot.connection))
-                .small()
-                .color(connection_color(&snapshot.connection)),
-        );
-        if interactive {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                options_menu(ui, |ui| {
-                    paint_options(ui, state, &snapshot, prefs, actions);
-                });
-                paint_favorite_star(ui, prefs, actions);
+        paint_widget_glyph(ui, WidgetGlyph::Twitch, 28.0, true);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
+            ui.label(title_text("TWITCH CHAT"));
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                paint_favorite_indicator(ui, prefs);
+                let channel = prefs
+                    .active_channel
+                    .as_deref()
+                    .or(snapshot.channel.as_deref())
+                    .map_or_else(
+                        || "Select a channel".to_owned(),
+                        |channel| format!("#{channel}"),
+                    );
+                ui.label(meta_text(channel));
             });
-        }
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            status_pill(
+                ui,
+                connection_label(&snapshot.connection),
+                connection_color(&snapshot.connection),
+            );
+        });
     });
 }
 
-fn paint_favorite_star(
-    ui: &mut egui::Ui,
-    prefs: &TwitchPrefs,
-    actions: &mut Vec<TwitchChatAction>,
-) {
+pub(super) fn paint_favorite_indicator(ui: &mut egui::Ui, prefs: &TwitchPrefs) {
     let Some(channel) = prefs.active_channel.as_deref() else {
         return;
     };
-    let is_favorite = prefs.favorites.iter().any(|item| item == channel);
-    let can_add = is_favorite || prefs.favorites.len() < TWITCH_FAVORITES_MAX;
-    let (glyph, color) = if is_favorite {
-        (FAVORITE_STAR_ON, FAVORITE_STAR_YELLOW)
-    } else {
-        (FAVORITE_STAR_OFF, Color32::from_gray(160))
-    };
-    let response = ui
-        .add_enabled(
-            can_add,
-            egui::Button::new(egui::RichText::new(glyph).size(14.0).color(color)).frame(false),
-        )
-        .on_hover_text(if is_favorite {
-            "Remove from favorites"
-        } else if can_add {
-            "Add to favorites"
-        } else {
-            "Favorite channel limit reached"
+    if prefs.favorites.iter().any(|item| item == channel) {
+        let response = ui.label(
+            egui::RichText::new(FAVORITE_STAR_ON)
+                .size(super::chrome::scaled_content_font_size(ui, 14.0))
+                .color(FAVORITE_STAR_YELLOW),
+        );
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Label, true, "Favorite channel")
         });
-    if response.clicked() {
-        actions.push(TwitchChatAction::ToggleFavorite(channel.to_owned()));
+        response.on_hover_text("Favorite channel");
     }
 }
 
-fn paint_options(
+pub(crate) fn paint_twitch_options(
     ui: &mut egui::Ui,
     state: &mut TwitchWidgetState,
-    snapshot: &TwitchSnapshot,
     prefs: &TwitchPrefs,
     actions: &mut Vec<TwitchChatAction>,
 ) {
-    ui.set_min_width(280.0);
+    let snapshot = Arc::clone(&state.snapshot);
+    ui.set_min_width(240.0);
     ui.label(egui::RichText::new("TWITCH ACCOUNT").small().strong());
-    if !snapshot.client_configured {
-        ui.colored_label(accent_warn(), "Twitch is not configured in this build yet.");
-    } else if let Some(login) = &snapshot.authenticated_login {
+    if let Some(message) = &state.message {
+        ui.colored_label(accent_error(), egui::RichText::new(message).small());
+    }
+    if let Some(login) = &snapshot.authenticated_login {
         ui.label(format!("Signed in as {login}"));
         if !snapshot.credentials_persisted {
             ui.colored_label(
                 accent_warn(),
                 "Secret Service unavailable — reconnect required after restart.",
             );
-        }
-        let joined = snapshot.connection == TwitchConnectionState::Joined
-            || snapshot.connection == TwitchConnectionState::Connecting
-            || snapshot.connection == TwitchConnectionState::Reconnecting;
-        if !joined && ui.button("Reconnect chat").clicked() {
-            actions.push(TwitchChatAction::Command(TwitchCommand::Reconnect));
-        }
-        if joined && ui.button("Disconnect chat").clicked() {
-            // Soft disconnect: close chat while keeping the stored session.
-            actions.push(TwitchChatAction::Command(TwitchCommand::Disconnect));
         }
         if ui.button("Sign out of Twitch").clicked() {
             actions.push(TwitchChatAction::Command(TwitchCommand::SignOut));
@@ -420,69 +410,14 @@ fn paint_options(
             actions.push(TwitchChatAction::Command(TwitchCommand::SignOut));
             ui.close();
         }
-    } else if let Some(authorization) = &snapshot.authorization {
-        ui.label("Enter this code on Twitch:");
-        ui.monospace(
-            egui::RichText::new(&authorization.user_code)
-                .size(18.0)
-                .strong(),
-        );
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(
-                    !state.verification_opening,
-                    egui::Button::new("Open Twitch"),
-                )
-                .clicked()
-            {
-                actions.push(TwitchChatAction::OpenVerification(
-                    authorization.verification_uri.clone(),
-                ));
-            }
-            if ui.button("Cancel").clicked() {
-                actions.push(TwitchChatAction::Command(
-                    TwitchCommand::CancelAuthentication,
-                ));
-            }
-        });
-    } else if ui.button("Connect Twitch").clicked() {
-        actions.push(TwitchChatAction::Command(
-            TwitchCommand::BeginAuthentication,
+    } else {
+        ui.label(meta_text(
+            "Connect or authorize Twitch directly from the widget.",
         ));
     }
 
     ui.separator();
-    ui.label(egui::RichText::new("CHANNEL").small().strong());
-    if state.channel_draft.chars().count() > TWITCH_CHANNEL_MAX_CHARS + 1 {
-        state.channel_draft = state
-            .channel_draft
-            .chars()
-            .take(TWITCH_CHANNEL_MAX_CHARS + 1)
-            .collect();
-    }
-    ui.horizontal(|ui| {
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut state.channel_draft)
-                .desired_width(160.0)
-                .hint_text("channel"),
-        );
-        // Normalize after the edit so typing this frame enables Join correctly.
-        let normalized = normalize_twitch_channel(&state.channel_draft).ok();
-        let apply_requested = ui
-            .add_enabled(normalized.is_some(), egui::Button::new("Join chat"))
-            .clicked()
-            || (response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)));
-        if apply_requested && let Some(channel) = normalized {
-            actions.push(TwitchChatAction::SetChannel(channel));
-            ui.close();
-        }
-    });
-
-    if !prefs.favorites.is_empty() {
-        paint_favorites_submenu(ui, prefs, actions);
-    }
-
-    ui.separator();
+    ui.label(egui::RichText::new("PASSIVE CHAT").small().strong());
     let mut lifetime = prefs.passive_lifetime_secs;
     let lifetime_response = ui.add(
         egui::Slider::new(
@@ -499,49 +434,124 @@ fn paint_options(
     }
 }
 
-fn paint_favorites_submenu(
+fn paint_channel_selector(
+    ui: &mut egui::Ui,
+    state: &mut TwitchWidgetState,
+    prefs: &TwitchPrefs,
+    actions: &mut Vec<TwitchChatAction>,
+) {
+    ui.label(eyebrow_text("CHANNEL"));
+    if state.channel_draft.chars().count() > TWITCH_CHANNEL_MAX_CHARS + 1 {
+        state.channel_draft = state
+            .channel_draft
+            .chars()
+            .take(TWITCH_CHANNEL_MAX_CHARS + 1)
+            .collect();
+    }
+    ui.horizontal(|ui| {
+        let response = ui.add(
+            singleline_text_edit(&mut state.channel_draft)
+                .desired_width((ui.available_width() - 100.0).max(120.0))
+                .hint_text("Channel name"),
+        );
+        let normalized = normalize_twitch_channel(&state.channel_draft).ok();
+        let apply_requested = ui
+            .add_enabled(normalized.is_some(), standard_button("Join chat"))
+            .clicked()
+            || (response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)));
+        if apply_requested && let Some(channel) = normalized {
+            actions.push(TwitchChatAction::SetChannel(channel));
+        }
+    });
+
+    if !prefs.favorites.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.label(meta_text("Favorites"));
+            for favorite in &prefs.favorites {
+                let selected = prefs.active_channel.as_deref() == Some(favorite.as_str());
+                if ui
+                    .add(tab_button(format!("#{favorite}"), selected))
+                    .clicked()
+                {
+                    state.set_channel_draft(favorite);
+                    actions.push(TwitchChatAction::SetChannel(favorite.clone()));
+                }
+            }
+        });
+    }
+}
+
+fn paint_current_channel_favorite_control(
     ui: &mut egui::Ui,
     prefs: &TwitchPrefs,
     actions: &mut Vec<TwitchChatAction>,
 ) {
-    let count = prefs.favorites.len();
-    let label = format!("Favorites ({count})");
-    // Nested menu keeps the main options panel short; reorder only when useful.
-    ui.menu_button(label, |ui| {
-        ui.set_min_width(200.0);
-        for (index, favorite) in prefs.favorites.iter().enumerate() {
+    let Some(channel) = prefs.active_channel.as_deref() else {
+        return;
+    };
+    let is_favorite = prefs.favorites.iter().any(|item| item == channel);
+    let can_toggle = is_favorite || prefs.favorites.len() < TWITCH_FAVORITES_MAX;
+    let label = if is_favorite {
+        format!("★ #{channel}")
+    } else {
+        format!("Favorite #{channel}")
+    };
+    if ui
+        .add_enabled(can_toggle, tab_button(label, is_favorite))
+        .on_disabled_hover_text("Favorite channel limit reached")
+        .on_hover_text(if is_favorite {
+            "Remove current channel from favorites"
+        } else {
+            "Add current channel to favorites"
+        })
+        .clicked()
+    {
+        actions.push(TwitchChatAction::ToggleFavorite(channel.to_owned()));
+    }
+}
+
+fn paint_authentication(
+    ui: &mut egui::Ui,
+    state: &mut TwitchWidgetState,
+    snapshot: &TwitchSnapshot,
+    actions: &mut Vec<TwitchChatAction>,
+) {
+    ui.vertical_centered(|ui| {
+        if !snapshot.client_configured {
+            ui.label(meta_text(
+                "This build needs the PlayerVox Twitch Client ID before chat can connect.",
+            ));
+        } else if snapshot.credentials_available {
+            ui.label(meta_text(
+                "Twitch is temporarily unavailable. Retrying automatically.",
+            ));
+        } else if let Some(authorization) = &snapshot.authorization {
+            ui.label("Enter this code on Twitch:");
+            ui.monospace(
+                egui::RichText::new(&authorization.user_code)
+                    .size(18.0)
+                    .strong(),
+            );
             ui.horizontal(|ui| {
-                let selected = prefs.active_channel.as_deref() == Some(favorite.as_str());
                 if ui
-                    .selectable_label(selected, format!("#{favorite}"))
+                    .add_enabled(!state.verification_opening, primary_button("Open Twitch"))
                     .clicked()
                 {
-                    actions.push(TwitchChatAction::SetChannel(favorite.clone()));
-                    ui.close();
+                    actions.push(TwitchChatAction::OpenVerification(
+                        authorization.verification_uri.clone(),
+                    ));
                 }
-                if ui
-                    .small_button(FAVORITE_STAR_ON)
-                    .on_hover_text("Remove favorite")
-                    .clicked()
-                {
-                    actions.push(TwitchChatAction::ToggleFavorite(favorite.clone()));
-                }
-                // Only draw move controls that can actually move — disabled
-                // small buttons render as empty tofu squares in this theme.
-                if index > 0 && ui.small_button("Up").on_hover_text("Move up").clicked() {
-                    actions.push(TwitchChatAction::MoveFavorite {
-                        from: index,
-                        to: index - 1,
-                    });
-                }
-                if index + 1 < count && ui.small_button("Down").on_hover_text("Move down").clicked()
-                {
-                    actions.push(TwitchChatAction::MoveFavorite {
-                        from: index,
-                        to: index + 1,
-                    });
+                if ui.add(standard_button("Cancel")).clicked() {
+                    actions.push(TwitchChatAction::Command(
+                        TwitchCommand::CancelAuthentication,
+                    ));
                 }
             });
+        } else if ui.add(primary_button("Connect Twitch")).clicked() {
+            actions.push(TwitchChatAction::Command(
+                TwitchCommand::BeginAuthentication,
+            ));
         }
     });
 }
@@ -556,28 +566,34 @@ fn paint_chat(
     actions: &mut Vec<TwitchChatAction>,
 ) {
     let snapshot = Arc::clone(&state.snapshot);
-    if snapshot.channel.is_none() {
-        ui.label(meta_text(
-            "Choose a public Twitch channel in the widget options.",
-        ));
-        return;
-    }
     if !snapshot.client_configured {
-        ui.label(meta_text(
-            "This build needs the PlayerVox Twitch Client ID before chat can connect.",
-        ));
+        if interactive {
+            paint_authentication(ui, state, &snapshot, actions);
+        } else {
+            ui.label(meta_text("Twitch is not configured in this build."));
+        }
         return;
     }
     if snapshot.authenticated_login.is_none() {
-        ui.label(meta_text(if snapshot.credentials_available {
-            "Twitch is temporarily unavailable. Retrying automatically."
+        if interactive {
+            paint_authentication(ui, state, &snapshot, actions);
         } else {
-            "Connect Twitch from the widget options to read and send chat."
-        }));
+            ui.label(meta_text("Connect Twitch in interactive mode."));
+        }
         return;
     }
 
-    let composer_height = if interactive { 72.0 } else { 0.0 };
+    if interactive && prefs.active_channel.is_none() {
+        paint_channel_selector(ui, state, prefs, actions);
+    }
+    if prefs.active_channel.is_none() {
+        if !interactive {
+            ui.label(meta_text("Choose a Twitch channel in interactive mode."));
+        }
+        return;
+    }
+
+    let composer_height = if interactive { 100.0 } else { 0.0 };
     let max_height = (ui.available_height() - composer_height).max(40.0);
     let mut scroll = egui::ScrollArea::vertical()
         .id_salt(("twitch-chat-history", interactive))
@@ -622,12 +638,12 @@ fn paint_chat(
         state.set_auto_scroll(at_bottom);
         if state.unread_count > 0
             && ui
-                .button(format!("{} new messages ↓", state.unread_count))
+                .button(format!("{} new messages", state.unread_count))
                 .clicked()
         {
             state.return_to_latest();
         }
-        paint_composer(ui, state, &snapshot, actions);
+        paint_composer(ui, state, prefs, &snapshot, actions);
     }
 }
 
@@ -644,13 +660,16 @@ fn paint_message(
         ui.label(
             egui::RichText::new(format!("re {}: {}", reply.display_name, reply.body))
                 .small()
-                .color(Color32::from_gray(140).gamma_multiply(alpha)),
+                .color(TEXT_MUTED.gamma_multiply(alpha)),
         );
     }
     // Single label avoids horizontal_wrapped empty chips before the name.
-    let body_color = Color32::from_gray(235).gamma_multiply(alpha);
+    let body_color = TEXT_PRIMARY.gamma_multiply(alpha);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
+        let (marker, _) = ui.allocate_exact_size(Vec2::new(2.0, 14.0), egui::Sense::hover());
+        ui.painter()
+            .rect_filled(marker, 1.0, ACCENT.gamma_multiply(alpha * 0.55));
         ui.label(username_text(message, alpha));
         ui.label(egui::RichText::new(&message.text).color(body_color));
         match message.send_state {
@@ -671,7 +690,7 @@ fn paint_message(
             && !message.id.is_empty()
             && !message.id.starts_with("local:")
             && ui
-                .small_button("Reply")
+                .add(standard_button("Reply"))
                 .on_hover_text("Reply to this message")
                 .clicked()
         {
@@ -694,13 +713,14 @@ pub(super) fn username_text(message: &TwitchMessage, alpha: f32) -> egui::RichTe
 fn paint_composer(
     ui: &mut egui::Ui,
     state: &mut TwitchWidgetState,
+    prefs: &TwitchPrefs,
     snapshot: &TwitchSnapshot,
     actions: &mut Vec<TwitchChatAction>,
 ) {
     if let Some(reply) = state.reply_target.clone() {
         ui.horizontal(|ui| {
             ui.label(meta_text(format!("Replying to {}", reply.display_name)));
-            if ui.small_button("Cancel").clicked() {
+            if ui.add(standard_button("Cancel")).clicked() {
                 state.reply_target = None;
             }
         });
@@ -709,7 +729,7 @@ fn paint_composer(
     let accepting_input = joined && state.pending_request_id.is_none();
     let response = ui.add_enabled(
         accepting_input,
-        egui::TextEdit::singleline(&mut state.draft)
+        singleline_text_edit(&mut state.draft)
             .desired_width(f32::INFINITY)
             .hint_text(if joined {
                 "Send a message…"
@@ -720,17 +740,21 @@ fn paint_composer(
     if state.draft.chars().count() > TWITCH_MESSAGE_MAX_CHARS {
         state.draft = state.draft.chars().take(TWITCH_MESSAGE_MAX_CHARS).collect();
     }
-    // Single-line TextEdit loses focus on Enter, so lost_focus (not has_focus)
-    // is the reliable signal — same pattern as the channel field.
     let enter_to_send = accepting_input
         && response.lost_focus()
         && ui.input(|input| input.key_pressed(egui::Key::Enter));
-    let send_requested = accepting_input
-        && !state.draft.trim().is_empty()
-        && (ui.button("Send").clicked() || enter_to_send);
-    if send_requested && let Some(action) = state.begin_send(snapshot) {
-        actions.push(action);
-    }
+    ui.horizontal_wrapped(|ui| {
+        let can_send = accepting_input && !state.draft.trim().is_empty();
+        let send_clicked = ui.add_enabled(can_send, primary_button("Send")).clicked();
+        let send_requested = can_send && (send_clicked || enter_to_send);
+        if send_requested && let Some(action) = state.begin_send(snapshot) {
+            actions.push(action);
+        }
+        paint_current_channel_favorite_control(ui, prefs, actions);
+        if ui.add(standard_button("Disconnect channel")).clicked() {
+            actions.push(TwitchChatAction::ClearChannel);
+        }
+    });
 }
 
 pub fn passive_message_alpha(age: Duration, lifetime: Duration) -> Option<f32> {

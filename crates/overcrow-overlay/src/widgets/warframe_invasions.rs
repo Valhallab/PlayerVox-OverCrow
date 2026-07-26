@@ -2,9 +2,13 @@ use eframe::egui::{self, Color32, FontId, Layout, Pos2, Sense, Stroke, Vec2, vec
 use overcrow_config::WarframePrefs;
 use overcrow_protocol::OverlayMode;
 
-use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, accent_warn, apply_scale, meta_text, options_menu,
-    panel_frame, panel_width_limits, report_content_panel_size, resize_grip, title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, BODY_SIZE, META_SIZE, ResizeGripOutcome, TEXT_PRIMARY, accent_warn, apply_scale,
+        current_content_scale, meta_text, panel_content_height, panel_content_width, panel_frame,
+        panel_width_limits, resize_grip, scaled_content_font_size, status_pill, widget_identity,
+    },
 };
 use crate::warframe::{
     InvasionCompactLabel, InvasionMission, RewardLine, WarframeDerivedCache, format_node,
@@ -39,7 +43,6 @@ pub fn paint_warframe_invasions(
     panel_size: Vec2,
     invasions: &[InvasionMission],
     invasion_indices: &[usize],
-    reward_catalog: &[(String, String)],
     derived_cache: &mut WarframeDerivedCache,
     worldstate_revision: u64,
     prefs_revision: u64,
@@ -48,6 +51,7 @@ pub fn paint_warframe_invasions(
     mode: OverlayMode,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> WarframeInvasionsResponse {
     let panel_size = super::chrome::clamp_panel_size(panel_size);
@@ -75,27 +79,26 @@ pub fn paint_warframe_invasions(
     let response = egui::Area::new(egui::Id::new("warframe-invasions-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
-                panel_width_limits(ui, panel_size.x);
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
+                panel_width_limits(ui, panel_size.x, transparent_background);
                 let height_limit = if mode == OverlayMode::Interactive {
-                    panel_size.y
+                    panel_content_height(panel_size.y, transparent_background)
                 } else {
-                    (viewport.height() - margin * 2.0).max(1.0)
+                    panel_content_height(
+                        (viewport.height() - margin * 2.0).max(1.0),
+                        transparent_background,
+                    )
                 };
                 ui.set_max_height(height_limit);
 
-                paint_header(
-                    ui,
-                    invasion_indices.len(),
-                    mode,
-                    prefs,
-                    reward_catalog,
-                    &mut actions,
-                );
+                paint_header(ui, invasion_indices.len());
                 ui.add_space(4.0);
 
                 let header_h = 36.0 * scale;
@@ -109,7 +112,10 @@ pub fn paint_warframe_invasions(
                         .max_height(body_max)
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
-                            ui.set_min_width(panel_size.x - 32.0);
+                            ui.set_min_width(
+                                (panel_content_width(panel_size.x, transparent_background) - 32.0)
+                                    .max(1.0),
+                            );
                             for (row, index) in invasion_indices.iter().take(12).enumerate() {
                                 let invasion = &invasions[*index];
                                 ui.scope_builder(
@@ -132,15 +138,17 @@ pub fn paint_warframe_invasions(
                             }
                         });
                 }
-
-                let panel_rect = ui.min_rect();
-                resize = resize_grip(ui, panel_rect, mode == OverlayMode::Interactive);
             });
+            resize = resize_grip(
+                ui,
+                frame.response.rect,
+                input_enabled && mode == OverlayMode::Interactive,
+            );
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeInvasionsResponse {
-        size: report_content_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -149,73 +157,65 @@ pub fn paint_warframe_invasions(
     }
 }
 
-fn paint_header(
+fn paint_header(ui: &mut egui::Ui, count: usize) {
+    ui.horizontal(|ui| {
+        widget_identity(
+            ui,
+            WidgetGlyph::Invasions,
+            "INVASIONS",
+            Some("SYSTEM CONFLICTS"),
+        );
+        ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+            status_pill(ui, &format!("{count} ACTIVE"), ACCENT);
+        });
+    });
+}
+
+pub(crate) fn paint_invasion_options(
     ui: &mut egui::Ui,
-    count: usize,
-    mode: OverlayMode,
     prefs: &WarframePrefs,
     reward_catalog: &[(String, String)],
     actions: &mut Vec<InvasionPrefsAction>,
 ) {
-    ui.horizontal(|ui| {
-        ui.label(title_text("INVASIONS"));
+    let mut hide = prefs.invasion_hide_completed;
+    if ui.checkbox(&mut hide, "Hide DE-completed").changed() {
+        actions.push(InvasionPrefsAction::ToggleHideCompleted);
+    }
+    let mut push_down = prefs.invasion_push_done_down;
+    if ui
+        .checkbox(&mut push_down, "Move finished to bottom")
+        .changed()
+    {
+        actions.push(InvasionPrefsAction::TogglePushDoneDown);
+    }
+    let mut compact = prefs.invasion_compact;
+    if ui.checkbox(&mut compact, "Compact mode").changed() {
+        actions.push(InvasionPrefsAction::ToggleCompact);
+    }
+    if !prefs.invasion_reward_watchlist.is_empty() && ui.button("Clear watchlist").clicked() {
+        actions.push(InvasionPrefsAction::ClearWatchlist);
+    }
+    if !reward_catalog.is_empty() {
+        ui.separator();
         ui.label(
-            egui::RichText::new(format!("{count}"))
+            egui::RichText::new("Rewards")
                 .size(META_SIZE)
                 .strong()
                 .color(Color32::from_gray(180)),
         );
-        if mode == OverlayMode::Interactive {
-            ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                options_menu(ui, |ui| {
-                    let mut hide = prefs.invasion_hide_completed;
-                    if ui.checkbox(&mut hide, "Hide DE-completed").changed() {
-                        actions.push(InvasionPrefsAction::ToggleHideCompleted);
-                    }
-                    let mut push_down = prefs.invasion_push_done_down;
-                    if ui
-                        .checkbox(&mut push_down, "Move finished to bottom")
-                        .changed()
-                    {
-                        actions.push(InvasionPrefsAction::TogglePushDoneDown);
-                    }
-                    let mut compact = prefs.invasion_compact;
-                    if ui.checkbox(&mut compact, "Compact mode").changed() {
-                        actions.push(InvasionPrefsAction::ToggleCompact);
-                    }
-                    if !prefs.invasion_reward_watchlist.is_empty()
-                        && ui.button("Clear watchlist").clicked()
-                    {
-                        actions.push(InvasionPrefsAction::ClearWatchlist);
-                    }
-                    if !reward_catalog.is_empty() {
-                        ui.separator();
-                        ui.label(
-                            egui::RichText::new("Rewards")
-                                .size(META_SIZE)
-                                .strong()
-                                .color(Color32::from_gray(180)),
-                        );
-                        for (key, label) in reward_catalog {
-                            let mut checked = prefs.invasion_resource_checked(key);
-                            if ui
-                                .checkbox(&mut checked, egui::RichText::new(label).size(META_SIZE))
-                                .changed()
-                            {
-                                actions
-                                    .push(InvasionPrefsAction::ToggleResourceFilter(key.clone()));
-                            }
-                        }
-                        if !prefs.invasion_resource_filter.is_empty()
-                            && ui.small_button("Show all rewards").clicked()
-                        {
-                            actions.push(InvasionPrefsAction::ClearResourceFilter);
-                        }
-                    }
-                });
-            });
+        for (key, label) in reward_catalog {
+            let mut checked = prefs.invasion_resource_checked(key);
+            if ui
+                .checkbox(&mut checked, egui::RichText::new(label).size(META_SIZE))
+                .changed()
+            {
+                actions.push(InvasionPrefsAction::ToggleResourceFilter(key.clone()));
+            }
         }
-    });
+        if !prefs.invasion_resource_filter.is_empty() && ui.button("Show all rewards").clicked() {
+            actions.push(InvasionPrefsAction::ClearResourceFilter);
+        }
+    }
 }
 
 fn paint_invasion_row(
@@ -246,7 +246,7 @@ fn paint_invasion_row(
     } else if done {
         Color32::from_gray(140)
     } else {
-        Color32::from_gray(220)
+        TEXT_PRIMARY
     };
 
     ui.horizontal(|ui| {
@@ -261,7 +261,7 @@ fn paint_invasion_row(
             actions.push(InvasionPrefsAction::ToggleDone(done_key));
         }
         let mut node = egui::RichText::new(format_node(&invasion.node))
-            .size(BODY_SIZE)
+            .size(scaled_content_font_size(ui, BODY_SIZE))
             .color(node_color);
         if done {
             node = node.strikethrough();
@@ -282,7 +282,7 @@ fn paint_invasion_row(
             if !rewards.is_empty() {
                 ui.label(
                     egui::RichText::new(rewards)
-                        .size(META_SIZE)
+                        .size(scaled_content_font_size(ui, META_SIZE))
                         .color(Color32::from_gray(130)),
                 );
             }
@@ -360,7 +360,7 @@ fn paint_invasion_row_compact(
             actions.push(InvasionPrefsAction::ToggleDone(done_key));
         }
 
-        let height = 24.0;
+        let height = 24.0 * current_content_scale(ui);
         let width = ui.available_width().max(80.0);
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
         paint_compact_progress_bar(
@@ -419,11 +419,14 @@ fn paint_compact_progress_bar(
         egui::StrokeKind::Inside,
     );
 
-    let pad = 8.0;
+    let pad = 8.0 * current_content_scale(ui);
     let left_watched = attacker_reward.is_some_and(|r| prefs.invasion_watchlisted(&r.item_key));
     let right_watched = defender_reward.is_some_and(|r| prefs.invasion_watchlisted(&r.item_key));
-    let font = FontId::proportional(META_SIZE);
-    let node_font = FontId::proportional(META_SIZE + if done { 0.0 } else { 1.0 });
+    let font = FontId::proportional(scaled_content_font_size(ui, META_SIZE));
+    let node_font = FontId::proportional(scaled_content_font_size(
+        ui,
+        META_SIZE + if done { 0.0 } else { 1.0 },
+    ));
 
     if let Some(label) = &label.attacker {
         painter.text(
@@ -479,11 +482,14 @@ fn compact_label(
     prefs: &WarframePrefs,
     effective_width: f32,
 ) -> InvasionCompactLabel {
-    let pad = 8.0;
+    let pad = 8.0 * current_content_scale(ui);
     let side_max = ((effective_width - 2.0 * pad) * 0.30).max(40.0);
-    let font = FontId::proportional(META_SIZE);
+    let font = FontId::proportional(scaled_content_font_size(ui, META_SIZE));
     let done = prefs.activity_is_done(&invasion_done_key(&invasion.instance_id));
-    let node_font = FontId::proportional(META_SIZE + if done { 0.0 } else { 1.0 });
+    let node_font = FontId::proportional(scaled_content_font_size(
+        ui,
+        META_SIZE + if done { 0.0 } else { 1.0 },
+    ));
     InvasionCompactLabel {
         attacker: reward_label(invasion.attacker_reward.as_ref())
             .map(|label| clip_label(ui, &label, &font, side_max)),
@@ -602,7 +608,8 @@ fn paint_dual_progress(
     attacker_color: Color32,
     defender_color: Color32,
 ) {
-    let height = 22.0;
+    let scale = current_content_scale(ui);
+    let height = 22.0 * scale;
     let width = ui.available_width().max(80.0);
     let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
     let painter = ui.painter();
@@ -627,21 +634,21 @@ fn paint_dual_progress(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         format!("{percent}%"),
-        FontId::proportional(META_SIZE + 1.0),
+        FontId::proportional(scaled_content_font_size(ui, META_SIZE + 1.0)),
         Color32::from_gray(245),
     );
     painter.text(
-        Pos2::new(rect.left() + 8.0, rect.center().y),
+        Pos2::new(rect.left() + 8.0 * scale, rect.center().y),
         egui::Align2::LEFT_CENTER,
         attacker,
-        FontId::proportional(META_SIZE - 1.0),
+        FontId::proportional(scaled_content_font_size(ui, META_SIZE - 1.0)),
         Color32::from_gray(240),
     );
     painter.text(
-        Pos2::new(rect.right() - 8.0, rect.center().y),
+        Pos2::new(rect.right() - 8.0 * scale, rect.center().y),
         egui::Align2::RIGHT_CENTER,
         defender,
-        FontId::proportional(META_SIZE - 1.0),
+        FontId::proportional(scaled_content_font_size(ui, META_SIZE - 1.0)),
         Color32::from_gray(240),
     );
 }
@@ -665,7 +672,7 @@ fn paint_reward_compact(
         faction_color
     };
     let text = egui::RichText::new(label)
-        .size(META_SIZE)
+        .size(scaled_content_font_size(ui, META_SIZE))
         .strong()
         .color(color);
     if mode == OverlayMode::Interactive {

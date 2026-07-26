@@ -2,10 +2,13 @@ use eframe::egui::{self, Color32, Layout, Vec2, vec2};
 use overcrow_config::{FissureEra, FissureSource, WarframePrefs};
 use overcrow_protocol::OverlayMode;
 
-use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, apply_scale, era_color,
-    fixed_panel_constraints, meta_text, options_menu, panel_frame, report_fixed_panel_size,
-    resize_grip, timer_color, title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, BODY_SIZE, META_SIZE, ResizeGripOutcome, TEXT_PRIMARY, TIMER_SIZE, apply_scale,
+        era_color, filter_chip, fixed_panel_constraints, meta_text, panel_frame, resize_grip,
+        scaled_content_font_size, status_pill, timer_color, widget_identity,
+    },
 };
 use crate::warframe::{
     FissureMission, fissure_source, format_mission_type, format_node, format_remaining,
@@ -41,6 +44,7 @@ pub fn paint_warframe_fissures(
     now_secs: u64,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> WarframeFissuresResponse {
     let visible_count = fissure_indices
@@ -56,26 +60,31 @@ pub fn paint_warframe_fissures(
     let response = egui::Area::new(egui::Id::new("warframe-fissures-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
                 let safe_height = (viewport.height() - margin * 2.0).max(1.0);
-                fixed_panel_constraints(ui, panel_size, mode, safe_height);
+                fixed_panel_constraints(ui, panel_size, mode, safe_height, transparent_background);
 
                 if mode == OverlayMode::Interactive {
                     paint_fissure_header(ui, visible_count, prefs, &mut actions);
                     ui.add_space(4.0);
                 } else {
                     ui.horizontal(|ui| {
-                        ui.label(title_text("FISSURES"));
-                        ui.label(
-                            egui::RichText::new(format!("{visible_count}"))
-                                .size(META_SIZE)
-                                .strong()
-                                .color(Color32::from_gray(180)),
+                        widget_identity(
+                            ui,
+                            WidgetGlyph::Fissures,
+                            "FISSURES",
+                            Some("VOID ACTIVITY"),
                         );
+                        ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                            status_pill(ui, &format!("{visible_count} ACTIVE"), ACCENT);
+                        });
                     });
                     ui.add_space(4.0);
                 }
@@ -124,7 +133,7 @@ pub fn paint_warframe_fissures(
                                         source.label(),
                                         section_count
                                     ))
-                                    .size(BODY_SIZE)
+                                    .size(scaled_content_font_size(ui, BODY_SIZE))
                                     .strong()
                                     .color(Color32::from_gray(220)),
                                 )
@@ -147,17 +156,17 @@ pub fn paint_warframe_fissures(
                             }
                         });
                 }
-
-                let panel_rect = ui.min_rect();
-                // Resizable only while interactive — independent of Area move flag
-                // (move is suppressed near the grip so the two do not fight).
-                resize = resize_grip(ui, panel_rect, mode == OverlayMode::Interactive);
             });
+            resize = resize_grip(
+                ui,
+                frame.response.rect,
+                input_enabled && mode == OverlayMode::Interactive,
+            );
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeFissuresResponse {
-        size: report_fixed_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -166,7 +175,7 @@ pub fn paint_warframe_fissures(
     }
 }
 
-/// Title + count + **filters** (source / era); **options** (display) behind ⚙.
+/// Title + count and content filters. Display options live in the widget library.
 fn paint_fissure_header(
     ui: &mut egui::Ui,
     count: usize,
@@ -174,35 +183,21 @@ fn paint_fissure_header(
     actions: &mut Vec<FissurePrefsAction>,
 ) {
     ui.horizontal(|ui| {
-        ui.label(title_text("FISSURES"));
-        ui.label(
-            egui::RichText::new(format!("{count}"))
-                .size(META_SIZE)
-                .strong()
-                .color(Color32::from_gray(180)),
-        );
+        widget_identity(ui, WidgetGlyph::Fissures, "FISSURES", Some("VOID ACTIVITY"));
         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-            options_menu(ui, |ui| {
-                let mut show_node = prefs.show_fissure_node;
-                if ui.checkbox(&mut show_node, "Node / planet").changed() {
-                    actions.push(FissurePrefsAction::ToggleShowNode);
-                }
-                let mut seconds = prefs.show_fissure_seconds;
-                if ui.checkbox(&mut seconds, "Seconds").changed() {
-                    actions.push(FissurePrefsAction::ToggleSeconds);
-                }
-            });
+            status_pill(ui, &format!("{count} ACTIVE"), ACCENT);
         });
     });
     ui.horizontal_wrapped(|ui| {
         for source in FissureSource::ALL {
             let mut enabled = prefs.source_enabled(source);
-            if ui
-                .checkbox(
-                    &mut enabled,
-                    egui::RichText::new(source.label()).size(META_SIZE),
-                )
-                .changed()
+            if filter_chip(
+                ui,
+                &mut enabled,
+                egui::RichText::new(source.label()).size(scaled_content_font_size(ui, META_SIZE)),
+                ACCENT,
+            )
+            .clicked()
             {
                 actions.push(FissurePrefsAction::ToggleSource(source));
             }
@@ -216,13 +211,28 @@ fn paint_fissure_header(
                 enabled = true;
             }
             let label = egui::RichText::new(era.label())
-                .size(META_SIZE)
+                .size(scaled_content_font_size(ui, META_SIZE))
                 .color(era_color(era.label()));
-            if ui.checkbox(&mut enabled, label).changed() {
+            if filter_chip(ui, &mut enabled, label, era_color(era.label())).clicked() {
                 actions.push(FissurePrefsAction::ToggleEra(era));
             }
         }
     });
+}
+
+pub(crate) fn paint_fissure_options(
+    ui: &mut egui::Ui,
+    prefs: &WarframePrefs,
+    actions: &mut Vec<FissurePrefsAction>,
+) {
+    let mut show_node = prefs.show_fissure_node;
+    if ui.checkbox(&mut show_node, "Node / planet").changed() {
+        actions.push(FissurePrefsAction::ToggleShowNode);
+    }
+    let mut seconds = prefs.show_fissure_seconds;
+    if ui.checkbox(&mut seconds, "Seconds").changed() {
+        actions.push(FissurePrefsAction::ToggleSeconds);
+    }
 }
 
 /// Natural single-line row: left cluster + timer pushed to the trailing edge.
@@ -243,19 +253,19 @@ fn paint_fissure_row(
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(era)
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .strong()
                 .color(era_color(era)),
         );
         ui.label(
             egui::RichText::new(mission)
-                .size(BODY_SIZE)
-                .color(Color32::from_gray(215)),
+                .size(scaled_content_font_size(ui, BODY_SIZE))
+                .color(TEXT_PRIMARY),
         );
         if prefs.show_fissure_node {
             ui.label(
                 egui::RichText::new(format_node(&fissure.node))
-                    .size(BODY_SIZE - 1.0)
+                    .size(scaled_content_font_size(ui, BODY_SIZE - 1.0))
                     .color(Color32::from_gray(195)),
             );
         }
@@ -264,7 +274,7 @@ fn paint_fissure_row(
             ui.label(
                 egui::RichText::new(remaining)
                     .monospace()
-                    .size(TIMER_SIZE - 1.0)
+                    .size(scaled_content_font_size(ui, TIMER_SIZE - 1.0))
                     .strong()
                     .color(timer_color()),
             );

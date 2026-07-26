@@ -30,12 +30,12 @@ pub(super) const WARFRAME_PREFS_ERROR_MAX_CHARS: usize = 180;
 const COPY_FLASH_DURATION: Duration = Duration::from_millis(1_400);
 
 #[derive(Default)]
-pub(super) struct WarframeActionBatch {
-    pub(super) status: Vec<StatusPrefsAction>,
-    pub(super) fissures: Vec<FissurePrefsAction>,
-    pub(super) sortie: Vec<SortiePrefsAction>,
-    pub(super) invasions: Vec<InvasionPrefsAction>,
-    pub(super) market_query: Option<String>,
+pub(crate) struct WarframeActionBatch {
+    pub(crate) status: Vec<StatusPrefsAction>,
+    pub(crate) fissures: Vec<FissurePrefsAction>,
+    pub(crate) sortie: Vec<SortiePrefsAction>,
+    pub(crate) invasions: Vec<InvasionPrefsAction>,
+    pub(crate) market_query: Option<String>,
 }
 
 impl WarframeActionBatch {
@@ -256,12 +256,13 @@ impl WarframeController {
         snapshot: &CoreSnapshot,
         profile: &mut WidgetProfile,
         margin: f32,
+        widget_actions_allowed: bool,
     ) -> bool {
         let wall_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .unwrap_or(0);
-        let allow_actions = warframe_actions_allowed(snapshot);
+        let allow_actions = widget_actions_allowed && warframe_actions_allowed(snapshot);
         let status = widgets.render_warframe_status(
             ui,
             snapshot,
@@ -273,7 +274,6 @@ impl WarframeController {
         );
         let fissure_indices = Arc::clone(self.derived.fissure_indices());
         let invasion_indices = Arc::clone(self.derived.invasion_indices());
-        let reward_catalog = Arc::clone(self.derived.reward_catalog());
         let fissures = widgets.render_warframe_fissures(
             ui,
             snapshot,
@@ -298,7 +298,6 @@ impl WarframeController {
             snapshot,
             &self.worldstate_snapshot,
             &invasion_indices,
-            &reward_catalog,
             &mut self.derived,
             self.worldstate_revision,
             self.prefs_revision,
@@ -358,21 +357,7 @@ impl WarframeController {
             }
         }
 
-        if !batch.is_empty() {
-            let resource_keys = invasion_resource_keys(&batch, &self.derived);
-            let store = &self.prefs_store;
-            if let Some(outcome) = apply_action_batch(
-                &mut self.prefs,
-                &mut self.prefs_revision,
-                &self.worldstate_snapshot,
-                resource_keys,
-                batch,
-                |candidate| store.save(candidate),
-            ) {
-                log_warframe_prefs_outcome(&self.logger, &outcome);
-                self.prefs_message = outcome_message(outcome);
-            }
-        }
+        self.commit_actions(snapshot, batch);
 
         // Only global WidgetProfile changes escape the controller.
         save_requested
@@ -380,6 +365,41 @@ impl WarframeController {
 
     pub fn message(&self) -> Option<&str> {
         self.prefs_message.as_deref()
+    }
+
+    pub(crate) fn prefs(&self) -> &WarframePrefs {
+        &self.prefs
+    }
+
+    pub(crate) fn reward_catalog(&self) -> &[(String, String)] {
+        self.derived.reward_catalog()
+    }
+
+    pub(crate) fn apply_catalog_actions(
+        &mut self,
+        snapshot: &CoreSnapshot,
+        batch: WarframeActionBatch,
+    ) {
+        self.commit_actions(snapshot, batch);
+    }
+
+    fn commit_actions(&mut self, snapshot: &CoreSnapshot, batch: WarframeActionBatch) {
+        if !warframe_actions_allowed(snapshot) || batch.is_empty() {
+            return;
+        }
+        let resource_keys = invasion_resource_keys(&batch, &self.derived);
+        let store = &self.prefs_store;
+        if let Some(outcome) = apply_action_batch(
+            &mut self.prefs,
+            &mut self.prefs_revision,
+            &self.worldstate_snapshot,
+            resource_keys,
+            batch,
+            |candidate| store.save(candidate),
+        ) {
+            log_warframe_prefs_outcome(&self.logger, &outcome);
+            self.prefs_message = outcome_message(outcome);
+        }
     }
 
     pub(super) fn set_copy_flash(&mut self, flash_id: String, now: Instant) {

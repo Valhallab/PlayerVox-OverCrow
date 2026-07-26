@@ -20,6 +20,9 @@ const MARK_ON_ACCENT: Color32 = Color32::from_rgb(0x0a, 0x0a, 0x0a);
 
 pub const BRAND_WORDMARK_FAMILY: &str = "NotoSansBrand";
 pub const BRAND_SUBTITLE_FAMILY: &str = "NotoSansBrandSub";
+pub const UI_REGULAR_FAMILY: &str = "NotoSansUiRegular";
+pub const UI_SEMIBOLD_FAMILY: &str = "NotoSansUiSemibold";
+pub const UI_BOLD_FAMILY: &str = "NotoSansUiBold";
 
 /// Source SVG viewBox aspect (width / height) for the mark paths.
 const MARK_ASPECT: f32 = 340.0 / 400.0;
@@ -28,6 +31,9 @@ const BRAND_WORDMARK_FONT: &[u8] =
     include_bytes!("../../../assets/branding/NotoSans-BlackItalic-OverCrow.ttf");
 const BRAND_SUBTITLE_FONT: &[u8] =
     include_bytes!("../../../assets/branding/NotoSans-Regular-OverCrow.ttf");
+const UI_REGULAR_FONT: &[u8] = include_bytes!("../../../assets/branding/NotoSansUI-Regular.ttf");
+const UI_SEMIBOLD_FONT: &[u8] = include_bytes!("../../../assets/branding/NotoSansUI-SemiBold.ttf");
+const UI_BOLD_FONT: &[u8] = include_bytes!("../../../assets/branding/NotoSansUI-Bold.ttf");
 
 // Normalized [0,1] contours from assets/branding/playervox-mark.svg
 // (viewBox 85 55 340 400).
@@ -186,6 +192,33 @@ pub fn install_fonts(ctx: &egui::Context) {
         FontFamily::Name(BRAND_SUBTITLE_FAMILY.into()),
         vec![BRAND_SUBTITLE_FAMILY.to_owned()],
     );
+
+    let proportional_fallbacks = fonts
+        .families
+        .get(&FontFamily::Proportional)
+        .cloned()
+        .unwrap_or_default();
+    for (name, bytes) in [
+        (UI_REGULAR_FAMILY, UI_REGULAR_FONT),
+        (UI_SEMIBOLD_FAMILY, UI_SEMIBOLD_FONT),
+        (UI_BOLD_FAMILY, UI_BOLD_FONT),
+    ] {
+        fonts.font_data.insert(
+            name.to_owned(),
+            std::sync::Arc::new(FontData::from_static(bytes).tweak(FontTweak {
+                hinting: Some(true),
+                subpixel_binning: Some(false),
+                ..FontTweak::default()
+            })),
+        );
+        let mut family = Vec::with_capacity(proportional_fallbacks.len() + 1);
+        family.push(name.to_owned());
+        family.extend(proportional_fallbacks.iter().cloned());
+        fonts.families.insert(FontFamily::Name(name.into()), family);
+    }
+    if let Some(proportional) = fonts.families.get_mut(&FontFamily::Proportional) {
+        proportional.insert(0, UI_REGULAR_FAMILY.to_owned());
+    }
     ctx.set_fonts(fonts);
 }
 
@@ -387,7 +420,13 @@ mod tests {
 
     #[test]
     fn embedded_fonts_are_loadable() {
-        for bytes in [BRAND_WORDMARK_FONT, BRAND_SUBTITLE_FONT] {
+        for bytes in [
+            BRAND_WORDMARK_FONT,
+            BRAND_SUBTITLE_FONT,
+            UI_REGULAR_FONT,
+            UI_SEMIBOLD_FONT,
+            UI_BOLD_FONT,
+        ] {
             assert!(bytes.len() > 100);
             assert!(
                 bytes.starts_with(&[0x00, 0x01, 0x00, 0x00])
@@ -395,6 +434,38 @@ mod tests {
                     || bytes.starts_with(b"true")
             );
         }
+    }
+
+    #[test]
+    fn ui_font_families_preserve_symbol_fallbacks() {
+        let default_fallbacks = FontDefinitions::default()
+            .families
+            .get(&FontFamily::Proportional)
+            .cloned()
+            .expect("egui provides proportional fallback fonts");
+        let context = egui::Context::default();
+        install_fonts(&context);
+
+        let _ = context.run_ui(Default::default(), |ui| {
+            for family in [UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY, UI_BOLD_FAMILY] {
+                let font_id = FontId::new(14.0, FontFamily::Name(family.into()));
+                ui.fonts_mut(|fonts| {
+                    let configured = fonts
+                        .definitions()
+                        .families
+                        .get(&font_id.family)
+                        .expect("named UI family is configured");
+                    assert_eq!(configured.first().map(String::as_str), Some(family));
+                    assert_eq!(&configured[1..], default_fallbacks.as_slice());
+                    for symbol in ['★', '☆'] {
+                        assert!(
+                            fonts.has_glyph(&font_id, symbol),
+                            "{family} is missing {symbol}"
+                        );
+                    }
+                });
+            }
+        });
     }
 
     #[test]

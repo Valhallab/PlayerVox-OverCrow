@@ -1,16 +1,18 @@
-use eframe::egui::{Pos2, Vec2};
+use eframe::egui::{Pos2, Rect, Vec2};
 use overcrow_config::{WidgetId, WidgetProfile};
 use overcrow_protocol::OverlayMode;
 
 use super::{
-    NotesWidgetAction, TwitchChatAction, manual_stopwatch::ManualStopwatchAction,
+    TwitchChatAction, manual_stopwatch::ManualStopwatchAction,
     warframe_fissures::FissurePrefsAction, warframe_invasions::InvasionPrefsAction,
     warframe_market::MarketUiAction, warframe_sortie::SortiePrefsAction,
     warframe_status::StatusPrefsAction,
 };
 use crate::media::MediaAction;
+use crate::notes::NotesCommand;
 
 mod builtin;
+mod controls;
 mod layout;
 mod warframe;
 
@@ -28,7 +30,7 @@ pub struct MediaRenderOutcome {
 
 pub struct NotesRenderOutcome {
     pub save_requested: bool,
-    pub actions: Vec<NotesWidgetAction>,
+    pub actions: Vec<NotesCommand>,
 }
 
 pub struct TwitchRenderOutcome {
@@ -76,18 +78,32 @@ struct ResizeSession {
 #[derive(Debug)]
 pub struct WidgetManager {
     measured_sizes: [[Vec2; 12]; 2],
+    runtime_anchors: [Option<Pos2>; 12],
+    visible_rects: [Option<Rect>; 12],
+    visible_order: Vec<WidgetId>,
+    pending_scales: [Option<f32>; 12],
+    toolbar_open: Option<WidgetId>,
+    toolbar_popup_id: Option<eframe::egui::Id>,
     catalog_open: bool,
     catalog_message: Option<String>,
     resize: Option<ResizeSession>,
+    interaction_enabled: bool,
 }
 
 impl Default for WidgetManager {
     fn default() -> Self {
         Self {
             measured_sizes: [[Vec2::ZERO; 12]; 2],
+            runtime_anchors: [None; 12],
+            visible_rects: [None; 12],
+            visible_order: Vec::with_capacity(WidgetId::ALL.len()),
+            pending_scales: [None; 12],
+            toolbar_open: None,
+            toolbar_popup_id: None,
             catalog_open: false,
             catalog_message: None,
             resize: None,
+            interaction_enabled: true,
         }
     }
 }
@@ -107,6 +123,10 @@ impl WidgetManager {
 
     pub fn set_catalog_message(&mut self, message: Option<String>) {
         self.catalog_message = message;
+    }
+
+    pub fn set_interaction_enabled(&mut self, enabled: bool) {
+        self.interaction_enabled = enabled;
     }
 }
 

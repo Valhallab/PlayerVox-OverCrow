@@ -6,7 +6,7 @@ use overcrow_protocol::{CoreSnapshot, OverlayMode};
 
 use crate::session_clock::SessionClock;
 
-use super::widget_visible;
+use super::{chrome::value_text, widget_visible};
 
 pub struct SessionResponse {
     pub size: egui::Vec2,
@@ -45,6 +45,7 @@ pub fn paint_session(
     ui: &mut egui::Ui,
     current_position: egui::Pos2,
     elapsed: Option<Duration>,
+    scale: f32,
     transparent_background: bool,
     draggable: bool,
     margin: f32,
@@ -56,17 +57,12 @@ pub fn paint_session(
         .interactable(draggable)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            super::chrome::apply_scale(ui, scale);
             super::chrome::compact_panel_frame(transparent_background).show(ui, |ui| {
                 ui.label(
-                    egui::RichText::new("SESSION")
-                        .size(11.0)
-                        .color(egui::Color32::from_gray(170)),
-                );
-                ui.label(
-                    egui::RichText::new(format_session_elapsed(elapsed))
+                    value_text(format_session_elapsed(elapsed), 30.0 * scale)
                         .monospace()
-                        .strong()
-                        .size(30.0),
+                        .color(egui::Color32::WHITE),
                 );
             });
         });

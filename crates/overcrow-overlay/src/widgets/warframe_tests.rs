@@ -59,7 +59,6 @@ fn paint_test_warframe_invasions(
         panel_size,
         invasions,
         &indices,
-        &[],
         &mut cache,
         1,
         1,
@@ -68,6 +67,7 @@ fn paint_test_warframe_invasions(
         mode,
         transparent_background,
         draggable,
+        true,
         margin,
     )
 }
@@ -134,6 +134,7 @@ fn passive_sortie_block_completion_checkbox_emits_no_action() {
             0,
             false,
             false,
+            true,
             0.0,
         )
         .actions
@@ -159,6 +160,7 @@ fn passive_sortie_mission_completion_checkbox_emits_no_action() {
             0,
             false,
             false,
+            true,
             0.0,
         )
         .actions
@@ -263,6 +265,7 @@ fn warframe_panel_sizes(
             0,
             false,
             false,
+            true,
             24.0,
         )
         .size
@@ -280,6 +283,7 @@ fn warframe_panel_sizes(
             mode,
             false,
             false,
+            true,
             24.0,
         )
         .size
@@ -296,6 +300,7 @@ fn warframe_panel_sizes(
             0,
             false,
             false,
+            true,
             24.0,
         )
         .size
@@ -309,7 +314,6 @@ fn warframe_panel_sizes(
             panel_size,
             &invasions,
             &invasion_indices,
-            &[],
             &mut cache,
             1,
             1,
@@ -318,6 +322,7 @@ fn warframe_panel_sizes(
             mode,
             false,
             false,
+            true,
             24.0,
         )
         .size
@@ -347,11 +352,11 @@ fn passive_warframe_panels_cap_long_content_to_the_viewport() {
 
 #[test]
 fn interactive_warframe_panels_do_not_exceed_configured_height() {
-    for size in warframe_panel_sizes(OverlayMode::Interactive, 600.0, true) {
-        assert!(
-            size.y <= 300.0,
-            "interactive panel exceeded profile: {size:?}"
-        );
+    for (name, size) in ["fissures", "market", "sortie", "invasions"]
+        .into_iter()
+        .zip(warframe_panel_sizes(OverlayMode::Interactive, 600.0, true))
+    {
+        assert!(size.y <= 300.0, "{name} panel exceeded profile: {size:?}");
     }
 }
 
@@ -542,6 +547,7 @@ fn retained_worldstate_content_renders_alongside_the_refresh_error() {
             1_100,
             false,
             false,
+            true,
             0.0,
         );
     });

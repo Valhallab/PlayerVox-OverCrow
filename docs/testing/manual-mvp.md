@@ -355,12 +355,13 @@ provider checks.
 
 1. **Establish the selected game and widget catalog.** In Control Center,
    select Warframe (Steam App ID `230410`), enable OverCrow, and leave the game
-   closed. Open the overlay settings and confirm that the catalog contains
-   exactly these eleven entries, once each: Session, Clock, Performance, Manual
-   stopwatch, Media, Notes, Warframe status, Fissures, Market, Sortie & Archon,
-   and Invasions. Enable at least Session, Manual stopwatch, Warframe status,
-   Fissures, Market, Sortie & Archon, and Invasions. Leave Market's Passive
-   visibility disabled for the first run.
+   closed. Open the Widget library and confirm that **General** contains
+   Session, Clock, Performance, Manual stopwatch, Media, Notes, and Twitch chat,
+   while **Warframe** contains Warframe status, Fissures, Market, Sortie &
+   Archon, and Invasions. Every entry must appear exactly once. Enable at least
+   Session, Manual stopwatch, Warframe status, Fissures, Market, Sortie &
+   Archon, and Invasions. Leave Market's Passive visibility disabled for the
+   first run.
 
    Record the pre-launch state:
 
@@ -519,8 +520,8 @@ a substitute for this real Warframe/Hyprland sequence.
    must appear, and `hyprctl activewindow` must identify
    `io.github.overcrow.Overlay` without requiring a click. Verify that keyboard
    and pointer actions inside the game rectangle no longer reach Palworld. The
-   bottom bar must show `Super + Alt + O · open/close`, `Esc · close`, and the
-   `Widgets` button. The Manual stopwatch panel shows its own
+   bottom bar must show `SUPER + ALT + O · TOGGLE`, `ESC · CLOSE`, and the
+   `Widget library` button. The Manual stopwatch panel shows its own
    `Super+Alt+P` / `Super+Alt+R` footer only while Interactive.
 
    Before and after each shortcut transition below, record these read-only
@@ -551,7 +552,7 @@ a substitute for this real Warframe/Hyprland sequence.
    removed. The diagnostic must report that case as
    `Hyprland OverCrow runtime shortcut: conflict on SUPER + ALT + O`.
 
-   Open `Widgets`, enable Session and its `Passive mode` option. Close the
+   Open `Widget library`, enable Session and its `Passive` option. Close the
    overlay with Escape and confirm the Session panel remains visible while all
    clicks pass through to Palworld. Restart `overcrow-overlay.service`, refocus
    Palworld, and verify the panel is still visible in Passive mode. Re-enter
@@ -574,8 +575,9 @@ a substitute for this real Warframe/Hyprland sequence.
    move it between outputs when available: the card must preserve its relative
    normalized placement, remain fully inside the game rectangle with a margin,
    and settle with the overlay's normal one-to-two-frame geometry adjustment.
-   Open `Widgets` and click Session's `Reset`; the card must return to the
-   upper-left margin and remain there after another renderer restart.
+   Open `Widget library` and click Session's `Reset position`; the card must
+   return to the upper-left margin and remain there after another renderer
+   restart.
 
    The persisted JSON must be under
    `$XDG_CONFIG_HOME/overcrow/widgets.json`, falling back to

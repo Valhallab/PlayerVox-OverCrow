@@ -1,27 +1,19 @@
-use eframe::egui::{self, Color32, Sense, Vec2, WidgetInfo, WidgetType, vec2};
+use eframe::egui::{self, Sense, Vec2, WidgetInfo, WidgetType, vec2};
 use overcrow_config::NotesDisplaySettings;
 use overcrow_protocol::OverlayMode;
 
 use crate::notes::{NOTES_PAGE_MAX_COUNT, NotePage, NotesCommand};
 
-use super::{
-    CatalogAction,
-    chrome::{
-        BODY_SIZE, META_SIZE, ResizeGripOutcome, accent_error, accent_warn, apply_scale,
-        fixed_panel_constraints, meta_text, options_menu, panel_frame, report_fixed_panel_size,
-        resize_grip, title_text,
-    },
+use super::chrome::{
+    ACCENT, BODY_SIZE, ControlIcon, META_SIZE, ResizeGripOutcome, TEXT_MUTED, TEXT_PRIMARY,
+    accent_error, accent_warn, apply_scale, compact_icon_button, elevated_frame, eyebrow_text,
+    fixed_panel_constraints, icon_button, meta_text, panel_frame, primary_button, resize_grip,
+    scaled_content_font_size, singleline_text_edit, standard_button, status_pill, tab_button,
 };
 
 mod state;
 
 pub use state::NotesWidgetState;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum NotesWidgetAction {
-    Command(NotesCommand),
-    Catalog(CatalogAction),
-}
 
 pub struct NotesResponse {
     pub size: egui::Vec2,
@@ -29,7 +21,7 @@ pub struct NotesResponse {
     pub dragged: bool,
     pub drag_stopped: bool,
     pub resize: ResizeGripOutcome,
-    pub actions: Vec<NotesWidgetAction>,
+    pub actions: Vec<NotesCommand>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -43,6 +35,7 @@ pub fn paint_notes(
     mode: OverlayMode,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> NotesResponse {
     let panel_size = super::chrome::clamp_panel_size(panel_size);
@@ -57,14 +50,18 @@ pub fn paint_notes(
     let response = egui::Area::new(egui::Id::new("notes-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
-                fixed_panel_constraints(ui, panel_size, mode, safe_height);
-                paint_header(ui, state, display, interactive, &mut actions);
-                ui.add_space(4.0);
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
+                fixed_panel_constraints(ui, panel_size, mode, safe_height, transparent_background);
+                if paint_status(ui, state) {
+                    ui.add_space(4.0);
+                }
 
                 if !state.ready() {
                     ui.label(meta_text("Loading notes…"));
@@ -78,19 +75,18 @@ pub fn paint_notes(
                         state,
                         display,
                         interactive,
+                        transparent_background,
                         panel_size,
                         &mut actions,
                     );
                 }
-
-                let panel_rect = ui.min_rect();
-                resize = resize_grip(ui, panel_rect, interactive);
             });
+            resize = resize_grip(ui, frame.response.rect, input_enabled && interactive);
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     NotesResponse {
-        size: report_fixed_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -104,8 +100,9 @@ fn paint_active_note_region(
     state: &mut NotesWidgetState,
     display: NotesDisplaySettings,
     interactive: bool,
+    transparent_background: bool,
     panel_size: Vec2,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
     let max_height = ui.available_height().max(1.0);
     egui::ScrollArea::vertical()
@@ -113,121 +110,89 @@ fn paint_active_note_region(
         .max_height(max_height)
         .auto_shrink([false, !interactive])
         .show(ui, |ui| {
-            paint_active_note(ui, state, display, interactive, panel_size, actions);
+            paint_active_note(
+                ui,
+                state,
+                display,
+                interactive,
+                transparent_background,
+                panel_size,
+                actions,
+            );
         });
 }
 
-fn paint_header(
-    ui: &mut egui::Ui,
-    state: &NotesWidgetState,
-    display: NotesDisplaySettings,
-    interactive: bool,
-    actions: &mut Vec<NotesWidgetAction>,
-) {
-    ui.horizontal(|ui| {
-        ui.label(title_text("NOTES"));
-        if state.save_pending() {
-            ui.label(meta_text("Saving…"));
-        } else if state.durability_warning() {
-            ui.colored_label(
-                accent_warn(),
-                egui::RichText::new("Saved with warning").small(),
-            );
-        }
-        if interactive {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                options_menu(ui, |ui| {
-                    let mut show_note = display.show_note;
-                    if ui
-                        .add_enabled(
-                            !show_note || display.show_checklist,
-                            egui::Checkbox::new(&mut show_note, "Show note"),
-                        )
-                        .on_disabled_hover_text("Keep at least one section visible")
-                        .changed()
-                    {
-                        actions.push(NotesWidgetAction::Catalog(
-                            CatalogAction::SetNotesNoteVisible(show_note),
-                        ));
-                    }
-                    let mut show_checklist = display.show_checklist;
-                    if ui
-                        .add_enabled(
-                            !show_checklist || display.show_note,
-                            egui::Checkbox::new(&mut show_checklist, "Show checklist"),
-                        )
-                        .on_disabled_hover_text("Keep at least one section visible")
-                        .changed()
-                    {
-                        actions.push(NotesWidgetAction::Catalog(
-                            CatalogAction::SetNotesChecklistVisible(show_checklist),
-                        ));
-                    }
-                });
-            });
-        }
-    });
-    if let Some(message) = state.message() {
-        ui.colored_label(accent_error(), egui::RichText::new(message).size(META_SIZE));
+fn paint_status(ui: &mut egui::Ui, state: &NotesWidgetState) -> bool {
+    let has_status = state.save_pending() || state.durability_warning();
+    if has_status {
+        ui.horizontal(|ui| {
+            if state.save_pending() {
+                status_pill(ui, "SAVING", TEXT_MUTED);
+            } else if state.durability_warning() {
+                status_pill(ui, "SAVED WITH WARNING", accent_warn());
+            }
+        });
     }
+    let has_message = state.message().is_some();
+    if let Some(message) = state.message() {
+        ui.colored_label(
+            accent_error(),
+            egui::RichText::new(message).size(scaled_content_font_size(ui, META_SIZE)),
+        );
+    }
+    has_status || has_message
 }
 
 fn paint_tabs(
     ui: &mut egui::Ui,
     state: &NotesWidgetState,
     interactive: bool,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
     if interactive {
-        ui.horizontal(|ui| {
-            let tabs_width = (ui.available_width() - 32.0).max(80.0);
-            egui::ScrollArea::horizontal()
-                .id_salt("notes-tabs")
-                .max_width(tabs_width)
-                .auto_shrink([false, true])
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        for note in &state.document().notes {
-                            let dirty = state.draft_is_dirty(&note.id);
-                            let label = if dirty {
-                                format!("{} •", note.title)
-                            } else {
-                                note.title.clone()
-                            };
-                            if ui
-                                .selectable_label(state.document().active_note_id == note.id, label)
-                                .clicked()
-                                && state.document().active_note_id != note.id
-                            {
-                                actions.push(NotesWidgetAction::Command(
-                                    NotesCommand::SetActiveNote {
-                                        id: note.id.clone(),
-                                    },
-                                ));
-                            }
+        egui::ScrollArea::horizontal()
+            .id_salt("notes-tabs")
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for note in &state.document().notes {
+                        let dirty = state.draft_is_dirty(&note.id);
+                        let label = if dirty {
+                            format!("{} •", note.title)
+                        } else {
+                            note.title.clone()
+                        };
+                        if ui
+                            .add(tab_button(
+                                label,
+                                state.document().active_note_id == note.id,
+                            ))
+                            .clicked()
+                            && state.document().active_note_id != note.id
+                        {
+                            actions.push(NotesCommand::SetActiveNote {
+                                id: note.id.clone(),
+                            });
                         }
-                    });
+                    }
+                    let can_add = state.document().notes.len() < NOTES_PAGE_MAX_COUNT;
+                    let add = ui
+                        .add_enabled_ui(can_add, |ui| icon_button(ui, ControlIcon::Add, "Add note"))
+                        .inner;
+                    if add.clicked() {
+                        actions.push(NotesCommand::AddNote {
+                            title: format!("Note {}", state.document().next_note_id),
+                        });
+                    }
                 });
-            if ui
-                .add_enabled(
-                    state.document().notes.len() < NOTES_PAGE_MAX_COUNT,
-                    egui::Button::new("+"),
-                )
-                .on_hover_text("Add note")
-                .clicked()
-            {
-                actions.push(NotesWidgetAction::Command(NotesCommand::AddNote {
-                    title: format!("Note {}", state.document().next_note_id),
-                }));
-            }
-        });
+            });
     } else {
         if let Some(note) = state.document().active_note() {
             ui.label(
                 egui::RichText::new(&note.title)
-                    .size(BODY_SIZE + 1.0)
+                    .size(scaled_content_font_size(ui, BODY_SIZE + 1.0))
                     .strong()
-                    .color(Color32::from_gray(230)),
+                    .color(TEXT_PRIMARY),
             );
         }
     }
@@ -238,8 +203,9 @@ fn paint_active_note(
     state: &mut NotesWidgetState,
     display: NotesDisplaySettings,
     interactive: bool,
+    transparent_background: bool,
     panel_size: Vec2,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
     let note_id = state.document().active_note_id.clone();
 
@@ -251,7 +217,7 @@ fn paint_active_note(
     } else if display.show_note
         && let Some(note) = state.document().active_note()
     {
-        paint_note_body(ui, note);
+        paint_note_body(ui, note, transparent_background);
     }
 
     if display.show_note && display.show_checklist {
@@ -266,17 +232,17 @@ fn paint_note_editor(
     ui: &mut egui::Ui,
     state: &mut NotesWidgetState,
     note_id: &str,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
-    ui.label(meta_text("TITLE"));
+    ui.label(eyebrow_text("TITLE"));
     if let Some(draft) = state.drafts.get_mut(note_id) {
         ui.add(
-            egui::TextEdit::singleline(&mut draft.title)
+            singleline_text_edit(&mut draft.title)
                 .desired_width(f32::INFINITY)
                 .hint_text("Note title"),
         );
         ui.add_space(4.0);
-        ui.label(meta_text("NOTE"));
+        ui.label(eyebrow_text("NOTE"));
         ui.add(
             egui::TextEdit::multiline(&mut draft.body)
                 .desired_width(f32::INFINITY)
@@ -292,15 +258,15 @@ fn paint_note_editor(
             .get(note_id)
             .is_some_and(|draft| !draft.title.as_str().trim().is_empty());
         if ui
-            .add_enabled(dirty && valid_title, egui::Button::new("Save"))
+            .add_enabled(dirty && valid_title, primary_button("Save changes"))
             .clicked()
             && let Some(draft) = state.drafts.get(note_id)
         {
-            actions.push(NotesWidgetAction::Command(NotesCommand::UpdateNote {
+            actions.push(NotesCommand::UpdateNote {
                 id: note_id.to_owned(),
                 title: draft.title.as_str().trim().to_owned(),
                 body: draft.body.as_str().to_owned(),
-            }));
+            });
         }
         if dirty {
             ui.label(meta_text("Unsaved"));
@@ -313,36 +279,39 @@ fn paint_delete_note(
     ui: &mut egui::Ui,
     state: &mut NotesWidgetState,
     note_id: &str,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
     if state.document().notes.len() <= 1 {
         return;
     }
     if state.delete_confirmation.as_deref() == Some(note_id) {
-        if ui.small_button("Delete note?").clicked() {
-            actions.push(NotesWidgetAction::Command(NotesCommand::RemoveNote {
+        if ui.add(standard_button("Delete note?")).clicked() {
+            actions.push(NotesCommand::RemoveNote {
                 id: note_id.to_owned(),
-            }));
+            });
         }
-        if ui.small_button("Cancel").clicked() {
+        if ui.add(standard_button("Cancel")).clicked() {
             state.delete_confirmation = None;
         }
-    } else if ui.small_button("Delete").clicked() {
+    } else if ui.add(standard_button("Delete")).clicked() {
         state.delete_confirmation = Some(note_id.to_owned());
     }
 }
 
-fn paint_note_body(ui: &mut egui::Ui, note: &NotePage) {
-    ui.label(meta_text("NOTE"));
-    if note.body.is_empty() {
-        ui.label(meta_text("Nothing written yet"));
-    } else {
-        ui.label(
-            egui::RichText::new(&note.body)
-                .size(BODY_SIZE)
-                .color(Color32::from_gray(225)),
-        );
-    }
+fn paint_note_body(ui: &mut egui::Ui, note: &NotePage, transparent_background: bool) {
+    ui.label(eyebrow_text("NOTE"));
+    elevated_frame(transparent_background).show(ui, |ui| {
+        ui.set_min_width(ui.available_width());
+        if note.body.is_empty() {
+            ui.label(meta_text("Nothing written yet"));
+        } else {
+            ui.label(
+                egui::RichText::new(&note.body)
+                    .size(scaled_content_font_size(ui, BODY_SIZE))
+                    .color(TEXT_PRIMARY),
+            );
+        }
+    });
 }
 
 fn paint_checklist(
@@ -351,14 +320,14 @@ fn paint_checklist(
     note_id: &str,
     interactive: bool,
     panel_size: Vec2,
-    actions: &mut Vec<NotesWidgetAction>,
+    actions: &mut Vec<NotesCommand>,
 ) {
-    ui.label(meta_text("CHECKLIST"));
+    ui.label(eyebrow_text("CHECKLIST"));
     if interactive {
         let draft = state.new_item_draft_mut(note_id);
         ui.horizontal(|ui| {
             let response = ui.add(
-                egui::TextEdit::singleline(draft)
+                singleline_text_edit(draft)
                     .desired_width((panel_size.x - 96.0).max(80.0))
                     .hint_text("Add something…"),
             );
@@ -366,15 +335,15 @@ fn paint_checklist(
                 response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
             let text = draft.as_str().trim();
             if (ui
-                .add_enabled(!text.is_empty(), egui::Button::new("Add"))
+                .add_enabled(!text.is_empty(), primary_button("Add"))
                 .clicked()
                 || submitted)
                 && !text.is_empty()
             {
-                actions.push(NotesWidgetAction::Command(NotesCommand::AddItem {
+                actions.push(NotesCommand::AddItem {
                     note_id: note_id.to_owned(),
                     text: text.to_owned(),
-                }));
+                });
             }
         });
     }
@@ -388,28 +357,29 @@ fn paint_checklist(
         ui.horizontal(|ui| {
             let toggled = paint_check_control(ui, item.checked, interactive, &item.text);
             if toggled {
-                actions.push(NotesWidgetAction::Command(NotesCommand::SetChecked {
+                actions.push(NotesCommand::SetChecked {
                     note_id: note_id.to_owned(),
                     id: item.id.clone(),
                     checked: !item.checked,
-                }));
+                });
             }
             let mut text = egui::RichText::new(&item.text)
-                .size(BODY_SIZE)
+                .size(scaled_content_font_size(ui, BODY_SIZE))
                 .color(if item.checked {
-                    Color32::from_gray(145)
+                    TEXT_MUTED
                 } else {
-                    Color32::from_gray(225)
+                    TEXT_PRIMARY
                 });
             if item.checked {
                 text = text.strikethrough();
             }
             ui.label(text);
-            if interactive && ui.small_button("×").on_hover_text("Remove entry").clicked() {
-                actions.push(NotesWidgetAction::Command(NotesCommand::RemoveItem {
+            if interactive && compact_icon_button(ui, ControlIcon::Remove, "Remove entry").clicked()
+            {
+                actions.push(NotesCommand::RemoveItem {
                     note_id: note_id.to_owned(),
                     id: item.id.clone(),
-                }));
+                });
             }
         });
     }
@@ -432,11 +402,7 @@ fn paint_check_control(ui: &mut egui::Ui, checked: bool, interactive: bool, labe
             Sense::hover()
         },
     );
-    let color = if checked {
-        Color32::from_rgb(150, 220, 120)
-    } else {
-        Color32::from_gray(150)
-    };
+    let color = if checked { ACCENT } else { TEXT_MUTED };
     ui.painter()
         .circle_stroke(rect.center(), 6.0, egui::Stroke::new(1.5, color));
     if checked {

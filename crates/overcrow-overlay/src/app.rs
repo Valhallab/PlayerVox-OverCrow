@@ -22,19 +22,20 @@ use crate::{
         model::TwitchCommand,
         prefs::{TwitchPrefsSaveOutcome, TwitchPrefsSaver},
     },
-    warframe::WarframeController,
+    warframe::{WarframeActionBatch, WarframeController, is_warframe_active},
     widgets::{
-        CatalogAction, CatalogActionOutcome, ManualStopwatchClock, NotesWidgetAction,
-        NotesWidgetState, TwitchChatAction, TwitchWidgetState, WidgetManager, apply_catalog_action,
-        catalog_visible, manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog,
+        ACCENT, CatalogAction, CatalogActionOutcome, CatalogLayout, ManualStopwatchClock,
+        NotesWidgetState, PANEL_FILL, PANEL_STROKE_STRONG, TEXT_MUTED, TwitchChatAction,
+        TwitchWidgetState, WidgetManager, apply_catalog_action, catalog_visible, install_theme,
+        manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog, paint_fissure_options,
+        paint_gated_options, paint_invasion_options, paint_profile_options, paint_sortie_options,
+        paint_status_options, paint_twitch_options, persist_profile_change,
         route_manual_stopwatch_action, session_repaint_after as stopwatch_repaint_after,
-        twitch_passive_repaint_after,
+        status_pill, twitch_passive_repaint_after,
     },
 };
 use eframe::egui;
-use overcrow_config::{
-    TWITCH_FAVORITES_MAX, TwitchPrefs, TwitchPrefsStore, WidgetId, settings_save_was_committed,
-};
+use overcrow_config::{TWITCH_FAVORITES_MAX, TwitchPrefs, TwitchPrefsStore, WidgetId};
 use overcrow_logging::EventLogger;
 use overcrow_protocol::{CoreSnapshot, OverlayMode};
 
@@ -206,6 +207,7 @@ pub struct OverlayApp {
 impl OverlayApp {
     pub fn new(creation_context: &eframe::CreationContext<'_>, logger: EventLogger) -> Self {
         install_fonts(&creation_context.egui_ctx);
+        install_theme(&creation_context.egui_ctx);
         let repaint_context = creation_context.egui_ctx.clone();
         let client_repaint_context = repaint_context.clone();
         let media_repaint_context = repaint_context.clone();
@@ -350,26 +352,19 @@ impl OverlayApp {
         self.client.request_passive();
     }
 
-    fn save_preferences(&self) {
-        if let Err(error) = self.preference_store.save(&self.preferences) {
-            eprintln!("OverCrow preference save failed: {error}");
-            let category = if settings_save_was_committed(&error) {
-                "durability"
-            } else {
-                "filesystem"
-            };
-            self.logger.warn(
-                "widget_settings_save_failed",
-                format_args!("{} category={category}", settings_failure_target(None)),
-            );
-        }
-    }
-
     fn apply_catalog_action(&mut self, context: &egui::Context, action: CatalogAction) {
         let widget_id = action.widget_id();
         let outcome = apply_catalog_action(&mut self.preferences, action, |candidate| {
             self.preference_store.save(candidate)
         });
+        let published = !matches!(outcome, CatalogActionOutcome::RolledBack { .. });
+        if published {
+            match action {
+                CatalogAction::ResetPosition(id) => self.widgets.clear_runtime_position(id),
+                CatalogAction::ResetSize(id) => self.widgets.clear_runtime_size(id),
+                _ => {}
+            }
+        }
         log_catalog_settings_outcome(&self.logger, widget_id, &outcome);
         self.warframe.sync(
             context,
@@ -384,6 +379,18 @@ impl OverlayApp {
         });
         self.sync_twitch_gate();
         context.request_repaint();
+    }
+
+    fn commit_geometry_preferences(&mut self, previous: OverlayPreferences) {
+        let outcome = persist_profile_change(&mut self.preferences, previous, |candidate| {
+            self.preference_store.save(candidate)
+        });
+        let rolled_back = matches!(outcome, CatalogActionOutcome::RolledBack { .. });
+        log_settings_outcome(&self.logger, None, &outcome);
+        handle_catalog_outcome(&mut self.widgets, outcome, || {});
+        if rolled_back {
+            self.widgets.clear_runtime_geometry();
+        }
     }
 
     fn sync_twitch_gate(&self) {
@@ -481,6 +488,13 @@ impl OverlayApp {
                     self.sync_twitch_gate();
                 }
             }
+            TwitchChatAction::ClearChannel => {
+                let mut candidate = self.twitch_prefs.clone();
+                candidate.active_channel = None;
+                if self.commit_twitch_prefs(candidate) {
+                    self.twitch_state.set_channel_draft("");
+                }
+            }
             TwitchChatAction::ToggleFavorite(channel) => {
                 let mut candidate = self.twitch_prefs.clone();
                 if let Some(index) = candidate
@@ -497,13 +511,6 @@ impl OverlayApp {
                     return;
                 }
                 self.commit_twitch_prefs(candidate);
-            }
-            TwitchChatAction::MoveFavorite { from, to } => {
-                let mut candidate = self.twitch_prefs.clone();
-                if from < candidate.favorites.len() && to < candidate.favorites.len() {
-                    candidate.favorites.swap(from, to);
-                    self.commit_twitch_prefs(candidate);
-                }
             }
             TwitchChatAction::SetPassiveLifetime(seconds) => {
                 let mut candidate = self.twitch_prefs.clone();
@@ -647,9 +654,29 @@ fn settings_failure_target(widget_id: Option<WidgetId>) -> &'static str {
     }
 }
 
+fn paint_control_notices(
+    ui: &mut egui::Ui,
+    warframe: Option<&str>,
+    catalog: Option<&str>,
+    twitch: Option<&str>,
+) {
+    for message in [warframe, catalog, twitch].into_iter().flatten() {
+        ui.add_space(4.0);
+        ui.colored_label(egui::Color32::from_rgb(251, 113, 133), message);
+    }
+}
+
 fn log_catalog_settings_outcome(
     logger: &EventLogger,
     widget_id: WidgetId,
+    outcome: &CatalogActionOutcome,
+) {
+    log_settings_outcome(logger, Some(widget_id), outcome);
+}
+
+fn log_settings_outcome(
+    logger: &EventLogger,
+    widget_id: Option<WidgetId>,
     outcome: &CatalogActionOutcome,
 ) {
     let category = match outcome {
@@ -659,10 +686,7 @@ fn log_catalog_settings_outcome(
     };
     logger.warn(
         "widget_settings_save_failed",
-        format_args!(
-            "{} category={category}",
-            settings_failure_target(Some(widget_id))
-        ),
+        format_args!("{} category={category}", settings_failure_target(widget_id)),
     );
 }
 
@@ -852,6 +876,11 @@ impl eframe::App for OverlayApp {
             );
             return;
         }
+        self.widgets.begin_widget_frame();
+        let preferences_before_geometry = self.preferences.clone();
+        let widget_input_allowed =
+            widget_actions_allowed(self.widgets.catalog_open(), self.about_open);
+        self.widgets.set_interaction_enabled(widget_input_allowed);
 
         if let Some(scrim) = interactive_scrim(self.state.snapshot()) {
             ui.painter().rect_filled(ui.max_rect(), 0.0, scrim);
@@ -888,13 +917,15 @@ impl eframe::App for OverlayApp {
         );
         save_requested |= manual_stopwatch.save_requested;
         let client = &self.client;
-        dispatch_manual_stopwatch_action(
-            client,
-            &mut self.manual_stopwatch_clock,
-            self.state.snapshot().overlay_mode,
-            manual_stopwatch.action,
-            now,
-        );
+        if widget_input_allowed {
+            dispatch_manual_stopwatch_action(
+                client,
+                &mut self.manual_stopwatch_clock,
+                self.state.snapshot().overlay_mode,
+                manual_stopwatch.action,
+                now,
+            );
+        }
         self.client
             .set_manual_stopwatch_running(self.manual_stopwatch_clock.running());
         let media = self.widgets.render_media(
@@ -905,7 +936,8 @@ impl eframe::App for OverlayApp {
             WIDGET_MARGIN,
         );
         save_requested |= media.save_requested;
-        if self.state.snapshot().overlay_mode == OverlayMode::Interactive
+        if widget_input_allowed
+            && self.state.snapshot().overlay_mode == OverlayMode::Interactive
             && let Some(action) = media.action
         {
             let _ = self.media_client.send(&self.media_snapshot, action);
@@ -918,17 +950,14 @@ impl eframe::App for OverlayApp {
             WIDGET_MARGIN,
         );
         save_requested |= notes.save_requested;
-        for action in notes.actions {
-            match action {
-                NotesWidgetAction::Command(command) => dispatch_notes_action(
+        if widget_input_allowed {
+            for command in notes.actions {
+                dispatch_notes_action(
                     &self.notes_service,
                     &mut self.notes_state,
                     self.state.snapshot().overlay_mode,
                     command,
-                ),
-                NotesWidgetAction::Catalog(action) => {
-                    self.apply_catalog_action(ui.ctx(), action);
-                }
+                );
             }
         }
 
@@ -942,8 +971,10 @@ impl eframe::App for OverlayApp {
             WIDGET_MARGIN,
         );
         save_requested |= twitch.save_requested;
-        for action in twitch.actions {
-            self.dispatch_twitch_action(action);
+        if widget_input_allowed {
+            for action in twitch.actions {
+                self.dispatch_twitch_action(action);
+            }
         }
 
         save_requested |= self.warframe.render(
@@ -952,47 +983,150 @@ impl eframe::App for OverlayApp {
             self.state.snapshot(),
             &mut self.preferences,
             WIDGET_MARGIN,
+            widget_input_allowed,
         );
 
         if save_requested {
-            self.save_preferences();
+            self.commit_geometry_preferences(preferences_before_geometry);
+        }
+
+        if controls_visible(self.state.snapshot())
+            && !self.widgets.catalog_open()
+            && !self.about_open
+        {
+            let warframe_options_allowed = is_warframe_active(self.state.snapshot());
+            let mut profile_actions = Vec::new();
+            let mut twitch_actions = Vec::new();
+            let mut warframe_actions = WarframeActionBatch::default();
+            let mut actions = {
+                let profile = &self.preferences;
+                let twitch_prefs = &self.twitch_prefs;
+                let warframe_prefs = self.warframe.prefs();
+                let reward_catalog = self.warframe.reward_catalog();
+                self.widgets
+                    .paint_widget_controls(ui.ctx(), ui.max_rect(), profile, |id, ui| {
+                        let has_options = matches!(
+                            id,
+                            WidgetId::Clock
+                                | WidgetId::Performance
+                                | WidgetId::Notes
+                                | WidgetId::TwitchChat
+                                | WidgetId::WarframeStatus
+                                | WidgetId::WarframeFissures
+                                | WidgetId::WarframeSortie
+                                | WidgetId::WarframeInvasions
+                        );
+                        if has_options {
+                            ui.separator();
+                        }
+                        paint_profile_options(ui, profile, id, &mut profile_actions);
+                        match id {
+                            WidgetId::TwitchChat => paint_twitch_options(
+                                ui,
+                                &mut self.twitch_state,
+                                twitch_prefs,
+                                &mut twitch_actions,
+                            ),
+                            WidgetId::WarframeStatus => paint_gated_options(
+                                ui,
+                                warframe_options_allowed,
+                                "Available while Warframe is active.",
+                                |ui| {
+                                    paint_status_options(
+                                        ui,
+                                        warframe_prefs,
+                                        &mut warframe_actions.status,
+                                    );
+                                },
+                            ),
+                            WidgetId::WarframeFissures => paint_gated_options(
+                                ui,
+                                warframe_options_allowed,
+                                "Available while Warframe is active.",
+                                |ui| {
+                                    paint_fissure_options(
+                                        ui,
+                                        warframe_prefs,
+                                        &mut warframe_actions.fissures,
+                                    );
+                                },
+                            ),
+                            WidgetId::WarframeSortie => paint_gated_options(
+                                ui,
+                                warframe_options_allowed,
+                                "Available while Warframe is active.",
+                                |ui| {
+                                    paint_sortie_options(
+                                        ui,
+                                        warframe_prefs,
+                                        &mut warframe_actions.sortie,
+                                    );
+                                },
+                            ),
+                            WidgetId::WarframeInvasions => paint_gated_options(
+                                ui,
+                                warframe_options_allowed,
+                                "Available while Warframe is active.",
+                                |ui| {
+                                    paint_invasion_options(
+                                        ui,
+                                        warframe_prefs,
+                                        reward_catalog,
+                                        &mut warframe_actions.invasions,
+                                    );
+                                },
+                            ),
+                            _ => {}
+                        }
+                    })
+            };
+            actions.extend(profile_actions);
+            for action in actions {
+                self.apply_catalog_action(ui.ctx(), action);
+            }
+            for action in twitch_actions {
+                self.dispatch_twitch_action(action);
+            }
+            self.warframe
+                .apply_catalog_actions(self.state.snapshot(), warframe_actions);
         }
 
         if controls_visible(self.state.snapshot()) {
+            let catalog_was_open = self.widgets.catalog_open();
             let mut toggle_catalog = false;
             let mut toggle_about = false;
             egui::Area::new(egui::Id::new("overlay-controls"))
                 .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -24.0))
                 .show(ui.ctx(), |ui| {
                     egui::Frame::new()
-                        .fill(egui::Color32::from_black_alpha(220))
-                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(36)))
-                        .corner_radius(10)
-                        .inner_margin(egui::Margin::symmetric(14, 10))
+                        .fill(PANEL_FILL)
+                        .stroke(egui::Stroke::new(1.0, PANEL_STROKE_STRONG))
+                        .corner_radius(14)
+                        .inner_margin(egui::Margin::symmetric(14, 9))
                         .show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 10.0;
-                                    paint_brand(ui, &mut self.brand, BrandSize::Sm);
-                                    ui.separator();
-                                    ui.label(
-                                        egui::RichText::new("Super + Alt + O").monospace().strong(),
-                                    );
-                                    ui.label("open/close");
-                                    ui.separator();
-                                    ui.label(egui::RichText::new("Esc").monospace().strong());
-                                    ui.label("close");
-                                    ui.separator();
-                                    toggle_catalog = ui.button("Widgets").clicked();
-                                    toggle_about = ui.button("About").clicked();
-                                });
-                                if let Some(message) = self.warframe.message() {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(255, 150, 150),
-                                        message,
-                                    );
-                                }
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 10.0;
+                                paint_brand(ui, &mut self.brand, BrandSize::Sm);
+                                ui.separator();
+                                shortcut_hint(ui, "SUPER + ALT + O", "TOGGLE");
+                                shortcut_hint(ui, "ESC", "CLOSE");
+                                ui.separator();
+                                toggle_catalog = ui
+                                    .add(
+                                        egui::Button::new("Widget library")
+                                            .selected(self.widgets.catalog_open()),
+                                    )
+                                    .clicked();
+                                toggle_about = ui
+                                    .add(egui::Button::new("About").selected(self.about_open))
+                                    .clicked();
                             });
+                            paint_control_notices(
+                                ui,
+                                self.warframe.message(),
+                                self.widgets.catalog_message(),
+                                self.twitch_state.message(),
+                            );
                         });
                 });
 
@@ -1016,59 +1150,122 @@ impl eframe::App for OverlayApp {
                 self.state.snapshot().active_game.is_some(),
                 self.widgets.catalog_open(),
             ) {
-                let mut actions = Vec::new();
-                egui::Area::new(egui::Id::new("widget-catalog"))
-                    .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -82.0))
-                    .show(ui.ctx(), |ui| {
-                        egui::Frame::new()
-                            .fill(egui::Color32::from_black_alpha(230))
-                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(36)))
-                            .corner_radius(10)
-                            .inner_margin(egui::Margin::symmetric(14, 12))
-                            .show(ui, |ui| {
-                                paint_brand(ui, &mut self.brand, BrandSize::Md);
-                                ui.add_space(6.0);
-                                egui::ScrollArea::vertical()
-                                    .max_height(420.0)
-                                    .show(ui, |ui| {
-                                        actions.extend(paint_catalog(
-                                            ui,
-                                            &self.preferences,
-                                            self.widgets.catalog_message(),
-                                        ));
-                                    });
-                            });
-                    });
+                let (actions, catalog_rect) = paint_widget_catalog(
+                    ui.ctx(),
+                    ui.max_rect().size(),
+                    &mut self.brand,
+                    &self.preferences,
+                    self.widgets.catalog_message(),
+                );
 
                 for action in actions {
                     self.apply_catalog_action(ui.ctx(), action);
+                }
+                let pointer_click = ui.input(|input| {
+                    input
+                        .pointer
+                        .any_click()
+                        .then(|| input.pointer.interact_pos())
+                        .flatten()
+                });
+                if catalog_outside_click(
+                    catalog_was_open,
+                    toggle_catalog,
+                    pointer_click,
+                    catalog_rect,
+                ) {
+                    self.widgets.set_catalog_open(false);
                 }
             }
 
             if about_visible(self.state.snapshot(), self.about_open) {
                 let mut open = self.about_open;
-                egui::Window::new("About OverCrow")
+                let about_content_size = about_content_size(ui.max_rect().size());
+                let about_frame = egui::Frame::window(ui.style())
+                    .fill(PANEL_FILL)
+                    .stroke(egui::Stroke::new(1.0, PANEL_STROKE_STRONG))
+                    .corner_radius(16)
+                    .inner_margin(egui::Margin::same(22));
+                egui::Window::new("About PlayerVox OverCrow")
                     .id(egui::Id::new("overlay-about"))
                     .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
                     .collapsible(false)
                     .resizable(false)
-                    .default_width(420.0)
+                    .default_width(about_content_size.x)
+                    .frame(about_frame)
                     .open(&mut open)
                     .show(ui.ctx(), |ui| {
-                        paint_brand(ui, &mut self.brand, BrandSize::Md);
-                        ui.separator();
-                        ui.label(NOTICE_TEXT.trim());
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.label("License:");
-                            ui.monospace(LICENSE_ID);
-                        });
-                        ui.weak(
-                            "This software is provided without warranty; see LICENSE for details.",
-                        );
-                        ui.add_space(6.0);
-                        ui.hyperlink_to("Source code", SOURCE_REPOSITORY_URL);
-                        ui.weak("PlayerVox trademark use is governed separately by TRADEMARKS.md.");
+                        egui::ScrollArea::vertical()
+                            .max_height(about_content_size.y)
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| {
+                                ui.set_width(about_content_size.x);
+                                paint_brand(ui, &mut self.brand, BrandSize::Md);
+                                ui.add_space(14.0);
+                                ui.label(
+                                    egui::RichText::new(
+                                        "Your games. Your overlay. Your control.",
+                                    )
+                                    .size(20.0)
+                                    .strong(),
+                                );
+                                ui.add_space(4.0);
+                                ui.label(
+                                    egui::RichText::new(
+                                        "A lightweight external overlay that stays outside your game process.",
+                                    )
+                                        .color(TEXT_MUTED),
+                                );
+                                ui.add_space(16.0);
+                                egui::Frame::new()
+                                    .fill(egui::Color32::from_white_alpha(8))
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_white_alpha(22),
+                                    ))
+                                    .corner_radius(10)
+                                    .inner_margin(egui::Margin::same(14))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new("OPEN SOURCE")
+                                                .size(10.0)
+                                                .strong()
+                                                .color(ACCENT),
+                                        );
+                                        ui.add_space(4.0);
+                                        ui.horizontal(|ui| {
+                                            ui.label("License");
+                                            ui.monospace(LICENSE_ID);
+                                        });
+                                        ui.add_space(8.0);
+                                        ui.label(
+                                            egui::RichText::new(NOTICE_TEXT.trim())
+                                                .size(11.0)
+                                                .color(TEXT_MUTED),
+                                        );
+                                    });
+                                ui.add_space(14.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.hyperlink_to(
+                                        "View source on GitHub",
+                                        SOURCE_REPOSITORY_URL,
+                                    );
+                                    ui.separator();
+                                    ui.label(
+                                        egui::RichText::new("No warranty")
+                                            .size(11.0)
+                                            .color(TEXT_MUTED),
+                                    );
+                                });
+                                ui.add_space(8.0);
+                                ui.label(
+                                    egui::RichText::new(
+                                        "PlayerVox trademark use is governed separately by TRADEMARKS.md.",
+                                    )
+                                    .size(11.0)
+                                    .color(TEXT_MUTED),
+                                );
+                            });
                     });
                 self.about_open = open;
             }
@@ -1088,6 +1285,79 @@ impl eframe::App for OverlayApp {
 
 fn controls_visible(snapshot: &CoreSnapshot) -> bool {
     snapshot.active_game.is_some() && snapshot.overlay_mode == OverlayMode::Interactive
+}
+
+fn catalog_outside_click(
+    was_open: bool,
+    toggled_this_frame: bool,
+    pointer_click: Option<egui::Pos2>,
+    surface: egui::Rect,
+) -> bool {
+    was_open
+        && !toggled_this_frame
+        && pointer_click.is_some_and(|position| !surface.contains(position))
+}
+
+fn widget_actions_allowed(catalog_open: bool, about_open: bool) -> bool {
+    !catalog_open && !about_open
+}
+
+fn about_content_size(viewport: egui::Vec2) -> egui::Vec2 {
+    egui::vec2(
+        (viewport.x - 96.0).clamp(180.0, 460.0),
+        (viewport.y - 160.0).clamp(120.0, 520.0),
+    )
+}
+
+fn shortcut_hint(ui: &mut egui::Ui, key: &str, action: &str) {
+    ui.horizontal(|ui| {
+        egui::Frame::new()
+            .fill(egui::Color32::from_white_alpha(10))
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(24)))
+            .corner_radius(6)
+            .inner_margin(egui::Margin::symmetric(7, 4))
+            .show(ui, |ui| {
+                ui.label(egui::RichText::new(key).monospace().strong().size(11.0));
+            });
+        ui.label(egui::RichText::new(action).size(10.0).color(TEXT_MUTED));
+    });
+}
+
+fn paint_widget_catalog(
+    context: &egui::Context,
+    viewport: egui::Vec2,
+    brand: &mut BrandAssets,
+    profile: &overcrow_config::WidgetProfile,
+    message: Option<&str>,
+) -> (Vec<CatalogAction>, egui::Rect) {
+    let layout = CatalogLayout::for_viewport(viewport);
+    let mut actions = Vec::new();
+    let area = egui::Area::new(egui::Id::new("widget-catalog"))
+        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -82.0))
+        .show(context, |ui| {
+            egui::Frame::new()
+                .fill(PANEL_FILL)
+                .stroke(egui::Stroke::new(1.0, PANEL_STROKE_STRONG))
+                .corner_radius(16)
+                .inner_margin(egui::Margin::symmetric(18, 16))
+                .show(ui, |ui| {
+                    ui.set_width(layout.width);
+                    ui.horizontal(|ui| {
+                        paint_brand(ui, brand, BrandSize::Sm);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            status_pill(ui, "CUSTOMIZE MODE", ACCENT)
+                        });
+                    });
+                    ui.add_space(10.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(layout.max_height)
+                        .show(ui, |ui| {
+                            ui.set_width(layout.width);
+                            actions.extend(paint_catalog(ui, profile, message));
+                        });
+                });
+        });
+    (actions, area.response.rect)
 }
 
 fn about_visible(snapshot: &CoreSnapshot, about_open: bool) -> bool {

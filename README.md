@@ -84,9 +84,11 @@ Start a selected game and focus its window. The default shortcuts are:
 | `Meta+Alt+P` | Start or pause the manual stopwatch. |
 | `Meta+Alt+R` | Reset the manual stopwatch. |
 
-The overlay menu lets you enable, move, resize, scale, and reset widgets.
-Passive widgets are read-only and click-through. Interactive mode captures
-input only over the authorized game and always retains a close path.
+The PlayerVox-styled **Widget library** groups general tools separately from
+game-specific widgets. It lets you enable, move, resize, scale, and reset each
+widget without leaving the overlay. Passive widgets are read-only and
+click-through. Interactive mode captures input only over the authorized game
+and always retains a close path.
 
 Useful diagnostics:
 
@@ -108,6 +110,8 @@ PlayerVox support. No GitHub account is required.
 
 ## Built-in widgets
 
+### General
+
 - **Session** — elapsed time since the detected game process started.
 - **Clock** — local date and time.
 - **Performance** — host CPU, memory, and available temperatures.
@@ -115,13 +119,16 @@ PlayerVox support. No GitHub account is required.
 - **Media** — current MPRIS media with interactive playback controls.
 - **Notes** — private titled notes with independent note/checklist visibility,
   horizontally scrollable tabs, and per-note checklists.
+- **Twitch chat** — read and send messages in any selected public channel,
+  with ordered favorites, replies, and bold colorized usernames.
+
+### Warframe
+
 - **Warframe status** — open-world cycles, daily reset, and Baro Ki'Teer.
 - **Fissures** — current Void Fissures with local filters.
 - **Market** — warframe.market search, orders, and trade templates.
 - **Sortie & Archon** — the current three Sortie and Archon Hunt missions.
 - **Invasions** — current invasion missions, progress, and rewards.
-- **Twitch chat** — read and send messages in any selected public channel,
-  with ordered favorites, replies, and bold colorized usernames.
 
 Warframe widgets appear only for Steam App ID `230410`. They use bounded,
 unauthenticated requests to the official Warframe world-state endpoint and

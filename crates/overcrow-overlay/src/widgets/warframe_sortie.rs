@@ -2,10 +2,13 @@ use eframe::egui::{self, Color32, Layout, Vec2, vec2};
 use overcrow_config::WarframePrefs;
 use overcrow_protocol::OverlayMode;
 
-use super::chrome::{
-    BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, apply_scale, meta_text, options_menu,
-    panel_frame, panel_width_limits, report_content_panel_size, resize_grip, timer_color,
-    title_text,
+use super::{
+    WidgetGlyph,
+    chrome::{
+        ACCENT, BODY_SIZE, META_SIZE, ResizeGripOutcome, TIMER_SIZE, apply_scale, meta_text,
+        panel_content_height, panel_content_width, panel_frame, panel_width_limits, resize_grip,
+        scaled_content_font_size, status_pill, timer_color, widget_identity,
+    },
 };
 use crate::warframe::{
     ActivityMission, ArchonHunt, SortieMission, WorldstateSnapshot, archon_mission_keys,
@@ -44,6 +47,7 @@ pub fn paint_warframe_sortie(
     now_secs: u64,
     transparent_background: bool,
     draggable: bool,
+    input_enabled: bool,
     margin: f32,
 ) -> WarframeSortieResponse {
     let panel_size = super::chrome::clamp_panel_size(panel_size);
@@ -54,20 +58,26 @@ pub fn paint_warframe_sortie(
     let response = egui::Area::new(egui::Id::new("warframe-sortie-panel"))
         .current_pos(current_position)
         .movable(draggable)
-        .interactable(true)
+        .interactable(input_enabled)
         .constrain_to(viewport.shrink(margin))
         .show(ui.ctx(), |ui| {
+            if !input_enabled {
+                ui.disable();
+            }
             apply_scale(ui, scale);
-            panel_frame(transparent_background).show(ui, |ui| {
-                panel_width_limits(ui, panel_size.x);
+            let frame = panel_frame(transparent_background).show(ui, |ui| {
+                panel_width_limits(ui, panel_size.x, transparent_background);
                 let height_limit = if mode == OverlayMode::Interactive {
-                    panel_size.y
+                    panel_content_height(panel_size.y, transparent_background)
                 } else {
-                    (viewport.height() - margin * 2.0).max(1.0)
+                    panel_content_height(
+                        (viewport.height() - margin * 2.0).max(1.0),
+                        transparent_background,
+                    )
                 };
                 ui.set_max_height(height_limit);
 
-                paint_header(ui, mode, prefs, &mut actions);
+                paint_header(ui);
                 ui.add_space(4.0);
 
                 let header_h = 36.0 * scale;
@@ -86,7 +96,10 @@ pub fn paint_warframe_sortie(
                         .max_height(body_max)
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
-                            ui.set_min_width(panel_size.x - 32.0);
+                            ui.set_min_width(
+                                (panel_content_width(panel_size.x, transparent_background) - 32.0)
+                                    .max(1.0),
+                            );
                             if let Some(sortie) = &snapshot.sortie {
                                 paint_sortie_block(ui, sortie, prefs, mode, now_secs, &mut actions);
                             }
@@ -100,15 +113,17 @@ pub fn paint_warframe_sortie(
                             }
                         });
                 }
-
-                let panel_rect = ui.min_rect();
-                resize = resize_grip(ui, panel_rect, mode == OverlayMode::Interactive);
             });
+            resize = resize_grip(
+                ui,
+                frame.response.rect,
+                input_enabled && mode == OverlayMode::Interactive,
+            );
         });
 
     let measured = response.response.rect.size().max(vec2(1.0, 1.0));
     WarframeSortieResponse {
-        size: report_content_panel_size(panel_size, measured, mode),
+        size: measured,
         position: response.response.rect.min,
         dragged: response.response.dragged() && !resize.dragging,
         drag_stopped: response.response.drag_stopped() && !resize.dragging && !resize.drag_stopped,
@@ -117,25 +132,29 @@ pub fn paint_warframe_sortie(
     }
 }
 
-fn paint_header(
+fn paint_header(ui: &mut egui::Ui) {
+    ui.horizontal(|ui| {
+        widget_identity(
+            ui,
+            WidgetGlyph::Missions,
+            "SORTIE & ARCHON",
+            Some("MISSION TRACKER"),
+        );
+        ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+            status_pill(ui, "DAILY + WEEKLY", ACCENT);
+        });
+    });
+}
+
+pub(crate) fn paint_sortie_options(
     ui: &mut egui::Ui,
-    mode: OverlayMode,
     prefs: &WarframePrefs,
     actions: &mut Vec<SortiePrefsAction>,
 ) {
-    ui.horizontal(|ui| {
-        ui.label(title_text("SORTIE & ARCHON"));
-        if mode == OverlayMode::Interactive {
-            ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                options_menu(ui, |ui| {
-                    let mut seconds = prefs.show_activity_seconds;
-                    if ui.checkbox(&mut seconds, "Seconds").changed() {
-                        actions.push(SortiePrefsAction::ToggleSeconds);
-                    }
-                });
-            });
-        }
-    });
+    let mut seconds = prefs.show_activity_seconds;
+    if ui.checkbox(&mut seconds, "Seconds").changed() {
+        actions.push(SortiePrefsAction::ToggleSeconds);
+    }
 }
 
 fn paint_sortie_block(
@@ -264,8 +283,12 @@ fn paint_section_title(
         } else {
             Color32::from_gray(220)
         };
-        let mut kind_text = egui::RichText::new(kind).size(BODY_SIZE).color(kind_color);
-        let mut boss_text = egui::RichText::new(boss).size(BODY_SIZE).color(boss_color);
+        let mut kind_text = egui::RichText::new(kind)
+            .size(scaled_content_font_size(ui, BODY_SIZE))
+            .color(kind_color);
+        let mut boss_text = egui::RichText::new(boss)
+            .size(scaled_content_font_size(ui, BODY_SIZE))
+            .color(boss_color);
         if all_done {
             kind_text = kind_text.strikethrough();
             boss_text = boss_text.strikethrough();
@@ -279,7 +302,7 @@ fn paint_section_title(
             ui.label(
                 egui::RichText::new(remaining)
                     .monospace()
-                    .size(TIMER_SIZE - 1.0)
+                    .size(scaled_content_font_size(ui, TIMER_SIZE - 1.0))
                     .strong()
                     .color(if all_done {
                         Color32::from_gray(140)
@@ -298,7 +321,7 @@ fn paint_section_title(
             ui.add_space(2.0);
             ui.label(
                 egui::RichText::new(shard.label)
-                    .size(META_SIZE)
+                    .size(scaled_content_font_size(ui, META_SIZE))
                     .strong()
                     .color(color),
             );
@@ -335,7 +358,7 @@ fn paint_mission_row(
             Color32::from_gray(215)
         };
         let mut mission_text = egui::RichText::new(format_mission_type(&mission.mission_type))
-            .size(BODY_SIZE)
+            .size(scaled_content_font_size(ui, BODY_SIZE))
             .color(mission_color);
         if done {
             mission_text = mission_text.strikethrough();
@@ -345,7 +368,7 @@ fn paint_mission_row(
         ui.label(mission_text);
         ui.label(
             egui::RichText::new(format_node(&mission.node))
-                .size(BODY_SIZE - 1.0)
+                .size(scaled_content_font_size(ui, BODY_SIZE - 1.0))
                 .color(if done {
                     Color32::from_gray(120)
                 } else {
@@ -356,7 +379,7 @@ fn paint_mission_row(
             ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     egui::RichText::new(modifier)
-                        .size(META_SIZE)
+                        .size(scaled_content_font_size(ui, META_SIZE))
                         .color(Color32::from_rgb(170, 200, 255)),
                 );
             });

@@ -148,6 +148,32 @@ impl WidgetSettings {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ClockDisplaySettings {
+    pub show_date: bool,
+}
+
+impl Default for ClockDisplaySettings {
+    fn default() -> Self {
+        Self { show_date: true }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PerformanceLayout {
+    Vertical,
+    #[default]
+    Horizontal,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerformanceDisplaySettings {
+    pub layout: PerformanceLayout,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NotesDisplaySettings {
     pub show_note: bool,
     pub show_checklist: bool,
@@ -168,7 +194,11 @@ pub struct WidgetProfile {
     pub schema_version: u32,
     pub session: WidgetSettings,
     pub clock: WidgetSettings,
+    #[serde(default)]
+    pub clock_display: ClockDisplaySettings,
     pub performance: WidgetSettings,
+    #[serde(default)]
+    pub performance_display: PerformanceDisplaySettings,
     pub manual_stopwatch: WidgetSettings,
     pub media: WidgetSettings,
     pub notes: WidgetSettings,
@@ -226,7 +256,9 @@ impl Default for WidgetProfile {
             schema_version: WIDGET_SCHEMA_VERSION,
             session: WidgetSettings::new(WidgetId::Session, true),
             clock: WidgetSettings::new(WidgetId::Clock, false),
+            clock_display: ClockDisplaySettings::default(),
             performance: WidgetSettings::new(WidgetId::Performance, false),
+            performance_display: PerformanceDisplaySettings::default(),
             manual_stopwatch: WidgetSettings::new(WidgetId::ManualStopwatch, false),
             media: WidgetSettings::new(WidgetId::Media, false),
             notes: WidgetSettings::new(WidgetId::Notes, false),

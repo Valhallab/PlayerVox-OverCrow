@@ -1,10 +1,11 @@
 use super::{
     LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient,
-    OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_visible, authoritative_snapshot,
-    confirmed_mode_event, controls_visible, dispatch_manual_stopwatch_action,
-    dispatch_notes_action, handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome,
+    OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_content_size, about_visible,
+    authoritative_snapshot, catalog_outside_click, confirmed_mode_event, controls_visible,
+    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
+    interactive_scrim, log_catalog_settings_outcome, paint_control_notices, paint_widget_catalog,
     settings_failure_target, stopwatch_repaint_after, twitch_gate, viewport_builder,
-    viewport_update_changed,
+    viewport_update_changed, widget_actions_allowed,
 };
 use crate::{
     notes::{NotesCommand, NotesDocument, NotesError, NotesUpdate},
@@ -115,6 +116,29 @@ fn about_panel_is_available_only_in_an_active_interactive_overlay() {
 }
 
 #[test]
+fn twitch_settings_message_is_visible_in_the_bottom_control_notices() {
+    let context = eframe::egui::Context::default();
+    let output = context.run_ui(eframe::egui::RawInput::default(), |ui| {
+        paint_control_notices(
+            ui,
+            None,
+            None,
+            Some("Could not save Twitch widget settings."),
+        );
+    });
+    let labels = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            eframe::egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"Could not save Twitch widget settings."));
+}
+
+#[test]
 fn passive_is_logged_only_after_core_confirmation() {
     let unconfirmed = SnapshotUpdate::unconfirmed(snapshot(OverlayMode::Passive));
     let confirmed = SnapshotUpdate::confirmed(snapshot(OverlayMode::Passive), true);
@@ -175,6 +199,23 @@ fn app_dispatches_manual_stopwatch_actions_to_the_exact_client_methods() {
         clock.elapsed_at(now + Duration::from_secs(1)),
         Duration::ZERO
     );
+}
+
+#[test]
+fn modal_surfaces_block_actions_from_widgets_behind_them() {
+    assert!(widget_actions_allowed(false, false));
+    assert!(!widget_actions_allowed(true, false));
+    assert!(!widget_actions_allowed(false, true));
+    assert!(!widget_actions_allowed(true, true));
+}
+
+#[test]
+fn about_content_is_bounded_for_large_and_small_game_viewports() {
+    assert_eq!(
+        about_content_size(vec2(1_920.0, 1_080.0)),
+        vec2(460.0, 520.0)
+    );
+    assert_eq!(about_content_size(vec2(320.0, 300.0)), vec2(224.0, 140.0));
 }
 
 #[test]
@@ -256,18 +297,26 @@ fn rejected_notes_command_restores_the_prior_visible_state() {
 mod catalog {
     use std::{cell::Cell, io};
 
-    use eframe::egui::{self, RawInput, Rect, pos2, vec2};
+    use eframe::egui::{
+        self, Event, RawInput, Rect,
+        accesskit::{Action as AccessKitAction, ActionRequest, TreeId},
+        pos2, vec2,
+    };
     use overcrow_config::{CommittedSettingsSaveError, WidgetId, WidgetPosition, WidgetProfile};
     use overcrow_logging::{Component, LoggerRuntime};
     use overcrow_protocol::OverlayMode;
 
+    use crate::branding::{BrandAssets, install_fonts};
     use crate::widgets::{
-        CATALOG_ERROR_MAX_CHARS, CatalogAction, CatalogActionOutcome, CatalogCommit,
-        CatalogFailureCategory, WidgetManager, apply_catalog_action, catalog_visible,
-        paint_catalog,
+        BUILTIN_WIDGETS, CATALOG_ERROR_MAX_CHARS, CatalogAction, CatalogActionOutcome,
+        CatalogCommit, CatalogFailureCategory, CatalogLayout, WidgetManager, apply_catalog_action,
+        catalog_visible, install_theme, paint_catalog, paint_gated_options, persist_profile_change,
     };
 
-    use super::{handle_catalog_outcome, log_catalog_settings_outcome, settings_failure_target};
+    use super::{
+        catalog_outside_click, handle_catalog_outcome, log_catalog_settings_outcome,
+        paint_widget_catalog, settings_failure_target,
+    };
 
     #[test]
     fn settings_diagnostic_targets_and_categories_are_stable_and_private() {
@@ -321,6 +370,201 @@ mod catalog {
         assert!(!catalog_visible(OverlayMode::Interactive, true, false));
         assert!(!catalog_visible(OverlayMode::Passive, true, true));
         assert!(!catalog_visible(OverlayMode::Interactive, false, true));
+    }
+
+    #[test]
+    fn catalog_closes_only_for_an_outside_click_after_it_was_already_open() {
+        let surface = Rect::from_min_size(pos2(100.0, 80.0), vec2(500.0, 360.0));
+
+        assert!(catalog_outside_click(
+            true,
+            false,
+            Some(pos2(40.0, 40.0)),
+            surface
+        ));
+        assert!(!catalog_outside_click(
+            true,
+            false,
+            Some(pos2(200.0, 200.0)),
+            surface
+        ));
+        assert!(!catalog_outside_click(
+            true,
+            true,
+            Some(pos2(40.0, 40.0)),
+            surface
+        ));
+        assert!(!catalog_outside_click(false, false, None, surface));
+    }
+
+    #[test]
+    fn unavailable_provider_options_are_disabled_and_explained() {
+        let context = egui::Context::default();
+        let callback_enabled = Cell::new(true);
+        let output = context.run_ui(RawInput::default(), |ui| {
+            paint_gated_options(ui, false, "Available while Warframe is active.", |ui| {
+                callback_enabled.set(ui.is_enabled());
+                let _ = ui.button("Provider action");
+            });
+        });
+        let text = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(!callback_enabled.get());
+        assert!(
+            text.contains(&"Available while Warframe is active."),
+            "{text:?}"
+        );
+    }
+
+    #[test]
+    fn catalog_layout_adapts_without_exceeding_the_game_viewport() {
+        let wide = CatalogLayout::for_viewport(vec2(1_920.0, 1_080.0));
+        assert_eq!(wide.columns, 2);
+        assert_eq!(wide.width, 840.0);
+        assert_eq!(wide.max_height, 640.0);
+
+        let narrow = CatalogLayout::for_viewport(vec2(640.0, 480.0));
+        assert_eq!(narrow.columns, 1);
+        assert_eq!(narrow.width, 568.0);
+        assert_eq!(narrow.max_height, 310.0);
+
+        let tiny = CatalogLayout::for_viewport(vec2(300.0, 220.0));
+        assert_eq!(tiny.columns, 1);
+        assert_eq!(tiny.width, 228.0);
+        assert!(tiny.max_height <= 220.0);
+    }
+
+    #[test]
+    fn complete_catalog_surface_stays_inside_the_game_viewport() {
+        for viewport in [
+            vec2(300.0, 220.0),
+            vec2(640.0, 480.0),
+            vec2(1_236.0, 526.0),
+            vec2(1_920.0, 1_080.0),
+        ] {
+            let screen = Rect::from_min_size(pos2(0.0, 0.0), viewport);
+            let context = egui::Context::default();
+            install_fonts(&context);
+            install_theme(&context);
+            let profile = WidgetProfile::default();
+            let mut brand = BrandAssets::default();
+            let surface = Cell::new(Rect::NOTHING);
+
+            let _ = context.run_ui(
+                RawInput {
+                    screen_rect: Some(screen),
+                    ..RawInput::default()
+                },
+                |ui| {
+                    let (_, rect) = paint_widget_catalog(
+                        ui.ctx(),
+                        ui.max_rect().size(),
+                        &mut brand,
+                        &profile,
+                        None,
+                    );
+                    surface.set(rect);
+                },
+            );
+
+            let surface = surface.get();
+            assert!(screen.contains(surface.min), "{viewport:?}: {surface:?}");
+            assert!(screen.contains(surface.max), "{viewport:?}: {surface:?}");
+        }
+    }
+
+    #[test]
+    fn catalog_cards_keep_a_compact_click_target() {
+        let viewport = vec2(1_236.0, 526.0);
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        install_fonts(&context);
+        install_theme(&context);
+        let profile = WidgetProfile::default();
+        let mut brand = BrandAssets::default();
+        let output = context.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), viewport)),
+                ..RawInput::default()
+            },
+            |ui| {
+                paint_widget_catalog(ui.ctx(), ui.max_rect().size(), &mut brand, &profile, None);
+            },
+        );
+
+        let nodes = output
+            .platform_output
+            .accesskit_update
+            .expect("catalog accessibility tree")
+            .nodes;
+        let expected = BUILTIN_WIDGETS
+            .iter()
+            .map(|descriptor| {
+                let verb = if profile.settings(descriptor.id).enabled {
+                    "Disable"
+                } else {
+                    "Enable"
+                };
+                format!("{verb} {}", descriptor.name)
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        let controls = nodes
+            .into_iter()
+            .filter_map(|(_, node)| {
+                let label = node.label()?;
+                expected
+                    .contains(label)
+                    .then_some((label.to_owned(), node.bounds()?))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(controls.len(), BUILTIN_WIDGETS.len());
+        let compressed = controls
+            .into_iter()
+            .filter(|(_, bounds)| bounds.y1 - bounds.y0 > 64.0)
+            .collect::<Vec<_>>();
+        assert!(compressed.is_empty(), "{compressed:?}");
+    }
+
+    #[test]
+    fn clicking_a_catalog_card_toggles_only_that_widget() {
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let profile = WidgetProfile::default();
+        let first = context.run_ui(RawInput::default(), |ui| {
+            let _ = paint_catalog(ui, &profile, None);
+        });
+        let clock_card = first
+            .platform_output
+            .accesskit_update
+            .expect("catalog accessibility tree")
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| (node.label() == Some("Enable Clock")).then_some(id))
+            .expect("Clock catalog card");
+        let click = Event::AccessKitActionRequest(ActionRequest {
+            action: AccessKitAction::Click,
+            target_tree: TreeId::ROOT,
+            target_node: clock_card,
+            data: None,
+        });
+        let mut actions = Vec::new();
+
+        let _ = context.run_ui(
+            RawInput {
+                events: vec![click],
+                ..RawInput::default()
+            },
+            |ui| actions = paint_catalog(ui, &profile, None),
+        );
+
+        assert_eq!(actions, [CatalogAction::SetEnabled(WidgetId::Clock, true)]);
     }
 
     #[test]
@@ -403,7 +647,59 @@ mod catalog {
     }
 
     #[test]
-    fn catalog_keeps_widget_specific_options_out_of_the_widget_list() {
+    fn common_display_options_commit_through_the_widget_profile_store() {
+        let mut profile = WidgetProfile::default();
+
+        let clock = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetClockDateVisible(false),
+            |_| Ok(()),
+        );
+        assert!(matches!(clock, CatalogActionOutcome::Durable(_)));
+        assert!(!profile.clock_display.show_date);
+
+        let performance = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetPerformanceLayout(overcrow_config::PerformanceLayout::Vertical),
+            |_| Ok(()),
+        );
+        assert!(matches!(performance, CatalogActionOutcome::Durable(_)));
+        assert_eq!(
+            profile.performance_display.layout,
+            overcrow_config::PerformanceLayout::Vertical
+        );
+    }
+
+    #[test]
+    fn widget_scale_is_transactional_and_bounded_by_profile_validation() {
+        let mut profile = WidgetProfile::default();
+
+        let committed = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetScale(WidgetId::Media, 1.25),
+            |_| Ok(()),
+        );
+        assert!(matches!(committed, CatalogActionOutcome::Durable(_)));
+        assert_eq!(profile.media.scale, 1.25);
+
+        let before = profile.clone();
+        let rejected = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetScale(WidgetId::Media, 2.0),
+            |_| Ok(()),
+        );
+        assert!(matches!(
+            rejected,
+            CatalogActionOutcome::RolledBack {
+                category: CatalogFailureCategory::Validation,
+                ..
+            }
+        ));
+        assert_eq!(profile, before);
+    }
+
+    #[test]
+    fn catalog_cards_are_compact_toggles_without_embedded_options() {
         let context = egui::Context::default();
         context.enable_accesskit();
         let output = context.run_ui(
@@ -434,6 +730,35 @@ mod catalog {
         assert!(!text.iter().any(|value| value == "Show checklist"));
         assert!(!text.iter().any(|value| value == "Connect Twitch"));
         assert!(!text.iter().any(|value| value == "Passive lifetime"));
+        for removed in ["OVERLAY LIBRARY", "0 ACTIVE", "ON", "OFF"] {
+            assert!(!text.iter().any(|value| value == removed), "{text:?}");
+        }
+        for removed in ["Passive", "Transparent", "More options"] {
+            assert!(!text.iter().any(|value| value == removed), "{text:?}");
+        }
+        let profile = WidgetProfile::default();
+        for descriptor in BUILTIN_WIDGETS {
+            let verb = if profile.settings(descriptor.id).enabled {
+                "Disable"
+            } else {
+                "Enable"
+            };
+            let label = format!("{verb} {}", descriptor.name);
+            assert_eq!(
+                text.iter().filter(|value| **value == label).count(),
+                1,
+                "{text:?}"
+            );
+        }
+        assert!(text.iter().any(|value| value == "General"));
+        assert!(text.iter().any(|value| value == "Warframe"));
+        for descriptor in crate::widgets::BUILTIN_WIDGETS {
+            assert!(
+                text.iter().any(|value| value == descriptor.name),
+                "missing catalog card for {}",
+                descriptor.name
+            );
+        }
     }
 
     #[test]
@@ -477,6 +802,29 @@ mod catalog {
     }
 
     #[test]
+    fn reset_size_restores_defaults_without_resetting_scale_or_position() {
+        let mut profile = WidgetProfile::default();
+        profile.media.width = 540.0;
+        profile.media.height = 220.0;
+        profile.media.scale = 1.25;
+        profile.media.position = WidgetPosition { x: 0.2, y: 0.3 };
+
+        let outcome = apply_catalog_action(
+            &mut profile,
+            CatalogAction::ResetSize(WidgetId::Media),
+            |_| Ok(()),
+        );
+
+        assert!(matches!(outcome, CatalogActionOutcome::Durable(_)));
+        assert_eq!(
+            (profile.media.width, profile.media.height),
+            WidgetId::Media.default_panel_size()
+        );
+        assert_eq!(profile.media.scale, 1.25);
+        assert_eq!(profile.media.position, WidgetPosition { x: 0.2, y: 0.3 });
+    }
+
+    #[test]
     fn failed_catalog_save_keeps_the_prior_profile_and_bounds_the_message() {
         let mut profile = WidgetProfile::default();
         let previous = profile.clone();
@@ -493,6 +841,45 @@ mod catalog {
             outcome,
             CatalogActionOutcome::RolledBack { message, .. }
                 if message.chars().count() <= CATALOG_ERROR_MAX_CHARS
+        ));
+    }
+
+    #[test]
+    fn failed_geometry_save_restores_the_last_durable_profile() {
+        let previous = WidgetProfile::default();
+        let mut candidate = previous.clone();
+        candidate.media.position = WidgetPosition { x: 0.8, y: 0.7 };
+
+        let outcome = persist_profile_change(&mut candidate, previous.clone(), |_| {
+            Err(io::Error::other("disk full"))
+        });
+
+        assert_eq!(candidate, previous);
+        assert!(matches!(
+            outcome,
+            CatalogActionOutcome::RolledBack {
+                category: CatalogFailureCategory::Filesystem,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn committed_geometry_save_keeps_the_new_profile_with_a_warning() {
+        let previous = WidgetProfile::default();
+        let mut candidate = previous.clone();
+        candidate.media.position = WidgetPosition { x: 0.8, y: 0.7 };
+
+        let outcome = persist_profile_change(&mut candidate, previous, |_| {
+            Err(io::Error::other(CommittedSettingsSaveError::new(
+                io::Error::other("forced parent sync failure"),
+            )))
+        });
+
+        assert_eq!(candidate.media.position, WidgetPosition { x: 0.8, y: 0.7 });
+        assert!(matches!(
+            outcome,
+            CatalogActionOutcome::CommittedWithWarning { .. }
         ));
     }
 

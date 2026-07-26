@@ -1,13 +1,17 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc, time::Instant};
 
-use eframe::egui::{Rect, pos2, vec2};
-use overcrow_config::{WidgetId, WidgetPosition, WidgetProfile};
+use eframe::egui::{Event, PointerButton, RawInput, Rect, pos2, vec2};
+use overcrow_config::{TwitchPrefs, WidgetId, WidgetPosition, WidgetProfile};
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect as GameRect};
 
 use super::{WidgetManager, placement_save_requested, widget_draggable, widget_visible};
 use crate::{
     notes::NotesUpdate,
-    widgets::{BUILTIN_WIDGETS, NotesWidgetState, WidgetDescriptor, chrome::ResizeGripOutcome},
+    twitch::model::{TwitchConnectionState, TwitchSnapshot},
+    widgets::{
+        BUILTIN_WIDGETS, NotesWidgetState, TwitchWidgetState, WidgetDescriptor,
+        chrome::ResizeGripOutcome,
+    },
 };
 
 const INTERACTIVE: OverlayMode = OverlayMode::Interactive;
@@ -150,7 +154,7 @@ fn passive_measurements_do_not_replace_interactive_geometry() {
 }
 
 #[test]
-fn each_mode_places_bottom_anchored_widgets_with_its_own_height() {
+fn mode_change_keeps_the_last_visible_top_left() {
     let mut manager = WidgetManager::default();
     let mut profile = WidgetProfile::default();
     let id = WidgetId::Notes;
@@ -158,14 +162,122 @@ fn each_mode_places_bottom_anchored_widgets_with_its_own_height() {
     let margin = 24.0;
     profile.notes.position = WidgetPosition { x: 0.5, y: 1.0 };
     manager.set_measured_size(id, INTERACTIVE, vec2(360.0, 280.0));
-    manager.set_measured_size(id, PASSIVE, vec2(360.0, 112.0));
 
     let interactive = manager.screen_position(id, INTERACTIVE, viewport, margin, &profile);
+    manager.finish_drag_only(
+        id,
+        INTERACTIVE,
+        viewport,
+        margin,
+        &mut profile,
+        vec2(360.0, 280.0),
+        interactive,
+        false,
+        false,
+    );
+    manager.set_measured_size(id, PASSIVE, vec2(360.0, 112.0));
     let passive = manager.screen_position(id, PASSIVE, viewport, margin, &profile);
 
-    assert_eq!(interactive.y + 280.0, viewport.max.y - margin);
-    assert_eq!(passive.y + 112.0, viewport.max.y - margin);
-    assert!(passive.y > interactive.y);
+    assert_eq!(passive, interactive);
+}
+
+#[test]
+fn first_unmeasured_mode_change_keeps_the_last_visible_top_left() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Media;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let margin = 24.0;
+    let top_left = pos2(536.0, 120.0);
+
+    manager.finish_drag_only(
+        id,
+        INTERACTIVE,
+        viewport,
+        margin,
+        &mut profile,
+        vec2(240.0, 80.0),
+        top_left,
+        false,
+        false,
+    );
+
+    assert_eq!(
+        manager.screen_position(id, PASSIVE, viewport, margin, &profile),
+        top_left
+    );
+}
+
+#[test]
+fn content_size_change_keeps_the_last_visible_top_left() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Media;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let margin = 24.0;
+    let top_left = pos2(200.0, 120.0);
+
+    manager.finish_drag_only(
+        id,
+        INTERACTIVE,
+        viewport,
+        margin,
+        &mut profile,
+        vec2(240.0, 80.0),
+        top_left,
+        false,
+        false,
+    );
+    manager.set_measured_size(id, INTERACTIVE, vec2(520.0, 120.0));
+
+    assert_eq!(
+        manager.screen_position(id, INTERACTIVE, viewport, margin, &profile),
+        top_left
+    );
+}
+
+#[test]
+fn hovered_widget_exposes_the_shared_foreground_controls() {
+    let context = eframe::egui::Context::default();
+    context.enable_accesskit();
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let output = context.run_ui(
+        eframe::egui::RawInput {
+            screen_rect: Some(viewport),
+            events: vec![eframe::egui::Event::PointerMoved(pos2(220.0, 180.0))],
+            ..Default::default()
+        },
+        |ui| {
+            manager.begin_widget_frame();
+            manager.finish_drag_only(
+                WidgetId::Session,
+                INTERACTIVE,
+                viewport,
+                24.0,
+                &mut profile,
+                vec2(240.0, 80.0),
+                pos2(200.0, 160.0),
+                false,
+                false,
+            );
+            let actions = manager.paint_widget_controls(ui.ctx(), viewport, &profile, |_, _| {});
+            assert!(actions.is_empty());
+        },
+    );
+    let labels = output
+        .platform_output
+        .accesskit_update
+        .expect("toolbar accessibility tree")
+        .nodes
+        .into_iter()
+        .filter_map(|(_, node)| node.label().map(str::to_owned))
+        .collect::<Vec<_>>();
+
+    assert!(labels.iter().any(|label| label == "Show in passive mode"));
+    assert!(labels.iter().any(|label| label == "Widget options"));
+    assert!(labels.iter().any(|label| label == "Disable widget"));
 }
 
 #[test]
@@ -222,10 +334,11 @@ fn content_height_widgets_keep_the_visible_top_left_after_resize_release() {
                 drag_delta: vec2(40.0, 80.0),
                 dragging: true,
                 drag_stopped: false,
+                drag_cancelled: false,
             },
         );
 
-        let save_requested = manager.finish_resizable_panel(
+        let release_save = manager.finish_resizable_panel(
             id,
             INTERACTIVE,
             viewport,
@@ -236,20 +349,135 @@ fn content_height_widgets_keep_the_visible_top_left_after_resize_release() {
             false,
             false,
             ResizeGripOutcome {
-                drag_delta: vec2(40.0, 80.0),
+                drag_delta: vec2(0.0, 0.0),
                 dragging: false,
                 drag_stopped: true,
+                drag_cancelled: false,
             },
         );
 
-        assert!(save_requested);
+        assert!(release_save);
         assert_eq!(profile.settings(id).width, 360.0);
         assert_eq!(profile.settings(id).height, 480.0);
-        assert_eq!(manager.measured_size(id, INTERACTIVE), rendered_size);
+        let fresh_manager = WidgetManager::default();
+        let restored = fresh_manager.screen_position(id, INTERACTIVE, viewport, margin, &profile);
+        assert!((restored.x - visible_top_left.x).abs() < 0.01);
+        assert!((restored.y - visible_top_left.y).abs() < 0.01);
+
+        let final_rendered_size = vec2(360.0, 220.0);
+        let settle_save = manager.finish_resizable_panel(
+            id,
+            INTERACTIVE,
+            viewport,
+            margin,
+            &mut profile,
+            final_rendered_size,
+            visible_top_left,
+            false,
+            false,
+            ResizeGripOutcome::default(),
+        );
+        assert!(!settle_save);
+        assert_eq!(manager.measured_size(id, INTERACTIVE), final_rendered_size);
         let next = manager.screen_position(id, INTERACTIVE, viewport, margin, &profile);
         assert!((next.x - visible_top_left.x).abs() < 0.01);
         assert!((next.y - visible_top_left.y).abs() < 0.01);
     }
+}
+
+#[test]
+fn horizontal_performance_resize_changes_width_without_persisting_height() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Performance;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0));
+    let top_left = pos2(200.0, 180.0);
+    profile.performance.width = 580.0;
+    profile.performance.height = 0.0;
+
+    manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(580.0, 120.0),
+        top_left,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(100.0, 80.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+    assert_eq!(profile.performance.width, 580.0);
+    assert_eq!(manager.resize.expect("active resize session").size.x, 680.0);
+
+    manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(680.0, 120.0),
+        top_left,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(10.0, 0.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+    assert_eq!(profile.performance.width, 580.0);
+    assert_eq!(manager.resize.expect("active resize session").size.x, 690.0);
+
+    let release_save = manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(690.0, 120.0),
+        top_left,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(0.0, 0.0),
+            dragging: false,
+            drag_stopped: true,
+            drag_cancelled: false,
+        },
+    );
+
+    assert!(release_save);
+    assert_eq!(profile.performance.width, 690.0);
+    assert_eq!(profile.performance.height, 0.0);
+    assert_eq!(
+        WidgetManager::default().screen_position(id, INTERACTIVE, viewport, 24.0, &profile),
+        top_left
+    );
+
+    let settle_save = manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(690.0, 96.0),
+        top_left,
+        false,
+        false,
+        ResizeGripOutcome::default(),
+    );
+    assert!(!settle_save);
+    assert_eq!(
+        manager.screen_position(id, INTERACTIVE, viewport, 24.0, &profile),
+        top_left
+    );
 }
 
 #[test]
@@ -282,6 +510,7 @@ fn manager_with_active_resize() -> (WidgetManager, WidgetProfile, Rect, eframe::
             drag_delta: vec2(24.0, 16.0),
             dragging: true,
             drag_stopped: false,
+            drag_cancelled: false,
         },
     );
     assert_eq!(
@@ -359,6 +588,75 @@ fn valid_interaction_keeps_an_active_resize() {
 }
 
 #[test]
+fn an_unrendered_resize_owner_is_cancelled_while_the_pointer_stays_down() {
+    let (mut manager, _, _, _) = manager_with_active_resize();
+
+    manager.begin_widget_frame();
+    manager.sync_interaction_state(INTERACTIVE, true, true);
+
+    assert!(manager.resize.is_none());
+}
+
+#[test]
+fn a_completed_resize_is_persisted_before_the_widget_can_disappear() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Notes;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0));
+    let anchor = pos2(300.0, 240.0);
+
+    manager.finish_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(360.0, 280.0),
+        anchor,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(60.0, 40.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+    let save_requested = manager.finish_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(360.0, 280.0),
+        anchor,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(0.0, 0.0),
+            dragging: false,
+            drag_stopped: true,
+            drag_cancelled: false,
+        },
+    );
+
+    assert!(save_requested);
+    assert_eq!(profile.notes.width, 420.0);
+    assert_eq!(profile.notes.height, 320.0);
+    manager.begin_widget_frame();
+    manager.sync_interaction_state(PASSIVE, true, false);
+    assert!(manager.resize.is_none());
+    assert_eq!(profile.notes.width, 420.0);
+    assert_eq!(profile.notes.height, 320.0);
+    assert!(
+        WidgetManager::default()
+            .screen_position(id, INTERACTIVE, viewport, 24.0, &profile)
+            .distance(anchor)
+            <= 0.01
+    );
+}
+
+#[test]
 fn common_drag_policy_is_interactive_and_game_scoped() {
     assert!(widget_draggable(INTERACTIVE, true));
     assert!(!widget_draggable(PASSIVE, true));
@@ -410,6 +708,176 @@ fn enabled_notes_widget_renders_a_measured_panel() {
     assert!(measured.y > 1.0);
 }
 
+#[test]
+fn joined_twitch_real_pointer_resize_survives_the_application_sync_order() {
+    let context = eframe::egui::Context::default();
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let mut twitch = TwitchWidgetState::default();
+    let prefs = TwitchPrefs {
+        active_channel: Some("playervox".to_owned()),
+        ..TwitchPrefs::default()
+    };
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(936.0, 748.0));
+    let margin = 24.0;
+    profile.twitch_chat.enabled = true;
+    profile.twitch_chat.width = 419.3;
+    profile.twitch_chat.height = 357.7;
+    profile.twitch_chat.position = WidgetPosition { x: 0.0, y: 0.0 };
+    twitch.apply_snapshot(
+        1,
+        Arc::new(TwitchSnapshot {
+            channel: Some("playervox".to_owned()),
+            connection: TwitchConnectionState::Joined,
+            authenticated_login: Some("viewer".to_owned()),
+            credentials_available: true,
+            client_configured: true,
+            ..TwitchSnapshot::default()
+        }),
+    );
+    let snapshot = CoreSnapshot {
+        active_game: Some(GameWindow {
+            pid: Some(42),
+            steam_app_id: Some(230_410),
+            app_id: Some("warframe.x64.exe".to_owned()),
+            title: "Warframe".to_owned(),
+            rect: GameRect {
+                x: 0,
+                y: 0,
+                width: 936,
+                height: 748,
+            },
+            scale: 1.25,
+            backend: "test".to_owned(),
+        }),
+        overlay_mode: INTERACTIVE,
+        ..CoreSnapshot::default()
+    };
+
+    let run_frame = |events: Vec<Event>,
+                     manager: &mut WidgetManager,
+                     profile: &mut WidgetProfile,
+                     twitch: &mut TwitchWidgetState| {
+        let save_requested = std::cell::Cell::new(false);
+        let _ = context.run_ui(
+            RawInput {
+                screen_rect: Some(viewport),
+                events,
+                ..RawInput::default()
+            },
+            |ui| {
+                manager.begin_widget_frame();
+                save_requested.set(
+                    manager
+                        .render_twitch(
+                            ui,
+                            &snapshot,
+                            twitch,
+                            &prefs,
+                            profile,
+                            Instant::now(),
+                            margin,
+                        )
+                        .save_requested,
+                );
+                let pointer_down = ui.input(|input| input.pointer.primary_down());
+                manager.sync_interaction_state(
+                    snapshot.overlay_mode,
+                    snapshot.active_game.is_some(),
+                    pointer_down,
+                );
+            },
+        );
+        save_requested.get()
+    };
+
+    run_frame(Vec::new(), &mut manager, &mut profile, &mut twitch);
+    run_frame(Vec::new(), &mut manager, &mut profile, &mut twitch);
+    let initial_top_left = manager.screen_position(
+        WidgetId::TwitchChat,
+        INTERACTIVE,
+        viewport,
+        margin,
+        &profile,
+    );
+    let measured = manager.measured_size(WidgetId::TwitchChat, INTERACTIVE);
+    let grip = initial_top_left + measured - vec2(8.0, 8.0);
+    assert!(!run_frame(
+        vec![
+            Event::PointerMoved(grip),
+            Event::PointerButton {
+                pos: grip,
+                button: PointerButton::Primary,
+                pressed: true,
+                modifiers: Default::default(),
+            },
+            Event::PointerMoved(grip + vec2(30.0, 20.0)),
+        ],
+        &mut manager,
+        &mut profile,
+        &mut twitch,
+    ));
+    assert!(!run_frame(
+        vec![Event::PointerMoved(grip + vec2(60.0, 40.0))],
+        &mut manager,
+        &mut profile,
+        &mut twitch,
+    ));
+    assert_eq!(
+        manager.screen_position(
+            WidgetId::TwitchChat,
+            INTERACTIVE,
+            viewport,
+            margin,
+            &profile,
+        ),
+        initial_top_left
+    );
+
+    let resize = manager.resize.expect("Twitch resize session");
+    assert_eq!(resize.size, vec2(479.3, 397.7));
+    assert_eq!(
+        manager.screen_position(
+            WidgetId::TwitchChat,
+            INTERACTIVE,
+            viewport,
+            margin,
+            &profile,
+        ),
+        initial_top_left
+    );
+
+    assert!(run_frame(
+        vec![Event::PointerButton {
+            pos: grip + vec2(90.0, 60.0),
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        }],
+        &mut manager,
+        &mut profile,
+        &mut twitch,
+    ));
+    assert_eq!(profile.twitch_chat.width, 509.3);
+    assert_eq!(profile.twitch_chat.height, 417.7);
+    assert!(!run_frame(
+        Vec::new(),
+        &mut manager,
+        &mut profile,
+        &mut twitch,
+    ));
+    assert_eq!(
+        manager.screen_position(
+            WidgetId::TwitchChat,
+            INTERACTIVE,
+            viewport,
+            margin,
+            &profile,
+        ),
+        initial_top_left
+    );
+}
+
 mod manual_stopwatch_integration_tests {
     use eframe::egui::{Rect, pos2, vec2};
     use overcrow_config::{WidgetId, WidgetPosition, WidgetProfile};
@@ -423,6 +891,7 @@ mod manual_stopwatch_integration_tests {
         let viewport = Rect::from_min_size(pos2(100.0, 200.0), vec2(800.0, 600.0));
         let size = vec2(200.0, 100.0);
         let margin = 24.0;
+        let initial_position = profile.manual_stopwatch.position;
 
         let save_while_dragging = manager.finish_drag_only(
             WidgetId::ManualStopwatch,
@@ -440,10 +909,7 @@ mod manual_stopwatch_integration_tests {
             manager.measured_size(WidgetId::ManualStopwatch, INTERACTIVE,),
             size
         );
-        assert_eq!(
-            profile.manual_stopwatch.position,
-            WidgetPosition { x: 0.5, y: 0.5 }
-        );
+        assert_eq!(profile.manual_stopwatch.position, initial_position);
         assert!(!save_while_dragging);
 
         let save_after_release = manager.finish_drag_only(
@@ -453,14 +919,14 @@ mod manual_stopwatch_integration_tests {
             margin,
             &mut profile,
             size,
-            pos2(676.0, 676.0),
+            pos2(400.0, 450.0),
             false,
             true,
         );
 
         assert_eq!(
             profile.manual_stopwatch.position,
-            WidgetPosition { x: 1.0, y: 1.0 }
+            WidgetPosition { x: 0.5, y: 0.5 }
         );
         assert!(save_after_release);
     }

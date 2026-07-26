@@ -25,7 +25,7 @@ use super::{
         parse_playback_status, select_player,
     },
 };
-use crate::widgets::{MediaControl, MediaPresentation};
+use crate::widgets::{ControlIcon, MediaControl, MediaPresentation};
 
 fn snapshot(bus_name: &str, status: MediaPlaybackStatus) -> MediaSnapshot {
     MediaSnapshot {
@@ -749,6 +749,7 @@ fn missing_player_and_passive_mode_are_read_only() {
     };
     let passive = MediaPresentation::new(&playing, OverlayMode::Passive);
     assert!(passive.controls.is_empty());
+    assert_eq!(passive.state_icon, Some(ControlIcon::Play));
 }
 
 #[test]
@@ -765,11 +766,13 @@ fn interactive_presentation_exposes_only_supported_controls() {
         presentation.controls,
         vec![
             MediaControl {
-                label: "Play",
+                icon: ControlIcon::Play,
+                accessible_label: "Play",
                 action: MediaAction::PlayPause,
             },
             MediaControl {
-                label: "Next",
+                icon: ControlIcon::Next,
+                accessible_label: "Next",
                 action: MediaAction::Next,
             },
         ]

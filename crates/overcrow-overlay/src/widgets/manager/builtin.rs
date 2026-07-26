@@ -48,8 +48,9 @@ impl WidgetManager {
                 profile,
             ),
             clock.elapsed_at(now),
+            profile.settings(WidgetId::Session).scale,
             profile.settings(WidgetId::Session).transparent_background,
-            session_draggable(snapshot),
+            self.interaction_enabled && session_draggable(snapshot),
             margin,
         );
         self.request_repaint_if_size_changed(
@@ -97,8 +98,11 @@ impl WidgetManager {
                 margin,
                 profile,
             ),
+            profile.clock_display.show_date,
+            profile.settings(WidgetId::Clock).scale,
             profile.settings(WidgetId::Clock).transparent_background,
-            widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some()),
+            self.interaction_enabled
+                && widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some()),
             margin,
         );
         self.request_repaint_if_size_changed(
@@ -137,30 +141,39 @@ impl WidgetManager {
         }
 
         let viewport = ui.max_rect();
+        let id = WidgetId::Performance;
+        let position = self.screen_position(id, snapshot.overlay_mode, viewport, margin, profile);
+        let measured = self.measured_size(id, snapshot.overlay_mode);
+        let expected_size = if measured.x > 1.0 && measured.y > 1.0 {
+            measured
+        } else {
+            egui::vec2(profile.settings(id).width.max(580.0), 160.0)
+        };
+        let can_move = self.can_move_panel(
+            ui,
+            id,
+            snapshot.overlay_mode,
+            snapshot.active_game.is_some(),
+            position,
+            expected_size,
+        );
+        let interactive = self.interaction_enabled
+            && widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some());
         let response = paint_performance(
             ui,
-            self.screen_position(
-                WidgetId::Performance,
-                snapshot.overlay_mode,
-                viewport,
-                margin,
-                profile,
-            ),
+            position,
             snapshot.telemetry,
-            profile
-                .settings(WidgetId::Performance)
-                .transparent_background,
-            widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some()),
+            profile.performance_display.layout,
+            profile.settings(id).scale,
+            profile.settings(id).width,
+            profile.settings(id).transparent_background,
+            can_move,
+            interactive,
             margin,
         );
-        self.request_repaint_if_size_changed(
-            ui,
-            WidgetId::Performance,
-            snapshot.overlay_mode,
-            response.size,
-        );
-        self.finish_drag_only(
-            WidgetId::Performance,
+        self.request_repaint_if_size_changed(ui, id, snapshot.overlay_mode, response.size);
+        self.finish_width_resizable_panel(
+            id,
             snapshot.overlay_mode,
             viewport,
             margin,
@@ -169,6 +182,7 @@ impl WidgetManager {
             response.position,
             response.dragged,
             response.drag_stopped,
+            response.resize,
         )
     }
 
@@ -206,10 +220,13 @@ impl WidgetManager {
             clock.elapsed_at(now),
             clock.running(),
             snapshot.overlay_mode,
+            profile.settings(WidgetId::ManualStopwatch).scale,
             profile
                 .settings(WidgetId::ManualStopwatch)
                 .transparent_background,
-            widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some()),
+            self.interaction_enabled
+                && widget_draggable(snapshot.overlay_mode, snapshot.active_game.is_some()),
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(
@@ -266,11 +283,13 @@ impl WidgetManager {
             ),
             media_snapshot,
             core_snapshot.overlay_mode,
+            profile.settings(WidgetId::Media).scale,
             profile.settings(WidgetId::Media).transparent_background,
             widget_draggable(
                 core_snapshot.overlay_mode,
                 core_snapshot.active_game.is_some(),
-            ),
+            ) && self.interaction_enabled,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(
@@ -338,6 +357,7 @@ impl WidgetManager {
             core_snapshot.overlay_mode,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
@@ -404,6 +424,7 @@ impl WidgetManager {
             core_snapshot.overlay_mode,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
             now,
         );

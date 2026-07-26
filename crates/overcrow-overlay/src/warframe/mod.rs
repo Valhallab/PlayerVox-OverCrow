@@ -20,6 +20,7 @@ pub use activity_keys::{
     archon_mission_keys, current_activity_done_keys, invasion_done_key, sortie_mission_keys,
 };
 pub use clipboard::copy_text as copy_to_clipboard;
+pub(crate) use controller::WarframeActionBatch;
 pub use controller::WarframeController;
 pub use derived::{InvasionCompactLabel, WarframeDerivedCache};
 pub use gate::{

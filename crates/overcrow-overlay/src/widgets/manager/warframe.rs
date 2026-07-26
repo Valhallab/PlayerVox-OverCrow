@@ -64,11 +64,12 @@ impl WidgetManager {
             now_secs,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
         WarframeStatusRenderOutcome {
-            save_requested: self.finish_resizable_panel(
+            save_requested: self.finish_width_resizable_panel(
                 id,
                 core_snapshot.overlay_mode,
                 viewport,
@@ -133,6 +134,7 @@ impl WidgetManager {
             now_secs,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
@@ -200,6 +202,7 @@ impl WidgetManager {
             core_snapshot.overlay_mode,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
@@ -267,6 +270,7 @@ impl WidgetManager {
             now_secs,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
@@ -294,7 +298,6 @@ impl WidgetManager {
         core_snapshot: &CoreSnapshot,
         worldstate: &WorldstateSnapshot,
         invasion_indices: &[usize],
-        reward_catalog: &[(String, String)],
         derived_cache: &mut WarframeDerivedCache,
         worldstate_revision: u64,
         prefs_revision: u64,
@@ -333,7 +336,6 @@ impl WidgetManager {
             panel_size,
             &worldstate.invasions,
             invasion_indices,
-            reward_catalog,
             derived_cache,
             worldstate_revision,
             prefs_revision,
@@ -342,6 +344,7 @@ impl WidgetManager {
             core_snapshot.overlay_mode,
             profile.settings(id).transparent_background,
             can_move,
+            self.interaction_enabled,
             margin,
         );
         self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);

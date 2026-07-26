@@ -25,7 +25,7 @@ use super::{
     },
 };
 use crate::runtime::{OverlayScheduler, ProviderReadiness, VersionedValue};
-use crate::widgets::WidgetManager;
+use crate::widgets::{StatusPrefsAction, WidgetManager};
 
 fn snapshot(mode: OverlayMode, steam_app_id: u32) -> CoreSnapshot {
     CoreSnapshot {
@@ -115,6 +115,7 @@ fn controller_exposes_the_orchestration_interface() {
         &CoreSnapshot,
         &mut WidgetProfile,
         f32,
+        bool,
     ) -> bool = WarframeController::render;
 }
 
@@ -377,6 +378,25 @@ fn warframe_actions_require_an_interactive_active_warframe() {
         ..CoreSnapshot::default()
     };
     assert!(!warframe_actions_allowed(&no_game));
+}
+
+#[test]
+fn catalog_warframe_actions_reuse_authorization_and_durable_store() {
+    let (directory, mut controller) = test_controller();
+    let interactive = snapshot(OverlayMode::Interactive, WARFRAME_STEAM_APP_ID);
+    let mut batch = WarframeActionBatch::default();
+    batch.status.push(StatusPrefsAction::ToggleSeconds);
+
+    controller.apply_catalog_actions(&interactive, batch);
+
+    assert!(!controller.prefs.show_status_seconds);
+    assert!(directory.path().join("warframe.json").is_file());
+
+    let mut rejected = WarframeActionBatch::default();
+    rejected.status.push(StatusPrefsAction::ToggleSeconds);
+    let passive = snapshot(OverlayMode::Passive, WARFRAME_STEAM_APP_ID);
+    controller.apply_catalog_actions(&passive, rejected);
+    assert!(!controller.prefs.show_status_seconds);
 }
 
 #[test]
