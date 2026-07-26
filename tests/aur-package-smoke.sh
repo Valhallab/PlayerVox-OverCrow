@@ -13,9 +13,9 @@ test -f "$install_hook"
 
 grep -Fqx '# Maintainer: Valhallab <contact at valhallab dot com>' "$pkgbuild"
 grep -Fqx 'pkgname=overcrow-bin' "$pkgbuild"
-grep -Fqx 'pkgver=0.1.0prealpha2' "$pkgbuild"
+grep -Fqx 'pkgver=0.1.0prealpha3' "$pkgbuild"
 grep -Fqx 'pkgrel=1' "$pkgbuild"
-grep -Fqx '_release=v0.1.0-pre-alpha.2' "$pkgbuild"
+grep -Fqx '_release=v0.1.0-pre-alpha.3' "$pkgbuild"
 grep -Fqx "arch=('x86_64')" "$pkgbuild"
 grep -Fqx "license=('AGPL-3.0-only')" "$pkgbuild"
 grep -Fqx "provides=('overcrow')" "$pkgbuild"
@@ -25,19 +25,19 @@ grep -Fqx 'install=overcrow.install' "$pkgbuild"
 grep -Fqx "url='https://github.com/Valhallab/PlayerVox-OverCrow'" "$pkgbuild"
 grep -Fq "\${url}/releases/download/\${_release}/" "$pkgbuild"
 grep -Fq \
-    '06f095e613af4ac06191e18ad847a06085b443a8f98ded852b5e9be67b8cdaef' \
+    'db7f9f401f793ebf950a9ab34fe704013d452c05158baa9836b34f5527a87ee0' \
     "$pkgbuild"
 grep -Fq "bsdtar -xf \"\$srcdir/\$_source\"" "$pkgbuild"
 
 grep -Fqx 'pkgbase = overcrow-bin' "$srcinfo"
-grep -Fq 'pkgver = 0.1.0prealpha2' "$srcinfo"
+grep -Fq 'pkgver = 0.1.0prealpha3' "$srcinfo"
 grep -Fq 'pkgrel = 1' "$srcinfo"
 grep -Fqx '	depends = libayatana-appindicator' "$srcinfo"
 grep -Fq \
-    'github.com/Valhallab/PlayerVox-OverCrow/releases/download/v0.1.0-pre-alpha.2/' \
+    'github.com/Valhallab/PlayerVox-OverCrow/releases/download/v0.1.0-pre-alpha.3/' \
     "$srcinfo"
 grep -Fq \
-    '06f095e613af4ac06191e18ad847a06085b443a8f98ded852b5e9be67b8cdaef' \
+    'db7f9f401f793ebf950a9ab34fe704013d452c05158baa9836b34f5527a87ee0' \
     "$srcinfo"
 
 cmp "$project_root/packaging/arch/overcrow.install" "$install_hook"
