@@ -3617,6 +3617,7 @@ dependencies = [
  "overcrow-control",
  "tauri",
  "tauri-build",
+ "tempfile",
  "zbus",
 ]
 
