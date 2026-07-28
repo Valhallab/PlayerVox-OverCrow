@@ -8,7 +8,7 @@ export function snapshot(
   overrides: Partial<ControlSnapshot> = {},
 ): ControlSnapshot {
   return {
-    schema_version: 1,
+    schema_version: 2,
     compatibility: {
       operating_system: 'Arch Linux',
       session: 'wayland',
@@ -16,6 +16,7 @@ export function snapshot(
       status: 'supported',
       reason: 'hyprland_wayland',
       activation_allowed: true,
+      graphics: ['intel', 'nvidia'],
     },
     lifecycle: 'disabled',
     master_switch_enabled: true,

@@ -6,7 +6,7 @@ use super::{
     handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
     paint_control_notices, paint_overlay_version, paint_widget_catalog, settings_failure_target,
     stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate, viewport_builder,
-    viewport_update_changed, widget_actions_allowed,
+    viewport_update_changed, widget_actions_allowed, x11_scale_changed,
 };
 use crate::{
     branding::{BrandAssets, install_fonts},
@@ -1084,7 +1084,7 @@ fn x11_viewport_requests_the_portable_always_on_top_hint() {
 #[test]
 fn snapshot_update_tracks_game_geometry_and_input_mode() {
     assert_eq!(
-        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true),
+        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true, 1.0),
         ViewportUpdate {
             mouse_passthrough: true,
             position: Some([100.0, 200.0]),
@@ -1092,14 +1092,15 @@ fn snapshot_update_tracks_game_geometry_and_input_mode() {
         }
     );
     assert!(
-        !ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), true).mouse_passthrough
+        !ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), true, 1.0)
+            .mouse_passthrough
     );
 }
 
 #[test]
 fn missing_core_authority_forces_passthrough_without_stale_geometry() {
     assert_eq!(
-        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), false),
+        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Interactive), false, 1.0),
         ViewportUpdate {
             mouse_passthrough: true,
             position: None,
@@ -1122,7 +1123,7 @@ fn wayland_snapshot_leaves_geometry_to_the_compositor_bridge() {
     wayland.active_game.as_mut().expect("active game").backend = "wayland".to_owned();
 
     assert_eq!(
-        ViewportUpdate::from_snapshot(&wayland, true),
+        ViewportUpdate::from_snapshot(&wayland, true, 2.0),
         ViewportUpdate {
             mouse_passthrough: false,
             position: None,
@@ -1140,8 +1141,44 @@ fn elapsed_time_updates_do_not_reconfigure_the_viewport() {
     assert!(!viewport_update_changed(
         &previous,
         true,
-        &ViewportUpdate::from_snapshot(&current, true)
+        1.0,
+        &ViewportUpdate::from_snapshot(&current, true, 1.0)
     ));
+}
+
+#[test]
+fn x11_physical_geometry_is_converted_to_egui_points() {
+    assert_eq!(
+        ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true, 2.0),
+        ViewportUpdate {
+            mouse_passthrough: true,
+            position: Some([50.0, 100.0]),
+            size: Some([960.0, 540.0]),
+        }
+    );
+}
+
+#[test]
+fn invalid_scale_falls_back_to_one_without_affecting_wayland() {
+    for invalid in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        assert_eq!(
+            ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true, invalid),
+            ViewportUpdate::from_snapshot(&snapshot(OverlayMode::Passive), true, 1.0)
+        );
+    }
+}
+
+#[test]
+fn x11_geometry_is_reapplied_only_after_a_real_scale_change() {
+    let x11 = snapshot(OverlayMode::Passive);
+    assert!(x11_scale_changed(None, 2.0, &x11, true));
+    assert!(!x11_scale_changed(Some(2.0), 2.0, &x11, true));
+    assert!(x11_scale_changed(Some(1.0), 2.0, &x11, true));
+    assert!(!x11_scale_changed(Some(1.0), 2.0, &x11, false));
+
+    let mut wayland = x11;
+    wayland.active_game.as_mut().expect("active game").backend = "wayland".to_owned();
+    assert!(!x11_scale_changed(Some(1.0), 2.0, &wayland, true));
 }
 
 #[test]
@@ -1301,6 +1338,7 @@ fn stale_interactive_after_escape_keeps_the_safe_interactive_surface() {
     let update = state.apply_snapshot(
         SnapshotUpdate::confirmed(snapshot(OverlayMode::Interactive), false),
         true,
+        1.0,
     );
 
     assert!(state.passive_pending());
@@ -1314,7 +1352,11 @@ fn unconfirmed_failure_snapshot_does_not_release_the_escape_latch() {
     let expected = state.snapshot().clone();
     state.begin_passive_request();
 
-    let update = state.apply_snapshot(SnapshotUpdate::unconfirmed(CoreSnapshot::default()), true);
+    let update = state.apply_snapshot(
+        SnapshotUpdate::unconfirmed(CoreSnapshot::default()),
+        true,
+        1.0,
+    );
 
     assert!(state.passive_pending());
     assert_eq!(state.snapshot(), &expected);
@@ -1329,6 +1371,7 @@ fn confirmed_passive_releases_the_escape_latch() {
     state.apply_snapshot(
         SnapshotUpdate::confirmed(snapshot(OverlayMode::Passive), true),
         true,
+        1.0,
     );
 
     assert!(!state.passive_pending());
@@ -1342,11 +1385,13 @@ fn interactive_can_reactivate_after_a_confirmed_passive() {
     state.apply_snapshot(
         SnapshotUpdate::confirmed(snapshot(OverlayMode::Passive), true),
         true,
+        1.0,
     );
 
     let update = state.apply_snapshot(
         SnapshotUpdate::confirmed(snapshot(OverlayMode::Interactive), false),
         true,
+        1.0,
     );
 
     assert_eq!(state.snapshot().overlay_mode, OverlayMode::Interactive);

@@ -17,6 +17,7 @@ pub mod telemetry;
 mod telemetry_tests;
 pub mod window;
 pub mod x11;
+mod x11_shortcut;
 
 pub use classifier::{
     ProcessClassification, ProcessIdentity, ProcessInfo, ProcessResources, ProcessTiming,
@@ -32,7 +33,7 @@ pub use runtime::{
 };
 pub use service::{
     CoreService, WIDGET_SETTINGS_REFRESH_INTERVAL, WINDOW_POLL_INTERVAL, apply_window_observation,
-    poll_window_once, run_widget_settings_refresh, run_window_polling, should_use_x11_source,
+    poll_window_once, run_widget_settings_refresh, run_window_polling,
 };
 pub use session::{
     AppliedState, CommandFuture, CommandRunner, DesktopSession, SESSION_SHUTDOWN_TIMEOUT,
@@ -51,3 +52,4 @@ pub use telemetry::TelemetrySampler;
 pub(crate) use telemetry::collect_process_sample;
 pub use window::{NoopWindowSource, WindowObservation, WindowSource};
 pub use x11::X11WindowSource;
+pub use x11_shortcut::X11ShortcutProvider;

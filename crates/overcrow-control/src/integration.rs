@@ -9,6 +9,7 @@ use std::{
 };
 
 const INTEGRATION_ARGUMENTS: &[&str] = &["enable"];
+const MAX_DISPLAY_SESSION_BYTES: usize = 32;
 pub(crate) const INTEGRATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const COMMAND_GROUP_TERM_GRACE: Duration = Duration::from_millis(100);
@@ -30,31 +31,58 @@ impl IntegrationCommandRunner for SystemIntegrationCommandRunner {
     }
 }
 
+enum IntegrationTarget {
+    NotRequired,
+    Helper(PathBuf),
+}
+
 pub struct IntegrationController {
-    helper: PathBuf,
+    target: IntegrationTarget,
     runner: Arc<dyn IntegrationCommandRunner>,
 }
 
 impl IntegrationController {
     pub fn from_current_process() -> Result<Self, String> {
+        let compositor_required =
+            compositor_integration_required(env::var("XDG_SESSION_TYPE").ok().as_deref())?;
+        if !compositor_required {
+            return Ok(Self {
+                target: IntegrationTarget::NotRequired,
+                runner: Arc::new(SystemIntegrationCommandRunner),
+            });
+        }
         let executable = env::current_exe()
             .and_then(fs::canonicalize)
             .map_err(|error| format!("could not identify the installed control binary: {error}"))?;
         let home = env::var_os("HOME").map(PathBuf::from);
         let helper = trusted_helper_path(&executable, home.as_deref())?;
         validate_helper(&helper)?;
-        Ok(Self::injected(
-            helper,
-            Arc::new(SystemIntegrationCommandRunner),
-        ))
+        Ok(Self {
+            target: IntegrationTarget::Helper(helper),
+            runner: Arc::new(SystemIntegrationCommandRunner),
+        })
     }
 
     pub fn injected(helper: PathBuf, runner: Arc<dyn IntegrationCommandRunner>) -> Self {
-        Self { helper, runner }
+        Self {
+            target: IntegrationTarget::Helper(helper),
+            runner,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn injected_without_compositor(runner: Arc<dyn IntegrationCommandRunner>) -> Self {
+        Self {
+            target: IntegrationTarget::NotRequired,
+            runner,
+        }
     }
 
     pub fn ensure_ready(&self) -> Result<(), String> {
-        self.runner.run(&self.helper, INTEGRATION_ARGUMENTS)
+        match &self.target {
+            IntegrationTarget::NotRequired => Ok(()),
+            IntegrationTarget::Helper(helper) => self.runner.run(helper, INTEGRATION_ARGUMENTS),
+        }
     }
 }
 
@@ -62,6 +90,20 @@ impl IntegrationSetup for IntegrationController {
     fn ensure_ready(&self) -> Result<(), String> {
         Self::ensure_ready(self)
     }
+}
+
+pub(crate) fn compositor_integration_required(session_type: Option<&str>) -> Result<bool, String> {
+    let session_type = session_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= MAX_DISPLAY_SESSION_BYTES)
+        .ok_or_else(|| "display session is missing or invalid".to_owned())?;
+    if session_type.eq_ignore_ascii_case("x11") {
+        return Ok(false);
+    }
+    if session_type.eq_ignore_ascii_case("wayland") {
+        return Ok(true);
+    }
+    Err("display session is unsupported".to_owned())
 }
 
 pub fn trusted_helper_path(executable: &Path, home: Option<&Path>) -> Result<PathBuf, String> {

@@ -17,7 +17,8 @@ pub use app::{
 pub use commands::ControlCommandService;
 pub use compatibility::{
     CompatibilityReason, CompatibilityReport, CompatibilityStatus, DesktopEnvironment,
-    DisplaySession, EnvironmentIdentity, MAX_ENVIRONMENT_LABEL_BYTES,
+    DisplaySession, EnvironmentIdentity, GraphicsVendor, MAX_ENVIRONMENT_LABEL_BYTES,
+    detect_current_graphics_vendors, detect_graphics_vendors,
 };
 pub use diagnostics::{
     Availability, DiagnosticInput, DiagnosticItem, DiagnosticReport, Level, PortalPickerInput,

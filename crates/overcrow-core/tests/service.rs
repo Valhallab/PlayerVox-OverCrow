@@ -10,7 +10,6 @@ use overcrow_core::{
     BRIDGE_WATCHDOG_INTERVAL, CoreRuntime, CoreService, OVERLAY_APP_ID, PROCESS_REFRESH_INTERVAL,
     ProcessInfo, ProcessTiming, WINDOW_POLL_INTERVAL, WindowObservation, WindowSource,
     apply_window_observation, poll_window_once, run_bridge_watchdog, run_process_refresh,
-    should_use_x11_source,
 };
 use overcrow_protocol::{
     CoreSnapshot, CoreState, GameWindow, OverlayMode, Rect, VersionedCoreSnapshot,
@@ -812,6 +811,32 @@ async fn report_window_creates_a_normalized_wayland_game() {
 }
 
 #[tokio::test]
+async fn x11_authority_ignores_stale_wayland_bridge_mutations() {
+    let runtime = active_runtime().await;
+    let service = CoreService::with_runtime(runtime.clone()).with_bridge_reports_allowed(false);
+    let expected = runtime.snapshot().await;
+
+    let reported: CoreSnapshot = serde_json::from_str(
+        &service
+            .report_window(99, "Stale", "stale", 0, 0, 800, 600, "1")
+            .await
+            .expect("ignored bridge report should serialize"),
+    )
+    .expect("valid snapshot JSON");
+    let cleared: CoreSnapshot = serde_json::from_str(
+        &service
+            .clear_window()
+            .await
+            .expect("ignored bridge clear should serialize"),
+    )
+    .expect("valid snapshot JSON");
+
+    assert_eq!(reported, expected);
+    assert_eq!(cleared, expected);
+    assert_eq!(runtime.snapshot().await, expected);
+}
+
+#[tokio::test]
 async fn x11_observation_is_classified_before_becoming_active() {
     let state = Arc::new(RwLock::new(CoreState::default()));
     let runtime = CoreRuntime::with_settings(
@@ -901,14 +926,6 @@ fn polling_uses_the_required_cadence() {
 fn process_refresh_and_bridge_watchdog_have_independent_tasks() {
     let _ = run_process_refresh;
     let _ = run_bridge_watchdog;
-}
-
-#[test]
-fn only_x11_sessions_use_a_local_window_source() {
-    assert!(should_use_x11_source(Some("x11")));
-    assert!(should_use_x11_source(Some("X11")));
-    assert!(!should_use_x11_source(Some("wayland")));
-    assert!(!should_use_x11_source(None));
 }
 
 fn sample_observation(app_id: &str) -> WindowObservation {

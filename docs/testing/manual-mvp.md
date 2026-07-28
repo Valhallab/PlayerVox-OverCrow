@@ -141,6 +141,9 @@ must still begin as `Passive`.
    the D-Bus name has an owner, the diagnostic classifies both
    `_NET_SUPPORTING_WM_CHECK` and `_NET_ACTIVE_WINDOW` through bounded `xprop`
    probes, and the renderer process is reported after launching OverCrow.
+   Enabling OverCrow in this session must not install or update a Hyprland or
+   KWin integration. This applies to Plasma X11, XFCE X11, and other EWMH
+   desktops.
 
 2. **Verify process and window classification.** Start the Steam/Proton game in
    windowed or borderless mode, launch OverCrow, focus the game, wait at least
@@ -165,9 +168,10 @@ must still begin as `Passive`.
    evidence: the stopwatch panel is visible near the game's top-left corner,
    the rest of the overlay is transparent, the game is not replaced by a black
    window, and the overlay follows the reported game position and size. Capture
-   one screenshot per mode. The X11 source currently reports a fixed scale of
-   `1.0`; this checklist has not validated live X11 HiDPI or mixed-DPI
-   placement, so a non-HiDPI result must not be treated as that validation.
+   one screenshot per mode. Repeat on a HiDPI display and, when available, move
+   the game between displays with different scales. The overlay must continue
+   to match the game's physical bounds without a resize loop or a persistent
+   one-frame offset.
 
 4. **Verify passive click-through.** Run:
 
@@ -192,14 +196,22 @@ must still begin as `Passive`.
    toggle` again and confirm the mode and click-through both return to
    `Passive`.
 
-6. **Verify the Escape fail-safe.** Enter interactive mode with `overcrowctl
+6. **Verify native shortcut ownership.** With the game focused, confirm
+   `Meta+Alt+O` toggles the overlay once per key press with Caps Lock and Num
+   Lock both on and off. Hold the shortcut briefly and confirm key repeat does
+   not toggle repeatedly. Focus an unrelated application and confirm the same
+   shortcut is no longer owned by OverCrow. If another X11 client already owns
+   the shortcut, `Shortcut availability` must report it unavailable without
+   replacing or bypassing that binding.
+
+7. **Verify the Escape fail-safe.** Enter interactive mode with `overcrowctl
    interactive`, click the overlay so it has keyboard focus, and press Escape.
    Expected evidence from `overcrowctl status`: the mode promptly becomes
    `Passive`, and clicks reach the underlying target again. If Escape cannot be
    delivered because another window owns keyboard focus, first focus the
    interactive overlay; that is a test setup issue, not a passing result.
 
-7. **Verify game exit fails closed.** Enter interactive mode, then quit the game
+8. **Verify game exit fails closed.** Enter interactive mode, then quit the game
    normally. Within the next process/window polling cycle, run `overcrowctl
    status`. Expected evidence: `active_game` is `null`, the mode is `Passive`,
    the stopwatch panel disappears, and no invisible window traps mouse input.
@@ -213,7 +225,7 @@ must still begin as `Passive`.
    X server; the fake-backend regression tests do not validate EWMH delivery,
    real `BadWindow` replies, or compositor map-state behavior.
 
-8. **Verify daemon restart and renderer reconnection.** Start and focus the game
+9. **Verify daemon restart and renderer reconnection.** Start and focus the game
    again, ensure the overlay is passive, then run:
 
    ```sh

@@ -13,10 +13,9 @@ be considered equally mature.
 | --- | --- | --- |
 | Hyprland 0.55+ Wayland | **Supported** | Primary Arch/Omarchy target; native Wayland and XWayland games. |
 | Plasma 6 Wayland | **Support validation in progress** | KWin bridge is implemented; broader hardware testing is needed. |
-| Generic X11/EWMH | **Experimental — for now** | Window tracking works; shortcuts, HiDPI, and desktop integration need more validation. |
+| Generic X11/EWMH (including Plasma and XFCE) | **Experimental — for now** | Window tracking works without a Wayland bridge; shortcuts, HiDPI, and desktop-specific behavior need more validation. |
 | GNOME Wayland | **Not compatible — for now** | Requires a dedicated GNOME Shell/Mutter bridge. |
 | Sway Wayland | **Not compatible — for now** | Requires a dedicated Sway IPC and layer-shell bridge. |
-| XFCE X11 | **Not compatible — for now** | Expected to build on the X11 backend after dedicated validation. |
 | Gamescope / Steam Deck Game Mode | **Not compatible — for now** | No nested-compositor integration yet. |
 | Other Wayland compositors | **Not compatible — for now** | A transparent window alone cannot provide safe placement and input control. |
 

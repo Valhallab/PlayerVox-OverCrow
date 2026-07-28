@@ -1,9 +1,6 @@
-use std::{
-    fs::{self, File},
-    io::Read,
-    path::Path,
-};
+use std::path::Path;
 
+use overcrow_control::{GraphicsVendor, detect_graphics_vendors};
 #[cfg(not(test))]
 use std::{env, os::unix::process::CommandExt, process::Command};
 
@@ -25,11 +22,8 @@ use overcrow_control::run_settings_diagnostic_request;
 #[cfg(not(test))]
 use tauri::WindowEvent;
 
-const NVIDIA_PCI_VENDOR: &[u8] = b"0x10de\n";
 #[cfg(not(test))]
 const PCI_DEVICES_PATH: &str = "/sys/bus/pci/devices";
-const MAX_PCI_DEVICES: usize = 4_096;
-const MAX_PCI_VENDOR_BYTES: u64 = 16;
 #[cfg(not(test))]
 const WEBKIT_DMABUF_VARIABLE: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 
@@ -42,29 +36,7 @@ fn should_restart_with_safe_webkit_renderer(
 }
 
 fn nvidia_pci_device_present(root: &Path) -> bool {
-    let Ok(devices) = fs::read_dir(root) else {
-        return false;
-    };
-    devices
-        .take(MAX_PCI_DEVICES)
-        .filter_map(Result::ok)
-        .any(|device| vendor_file_is_nvidia(&device.path().join("vendor")))
-}
-
-fn vendor_file_is_nvidia(path: &Path) -> bool {
-    let Ok(file) = File::open(path) else {
-        return false;
-    };
-    let mut vendor = Vec::with_capacity(NVIDIA_PCI_VENDOR.len());
-    if file
-        .take(MAX_PCI_VENDOR_BYTES + 1)
-        .read_to_end(&mut vendor)
-        .is_err()
-        || vendor.len() as u64 > MAX_PCI_VENDOR_BYTES
-    {
-        return false;
-    }
-    vendor == NVIDIA_PCI_VENDOR || vendor == b"0x10de"
+    detect_graphics_vendors(root).contains(&GraphicsVendor::Nvidia)
 }
 
 #[cfg(not(test))]
@@ -181,9 +153,11 @@ mod startup_tests {
         let nvidia = root.path().join("0000:02:00.0");
         fs::create_dir(&amd).expect("AMD fixture directory should be created");
         fs::create_dir(&nvidia).expect("NVIDIA fixture directory should be created");
+        fs::write(amd.join("class"), b"0x030000\n").expect("AMD class should be written");
         fs::write(amd.join("vendor"), b"0x1002\n").expect("AMD fixture should be written");
         assert!(!nvidia_pci_device_present(root.path()));
 
+        fs::write(nvidia.join("class"), b"0x030000\n").expect("NVIDIA class should be written");
         fs::write(nvidia.join("vendor"), b"0x10de\n").expect("NVIDIA fixture should be written");
         assert!(nvidia_pci_device_present(root.path()));
     }

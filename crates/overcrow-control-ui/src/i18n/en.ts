@@ -64,8 +64,6 @@ export const en = {
       'Sway support needs a dedicated, reviewed compositor bridge before it can be enabled.',
     gamescope_session:
       'Gamescope sessions cannot currently guarantee OverCrow’s placement and close path.',
-    xfce_x11:
-      'XFCE integration is not validated yet and remains disabled for safety.',
     other_wayland:
       'This Wayland compositor needs a dedicated, reviewed bridge before it can be enabled.',
     ambiguous_desktop:
@@ -73,6 +71,14 @@ export const en = {
     unknown_session:
       'The active display session could not be identified reliably.',
     detected: 'Detected environment',
+    graphics: 'Graphics',
+    graphicsUnavailable: 'hardware unavailable',
+    graphicsVendors: {
+      amd: 'AMD',
+      intel: 'Intel',
+      nvidia: 'NVIDIA',
+      other: 'Other vendor',
+    },
     desktops: {
       hyprland: 'Hyprland',
       plasma: 'KDE Plasma',

@@ -55,12 +55,16 @@ fn snapshot_projects_authority_as_bounded_presentation_data() {
 
     let snapshot = controller.snapshot();
 
-    assert_eq!(snapshot.schema_version, 1);
+    assert_eq!(
+        snapshot.schema_version,
+        crate::CONTROL_SNAPSHOT_SCHEMA_VERSION
+    );
     assert_eq!(
         snapshot.compatibility.status,
         CompatibilityStatus::Supported
     );
     assert!(snapshot.compatibility.activation_allowed);
+    assert!(snapshot.compatibility.graphics.is_empty());
     assert_eq!(snapshot.games.len(), 1);
     assert_eq!(snapshot.games[0].app_id, 4242);
     assert_eq!(snapshot.games[0].name, "Example Game");
@@ -100,6 +104,7 @@ fn serialized_enums_are_stable_language_neutral_codes() {
     assert_eq!(json["compatibility"]["status"], "supported");
     assert_eq!(json["compatibility"]["desktop"], "hyprland");
     assert_eq!(json["compatibility"]["reason"], "hyprland_wayland");
+    assert_eq!(json["compatibility"]["graphics"], serde_json::json!([]));
     assert_eq!(json["lifecycle"], "disabled");
 }
 

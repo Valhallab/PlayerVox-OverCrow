@@ -14,6 +14,7 @@ overcrow-config = { path = "../overcrow-config" }
 overcrow-logging = { path = "../overcrow-logging" }
 overcrow-protocol = { path = "../overcrow-protocol" }
 procfs = "0.18"
+rustix = { version = "1", features = ["fs", "net"] }
 serde_json.workspace = true
 tokio.workspace = true
 x11rb = "=0.13.2"

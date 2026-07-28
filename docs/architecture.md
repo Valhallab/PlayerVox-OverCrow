@@ -56,12 +56,25 @@ result through bounded channels and never block the egui thread.
 - **Plasma 6 Wayland:** the KWin script reports active-window geometry and keeps
   overlay windows borderless, above the game, and out of desktop switchers.
 - **X11:** Core uses EWMH active-window and geometry information; the overlay
-  requests the portable always-on-top hint.
+  requests the portable always-on-top hint. The Control Center does not install
+  or invoke a compositor bridge, and Core rejects bridge window reports so a
+  KWin integration left from another login cannot replace EWMH authority.
 
 Every backend must provide the full identity, placement, focus, input, and
 cleanup contract. Generic Wayland is therefore not supported. Invalid, stale,
 or ambiguous compositor state clears the active game and forces passive input
 passthrough.
+
+X11 uses a native passive key grab only while Core reports an authorized active
+game. A conflicting grab fails closed and every shutdown path releases owned
+keys. Wayland continues to use the desktop portal. EWMH geometry remains in
+physical pixels; the renderer converts it with its current native window scale
+and reapplies placement after a scale transition.
+
+The Control Center discovers graphics adapters through bounded, read-only PCI
+metadata. It reports only normalized vendor classes in the local compatibility
+view. Graphics hardware does not independently authorize activation, and raw
+device metadata is neither logged nor submitted.
 
 ## Persistence
 

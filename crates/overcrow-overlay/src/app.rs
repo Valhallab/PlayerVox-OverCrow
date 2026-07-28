@@ -62,7 +62,7 @@ struct ViewportUpdate {
 }
 
 impl ViewportUpdate {
-    fn from_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> Self {
+    fn from_snapshot(snapshot: &CoreSnapshot, core_authority: bool, pixels_per_point: f32) -> Self {
         if !core_authority {
             return Self {
                 mouse_passthrough: true,
@@ -75,9 +75,15 @@ impl ViewportUpdate {
             .as_ref()
             .filter(|game| game.backend == "x11")
             .map_or((None, None), |game| {
+                // EWMH geometry is expressed in physical X11 pixels, while
+                // egui viewport commands are converted from logical points.
+                let scale = valid_pixels_per_point(pixels_per_point);
                 (
-                    Some([game.rect.x as f32, game.rect.y as f32]),
-                    Some([game.rect.width as f32, game.rect.height as f32]),
+                    Some([game.rect.x as f32 / scale, game.rect.y as f32 / scale]),
+                    Some([
+                        game.rect.width as f32 / scale,
+                        game.rect.height as f32 / scale,
+                    ]),
                 )
             });
         Self {
@@ -92,9 +98,32 @@ impl ViewportUpdate {
 fn viewport_update_changed(
     previous: &CoreSnapshot,
     core_authority: bool,
+    pixels_per_point: f32,
     update: &ViewportUpdate,
 ) -> bool {
-    ViewportUpdate::from_snapshot(previous, core_authority) != *update
+    ViewportUpdate::from_snapshot(previous, core_authority, pixels_per_point) != *update
+}
+
+fn valid_pixels_per_point(pixels_per_point: f32) -> f32 {
+    if pixels_per_point.is_finite() && pixels_per_point > 0.0 {
+        pixels_per_point
+    } else {
+        1.0
+    }
+}
+
+fn x11_scale_changed(
+    applied: Option<f32>,
+    current: f32,
+    snapshot: &CoreSnapshot,
+    core_authority: bool,
+) -> bool {
+    core_authority
+        && snapshot
+            .active_game
+            .as_ref()
+            .is_some_and(|game| game.backend == "x11")
+        && applied != Some(valid_pixels_per_point(current))
 }
 
 fn authoritative_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> CoreSnapshot {
@@ -135,14 +164,20 @@ impl OverlayState {
         self.passive_pending = true;
     }
 
-    fn apply_snapshot(&mut self, update: SnapshotUpdate, core_authority: bool) -> ViewportUpdate {
+    fn apply_snapshot(
+        &mut self,
+        update: SnapshotUpdate,
+        core_authority: bool,
+        pixels_per_point: f32,
+    ) -> ViewportUpdate {
         if update.passive_confirmed {
             self.passive_pending = false;
         }
         if self.passive_pending {
-            return ViewportUpdate::from_snapshot(&self.snapshot, core_authority);
+            return ViewportUpdate::from_snapshot(&self.snapshot, core_authority, pixels_per_point);
         }
-        let viewport = ViewportUpdate::from_snapshot(&update.snapshot, core_authority);
+        let viewport =
+            ViewportUpdate::from_snapshot(&update.snapshot, core_authority, pixels_per_point);
         self.snapshot = update.snapshot;
         viewport
     }
@@ -204,6 +239,7 @@ pub struct OverlayApp {
     brand: BrandAssets,
     about_open: bool,
     core_authority: bool,
+    x11_viewport_pixels_per_point: Option<f32>,
 }
 
 impl OverlayApp {
@@ -287,6 +323,7 @@ impl OverlayApp {
             brand: BrandAssets::default(),
             about_open: false,
             core_authority: false,
+            x11_viewport_pixels_per_point: None,
         }
     }
 
@@ -294,7 +331,10 @@ impl OverlayApp {
         let previous = self.state.snapshot().clone();
         let mode_event =
             confirmed_mode_event(previous.overlay_mode, self.state.passive_pending, &snapshot);
-        let update = self.state.apply_snapshot(snapshot, self.core_authority);
+        let pixels_per_point = context.pixels_per_point();
+        let update = self
+            .state
+            .apply_snapshot(snapshot, self.core_authority, pixels_per_point);
         if let Some(mode) = mode_event {
             self.logger
                 .info("overlay_mode_confirmed", format_args!("mode={mode:?}"));
@@ -306,11 +346,11 @@ impl OverlayApp {
             .sync(self.state.snapshot().manual_stopwatch, received_at);
         self.client
             .set_manual_stopwatch_running(self.manual_stopwatch_clock.running());
-        if !viewport_update_changed(&previous, self.core_authority, &update) {
+        if !viewport_update_changed(&previous, self.core_authority, pixels_per_point, &update) {
             return;
         }
 
-        Self::apply_viewport_update(context, update);
+        self.apply_viewport_update(context, update, pixels_per_point);
     }
 
     fn sync_core_authority(&mut self, context: &egui::Context) {
@@ -318,15 +358,51 @@ impl OverlayApp {
         if authority == self.core_authority {
             return;
         }
-        let previous = ViewportUpdate::from_snapshot(self.state.snapshot(), self.core_authority);
+        let pixels_per_point = context.pixels_per_point();
+        let previous = ViewportUpdate::from_snapshot(
+            self.state.snapshot(),
+            self.core_authority,
+            pixels_per_point,
+        );
         self.core_authority = authority;
-        let update = ViewportUpdate::from_snapshot(self.state.snapshot(), self.core_authority);
+        let update = ViewportUpdate::from_snapshot(
+            self.state.snapshot(),
+            self.core_authority,
+            pixels_per_point,
+        );
         if previous != update {
-            Self::apply_viewport_update(context, update);
+            self.apply_viewport_update(context, update, pixels_per_point);
         }
     }
 
-    fn apply_viewport_update(context: &egui::Context, update: ViewportUpdate) {
+    fn sync_x11_scale(&mut self, context: &egui::Context) {
+        let pixels_per_point = context.pixels_per_point();
+        if !x11_scale_changed(
+            self.x11_viewport_pixels_per_point,
+            pixels_per_point,
+            self.state.snapshot(),
+            self.core_authority,
+        ) {
+            return;
+        }
+        let update = ViewportUpdate::from_snapshot(
+            self.state.snapshot(),
+            self.core_authority,
+            pixels_per_point,
+        );
+        self.apply_viewport_update(context, update, pixels_per_point);
+    }
+
+    fn apply_viewport_update(
+        &mut self,
+        context: &egui::Context,
+        update: ViewportUpdate,
+        pixels_per_point: f32,
+    ) {
+        self.x11_viewport_pixels_per_point = update
+            .position
+            .zip(update.size)
+            .map(|_| valid_pixels_per_point(pixels_per_point));
         context.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(
             update.mouse_passthrough,
         ));
@@ -811,6 +887,7 @@ impl eframe::App for OverlayApp {
             self.apply_snapshot(context, snapshot);
         }
         self.sync_core_authority(context);
+        self.sync_x11_scale(context);
         let authoritative = authoritative_snapshot(self.state.snapshot(), self.core_authority);
         if self.media_readiness.take().media()
             && let Some(snapshot) = self.media_client.take_latest()

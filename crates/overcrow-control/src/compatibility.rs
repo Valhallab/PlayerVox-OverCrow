@@ -1,10 +1,20 @@
-use std::{collections::BTreeSet, env, ffi::OsString, fs::File, io::Read, path::Path};
+use std::{
+    collections::BTreeSet,
+    env,
+    ffi::OsString,
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
 pub const MAX_ENVIRONMENT_LABEL_BYTES: usize = 96;
+pub(crate) const MAX_PCI_DEVICES: usize = 256;
 const MAX_ENVIRONMENT_SOURCE_BYTES: usize = 128;
 const MAX_OS_RELEASE_BYTES: usize = 16 * 1024;
+const MAX_PCI_METADATA_BYTES: u64 = 16;
+const PCI_DEVICES_PATH: &str = "/sys/bus/pci/devices";
 const OS_RELEASE_PATHS: [&str; 3] = [
     "/run/host/os-release",
     "/etc/os-release",
@@ -81,10 +91,18 @@ pub enum CompatibilityReason {
     GnomeWayland,
     SwayWayland,
     GamescopeSession,
-    XfceX11,
     OtherWayland,
     AmbiguousDesktop,
     UnknownSession,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphicsVendor {
+    Amd,
+    Intel,
+    Nvidia,
+    Other,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -95,6 +113,7 @@ pub struct CompatibilityReport {
     pub status: CompatibilityStatus,
     pub reason: CompatibilityReason,
     pub activation_allowed: bool,
+    pub graphics: Vec<GraphicsVendor>,
 }
 
 impl CompatibilityReport {
@@ -113,8 +132,87 @@ impl CompatibilityReport {
             status,
             reason,
             activation_allowed,
+            graphics: Vec::new(),
         }
     }
+
+    pub fn with_graphics(mut self, graphics: Vec<GraphicsVendor>) -> Self {
+        self.graphics = normalize_graphics_vendors(graphics);
+        self
+    }
+}
+
+pub fn detect_current_graphics_vendors() -> Vec<GraphicsVendor> {
+    detect_graphics_vendors(Path::new(PCI_DEVICES_PATH))
+}
+
+pub fn detect_graphics_vendors(root: &Path) -> Vec<GraphicsVendor> {
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    detect_graphics_vendors_from_paths(
+        entries.filter_map(|entry| entry.ok().map(|entry| entry.path())),
+    )
+}
+
+pub(crate) fn detect_graphics_vendors_from_paths(
+    paths: impl IntoIterator<Item = PathBuf>,
+) -> Vec<GraphicsVendor> {
+    let vendors = paths
+        .into_iter()
+        .take(MAX_PCI_DEVICES)
+        .filter_map(|device| graphics_vendor_from_device(&device));
+    normalize_graphics_vendors(vendors)
+}
+
+fn graphics_vendor_from_device(device: &Path) -> Option<GraphicsVendor> {
+    let class = read_bounded_pci_hex(&device.join("class"))?;
+    if class >> 16 != 0x03 {
+        return None;
+    }
+
+    Some(match read_bounded_pci_hex(&device.join("vendor"))? {
+        0x1002 => GraphicsVendor::Amd,
+        0x8086 => GraphicsVendor::Intel,
+        0x10de => GraphicsVendor::Nvidia,
+        _ => GraphicsVendor::Other,
+    })
+}
+
+fn read_bounded_pci_hex(path: &Path) -> Option<u32> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return None;
+    }
+
+    let mut bytes = Vec::with_capacity(MAX_PCI_METADATA_BYTES as usize);
+    File::open(path)
+        .ok()?
+        .take(MAX_PCI_METADATA_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_PCI_METADATA_BYTES {
+        return None;
+    }
+
+    let value = std::str::from_utf8(&bytes).ok()?.trim();
+    let value = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))?;
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    u32::from_str_radix(value, 16).ok()
+}
+
+fn normalize_graphics_vendors(
+    graphics: impl IntoIterator<Item = GraphicsVendor>,
+) -> Vec<GraphicsVendor> {
+    graphics
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn classify_session(value: Option<&str>) -> DisplaySession {
@@ -229,11 +327,6 @@ fn classify_compatibility(
         (_, DesktopEnvironment::Gamescope) => (
             CompatibilityStatus::NotCompatibleForNow,
             CompatibilityReason::GamescopeSession,
-            false,
-        ),
-        (DisplaySession::X11, DesktopEnvironment::Xfce) => (
-            CompatibilityStatus::NotCompatibleForNow,
-            CompatibilityReason::XfceX11,
             false,
         ),
         (DisplaySession::X11, _) => (

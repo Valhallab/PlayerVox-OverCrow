@@ -29,6 +29,7 @@ describe('Control Center onboarding', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /check my system/i }));
     expect(await screen.findByText('Supported')).toBeVisible();
+    expect(screen.getByText('Graphics: Intel + NVIDIA')).toBeVisible();
     expect(client.calls).toContain('refreshGames');
     expect(client.calls).not.toContain('setEnabled:true');
   });
@@ -43,6 +44,7 @@ describe('Control Center onboarding', () => {
           status: 'not_compatible_for_now',
           reason: 'gnome_wayland',
           activation_allowed: false,
+          graphics: ['nvidia'],
         },
         master_switch_enabled: false,
       }),

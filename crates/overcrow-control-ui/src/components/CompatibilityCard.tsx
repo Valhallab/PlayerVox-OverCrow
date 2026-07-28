@@ -9,6 +9,12 @@ export function CompatibilityCard({
   compact?: boolean;
 }) {
   const tone = compatibility.activation_allowed ? 'available' : 'blocked';
+  const graphics =
+    compatibility.graphics.length === 0
+      ? en.compatibility.graphicsUnavailable
+      : compatibility.graphics
+          .map((vendor) => en.compatibility.graphicsVendors[vendor])
+          .join(' + ');
   return (
     <section className={`compatibility-card compatibility-card--${tone} ${compact ? 'compatibility-card--compact' : ''}`}>
       <div className="compatibility-card__status">
@@ -19,6 +25,9 @@ export function CompatibilityCard({
       <p className="compatibility-card__environment">
         {compatibility.operating_system} · {en.compatibility.desktops[compatibility.desktop]} ·{' '}
         {en.compatibility.sessions[compatibility.session]}
+      </p>
+      <p className="compatibility-card__environment">
+        {en.compatibility.graphics}: {graphics}
       </p>
       <p>{en.compatibility[compatibility.reason]}</p>
     </section>

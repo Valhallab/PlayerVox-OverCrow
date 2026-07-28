@@ -17,7 +17,6 @@ export type CompatibilityReason =
   | 'gnome_wayland'
   | 'sway_wayland'
   | 'gamescope_session'
-  | 'xfce_x11'
   | 'other_wayland'
   | 'ambiguous_desktop'
   | 'unknown_session';
@@ -40,6 +39,7 @@ export interface ControlSnapshot {
     status: CompatibilityStatus;
     reason: CompatibilityReason;
     activation_allowed: boolean;
+    graphics: Array<'amd' | 'intel' | 'nvidia' | 'other'>;
   };
   lifecycle: 'disabled' | 'enabled' | 'warning' | 'enabling' | 'disabling';
   master_switch_enabled: boolean;

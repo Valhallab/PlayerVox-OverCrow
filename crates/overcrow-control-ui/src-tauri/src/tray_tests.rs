@@ -20,6 +20,7 @@ fn snapshot(lifecycle: ControlLifecycle, action_enabled: bool) -> ControlSnapsho
             status: CompatibilityStatus::Supported,
             reason: CompatibilityReason::HyprlandWayland,
             activation_allowed: true,
+            graphics: Vec::new(),
         },
         lifecycle,
         master_switch_enabled: action_enabled,

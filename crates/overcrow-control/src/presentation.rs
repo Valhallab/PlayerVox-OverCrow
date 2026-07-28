@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CompatibilityReason, CompatibilityReport, CompatibilityStatus, DesktopEnvironment,
-    DisplaySession, Level, LifecycleStatus, NoticeOperation, UiNoticeLevel,
+    DisplaySession, GraphicsVendor, Level, LifecycleStatus, NoticeOperation, UiNoticeLevel,
     compatibility::MAX_ENVIRONMENT_LABEL_BYTES, model::is_stable_manual_game_id,
 };
 
-pub const CONTROL_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
+pub const CONTROL_SNAPSHOT_SCHEMA_VERSION: u32 = 2;
 pub const MAX_CONTROL_SNAPSHOT_BYTES: usize = 512 * 1024;
 pub const CONTROL_LOG_SCHEMA_VERSION: u32 = 1;
 pub const MAX_CONTROL_LOG_LINES: usize = 500;
@@ -46,6 +46,7 @@ impl ControlSnapshot {
     /// Verifies the allocation and identity bounds expected on the D-Bus wire.
     pub fn has_valid_wire_bounds(&self) -> bool {
         if self.compatibility.operating_system.len() > MAX_ENVIRONMENT_LABEL_BYTES
+            || self.compatibility.graphics.len() > 4
             || self.shortcut.len() > MAX_CONTROL_SHORTCUT_BYTES
             || self.games.len() > MAX_CONTROL_GAMES
             || self.manual_games.len() > MAX_CONTROL_MANUAL_GAMES
@@ -147,6 +148,7 @@ pub struct ControlCompatibility {
     pub status: CompatibilityStatus,
     pub reason: CompatibilityReason,
     pub activation_allowed: bool,
+    pub graphics: Vec<GraphicsVendor>,
 }
 
 impl From<&CompatibilityReport> for ControlCompatibility {
@@ -158,6 +160,7 @@ impl From<&CompatibilityReport> for ControlCompatibility {
             status: report.status,
             reason: report.reason,
             activation_allowed: report.activation_allowed,
+            graphics: report.graphics.clone(),
         }
     }
 }

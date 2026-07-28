@@ -453,7 +453,7 @@ mod tests {
 
     fn snapshot() -> ControlSnapshot {
         ControlSnapshot {
-            schema_version: 1,
+            schema_version: crate::CONTROL_SNAPSHOT_SCHEMA_VERSION,
             compatibility: ControlCompatibility {
                 operating_system: "Arch Linux".to_owned(),
                 session: DisplaySession::Wayland,
@@ -461,6 +461,7 @@ mod tests {
                 status: CompatibilityStatus::Supported,
                 reason: CompatibilityReason::HyprlandWayland,
                 activation_allowed: true,
+                graphics: Vec::new(),
             },
             lifecycle: ControlLifecycle::Enabled,
             master_switch_enabled: true,

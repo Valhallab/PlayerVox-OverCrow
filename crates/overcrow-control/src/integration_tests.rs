@@ -9,8 +9,8 @@ use std::{
 
 use crate::integration::{
     ExitObservation, INTEGRATION_COMMAND_TIMEOUT, IntegrationCommandRunner, IntegrationController,
-    LinuxNonReapingExitObserver, SystemIntegrationCommandRunner, run_bounded_command,
-    run_bounded_command_observed, trusted_helper_path,
+    LinuxNonReapingExitObserver, SystemIntegrationCommandRunner, compositor_integration_required,
+    run_bounded_command, run_bounded_command_observed, trusted_helper_path,
 };
 
 #[derive(Default)]
@@ -71,6 +71,27 @@ fn ensure_ready_uses_only_the_fixed_enable_argument() {
         *runner.0.lock().unwrap(),
         vec![(PathBuf::from("/trusted/overcrow-integrate"), vec!["enable"])]
     );
+}
+
+#[test]
+fn exact_x11_sessions_do_not_require_a_compositor_integration() {
+    assert!(!compositor_integration_required(Some("x11")).unwrap());
+    assert!(!compositor_integration_required(Some("X11")).unwrap());
+    assert!(compositor_integration_required(Some("wayland")).unwrap());
+
+    for unsupported in [None, Some(""), Some("tty"), Some("x11-backup")] {
+        assert!(compositor_integration_required(unsupported).is_err());
+    }
+}
+
+#[test]
+fn x11_integration_never_invokes_the_wayland_helper() {
+    let runner = Arc::new(RecordingRunner::default());
+    let controller = IntegrationController::injected_without_compositor(runner.clone());
+
+    controller.ensure_ready().unwrap();
+
+    assert!(runner.0.lock().unwrap().is_empty());
 }
 
 #[test]

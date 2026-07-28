@@ -515,7 +515,7 @@ impl<P: ShortcutPortal> PortalShortcutBroker<P> {
                 }
                 BrokerEvent::Activation(Ok(ShortcutEvent::Malformed)) => {}
                 BrokerEvent::Activation(Ok(ShortcutEvent::Closed)) => {
-                    self.release_after_stream_loss("portal shortcut session closed")
+                    self.release_after_stream_loss("global shortcut session closed")
                         .await;
                 }
                 BrokerEvent::Activation(Ok(ShortcutEvent::OwnerLost)) => {
@@ -550,7 +550,7 @@ impl<P: ShortcutPortal> PortalShortcutBroker<P> {
                 DesiredBinding::Disabled | DesiredBinding::Invalid(_) => None,
             };
             self.publish_availability(ShortcutAvailability::unavailable(format_args!(
-                "failed to release portal shortcut: {error}"
+                "failed to release global shortcut: {error}"
             )));
             return;
         }
@@ -594,7 +594,7 @@ impl<P: ShortcutPortal> PortalShortcutBroker<P> {
             OwnedBinding::Live { session, .. } => {
                 tokio::time::timeout(OWNED_CLOSE_TIMEOUT, session.close())
                     .await
-                    .map_err(|_| ShortcutError::new("portal shortcut session close timed out"))?
+                    .map_err(|_| ShortcutError::new("global shortcut session close timed out"))?
             }
         }
     }

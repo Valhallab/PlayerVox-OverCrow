@@ -7,9 +7,9 @@ use overcrow_config::{
 use overcrow_core::{
     CoreRuntime, CoreService, DbusSnapshotSignalSink, DesktopSession, PortalShortcutBroker,
     ProcessInfo, SESSION_SHUTDOWN_TIMEOUT, SHORTCUT_SHUTDOWN_TIMEOUT, SessionCoordinator,
-    ShortcutError, SystemctlRunner, X11WindowSource, run_bridge_watchdog, run_core_event_logging,
-    run_process_refresh, run_session_coordinator, run_snapshot_signal_publisher,
-    run_widget_settings_refresh, run_window_polling, scan_processes, should_use_x11_source,
+    ShortcutError, SystemctlRunner, X11ShortcutProvider, X11WindowSource, run_bridge_watchdog,
+    run_core_event_logging, run_process_refresh, run_session_coordinator,
+    run_snapshot_signal_publisher, run_widget_settings_refresh, run_window_polling, scan_processes,
     shutdown_session_coordinator,
 };
 use overcrow_logging::{Component, EventLogger, LoggerRuntime};
@@ -63,6 +63,11 @@ async fn run_core(
         "process_started",
         format_args!("desktop_session={desktop_session:?}"),
     );
+    let use_x11 = desktop_session == DesktopSession::X11;
+    let bridge_reports_allowed = matches!(
+        desktop_session,
+        DesktopSession::Hyprland | DesktopSession::PlasmaWayland
+    );
     let state = Arc::new(RwLock::new(CoreState::default()));
     let processes = initial_processes_with(scan_processes, |message| eprintln!("{message}"));
     let runtime =
@@ -75,7 +80,8 @@ async fn run_core(
         runtime.clone(),
         settings_store,
         widget_settings_store,
-    );
+    )
+    .with_bridge_reports_allowed(bridge_reports_allowed);
     let destination = Core1Proxy::DESTINATION
         .as_ref()
         .context("Core1 proxy is missing its default D-Bus destination")?
@@ -100,8 +106,6 @@ async fn run_core(
     ));
     let snapshot_publisher = run_snapshot_signal_publisher(snapshot_receiver, snapshot_signal_sink);
 
-    let session_type = std::env::var("XDG_SESSION_TYPE").ok();
-    let use_x11 = should_use_x11_source(session_type.as_deref());
     let polling_runtime = runtime.clone();
     let polling = async move {
         if use_x11 {
@@ -128,8 +132,14 @@ async fn run_core(
     let widget_settings_refresh = run_widget_settings_refresh(service);
     let selected_processes = runtime.selected_processes_running();
     let (shortcut_shutdown_tx, shortcut_shutdown_rx) = watch::channel(false);
-    let shortcut_broker = PortalShortcutBroker::new(runtime.clone());
-    let mut shortcut_task = tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx));
+    let mut shortcut_task = if use_x11 {
+        let shortcut_broker =
+            PortalShortcutBroker::with_portal(runtime.clone(), X11ShortcutProvider);
+        tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
+    } else {
+        let shortcut_broker = PortalShortcutBroker::new(runtime.clone());
+        tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
+    };
     let coordinator = SessionCoordinator::new(
         runtime,
         desktop_session,

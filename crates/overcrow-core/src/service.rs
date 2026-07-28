@@ -15,6 +15,7 @@ pub const WIDGET_SETTINGS_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Clone)]
 pub struct CoreService {
     runtime: CoreRuntime,
+    bridge_reports_allowed: bool,
     settings_loader: Option<Arc<dyn SettingsLoader>>,
     widget_settings_loader: Option<Arc<dyn WidgetSettingsLoader>>,
     reload_transaction: Arc<tokio::sync::Mutex<()>>,
@@ -49,6 +50,7 @@ impl CoreService {
     pub fn with_runtime(runtime: CoreRuntime) -> Self {
         Self {
             runtime,
+            bridge_reports_allowed: true,
             settings_loader: None,
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -62,6 +64,7 @@ impl CoreService {
     ) -> Self {
         Self {
             runtime,
+            bridge_reports_allowed: true,
             settings_loader: Some(settings_store),
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -75,6 +78,7 @@ impl CoreService {
     ) -> Self {
         Self {
             runtime,
+            bridge_reports_allowed: true,
             settings_loader: None,
             widget_settings_loader: Some(widget_settings_store),
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -89,6 +93,7 @@ impl CoreService {
     ) -> Self {
         Self {
             runtime,
+            bridge_reports_allowed: true,
             settings_loader: Some(settings_store),
             widget_settings_loader: Some(widget_settings_store),
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -103,11 +108,17 @@ impl CoreService {
     {
         Self {
             runtime,
+            bridge_reports_allowed: true,
             settings_loader: Some(settings_loader),
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
             blocking_runtime: tokio::runtime::Handle::try_current().ok(),
         }
+    }
+
+    pub fn with_bridge_reports_allowed(mut self, allowed: bool) -> Self {
+        self.bridge_reports_allowed = allowed;
+        self
     }
 
     fn snapshot_json(snapshot: &CoreSnapshot) -> zbus::fdo::Result<String> {
@@ -378,10 +389,6 @@ pub async fn poll_window_once<S: WindowSource + ?Sized>(
     Ok(())
 }
 
-pub fn should_use_x11_source(session_type: Option<&str>) -> bool {
-    session_type.is_some_and(|session| session.eq_ignore_ascii_case("x11"))
-}
-
 pub async fn run_window_polling<S: WindowSource>(mut source: S, runtime: CoreRuntime) {
     let mut window_poll = interval(WINDOW_POLL_INTERVAL);
     window_poll.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -453,6 +460,9 @@ impl CoreService {
         height: i32,
         scale: &str,
     ) -> zbus::fdo::Result<String> {
+        if !self.bridge_reports_allowed {
+            return self.snapshot().await;
+        }
         if app_id == OVERLAY_APP_ID {
             return self.snapshot().await;
         }
@@ -490,6 +500,9 @@ impl CoreService {
 
     #[zbus(name = "ClearWindow")]
     pub async fn clear_window(&self) -> zbus::fdo::Result<String> {
+        if !self.bridge_reports_allowed {
+            return self.snapshot().await;
+        }
         let snapshot = self.runtime.clear_game().await;
         Self::snapshot_json(&snapshot)
     }

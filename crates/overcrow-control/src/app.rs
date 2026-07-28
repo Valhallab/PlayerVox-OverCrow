@@ -260,7 +260,8 @@ impl ControlController {
         ));
         let mut controller = Self::new_with_lifecycle(model, store, diagnostic_input, lifecycle);
         controller.compatibility =
-            CompatibilityReport::from_environment(EnvironmentIdentity::from_current_process());
+            CompatibilityReport::from_environment(EnvironmentIdentity::from_current_process())
+                .with_graphics(crate::detect_current_graphics_vendors());
         controller
     }
 
