@@ -217,18 +217,20 @@ Desktop environment: KDE Plasma
 Steam Gaming Mode: No
 ```
 
-Download `bazzite-stable.iso` and record the SHA-256 value displayed by the
-official selector. Verify the downloaded file before installing it:
+Download `bazzite-stable-amd64.iso` and its official
+`bazzite-stable-amd64.iso-CHECKSUM` file. Verify the downloaded file before
+installing it:
 
 ```sh
-sha256sum "$HOME/Downloads/bazzite-stable.iso"
+cd "$HOME/Downloads"
+sha256sum --check bazzite-stable-amd64.iso-CHECKSUM
 ```
 
-Continue only if it exactly matches the official value, then run:
+Continue only when it reports `OK`, then run:
 
 ```sh
-sudo install -m 0644 "$HOME/Downloads/bazzite-stable.iso" \
-  /var/lib/libvirt/boot/overcrow/bazzite-stable.iso
+sudo install -m 0644 "$HOME/Downloads/bazzite-stable-amd64.iso" \
+  /var/lib/libvirt/boot/overcrow/bazzite-stable-amd64.iso
 ```
 
 - [ ] **Step 3: Download and verify CachyOS**
@@ -287,13 +289,14 @@ virt-install --connect qemu:///system \
   --memory 10240 \
   --vcpus 6 \
   --cpu host-passthrough \
+  --machine q35 \
   --boot uefi \
   --disk path=/var/lib/libvirt/images/overcrow-bazzite-kde.qcow2,size=100,format=qcow2,bus=virtio,sparse=yes \
   --network network=default,model=virtio \
   --graphics spice,listen=none,gl.enable=yes \
   --video virtio,model.acceleration.accel3d=yes \
   --channel spicevmc \
-  --cdrom /var/lib/libvirt/boot/overcrow/bazzite-stable.iso \
+  --cdrom /var/lib/libvirt/boot/overcrow/bazzite-stable-amd64.iso \
   --osinfo detect=on,require=off \
   --noautoconsole
 ```
@@ -308,6 +311,7 @@ virt-install --connect qemu:///system \
   --memory 8192 \
   --vcpus 4 \
   --cpu host-passthrough \
+  --machine q35 \
   --boot uefi \
   --disk path=/var/lib/libvirt/images/overcrow-cachyos-kde.qcow2,size=80,format=qcow2,bus=virtio,sparse=yes \
   --network network=default,model=virtio \
@@ -329,6 +333,7 @@ virt-install --connect qemu:///system \
   --memory 6144 \
   --vcpus 4 \
   --cpu host-passthrough \
+  --machine q35 \
   --boot uefi \
   --disk path=/var/lib/libvirt/images/overcrow-cachyos-xfce.qcow2,size=60,format=qcow2,bus=virtio,sparse=yes \
   --network network=default,model=virtio \
