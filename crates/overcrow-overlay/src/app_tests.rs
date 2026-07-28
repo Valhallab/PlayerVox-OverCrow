@@ -549,6 +549,7 @@ mod catalog {
                         ui.max_rect().size(),
                         &mut brand,
                         &profile,
+                        true,
                         None,
                     );
                     surface.set(rect);
@@ -576,7 +577,14 @@ mod catalog {
                 ..RawInput::default()
             },
             |ui| {
-                paint_widget_catalog(ui.ctx(), ui.max_rect().size(), &mut brand, &profile, None);
+                paint_widget_catalog(
+                    ui.ctx(),
+                    ui.max_rect().size(),
+                    &mut brand,
+                    &profile,
+                    true,
+                    None,
+                );
             },
         );
 
@@ -614,12 +622,44 @@ mod catalog {
     }
 
     #[test]
+    fn non_warframe_catalog_omits_the_warframe_category_and_cards() {
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let output = context.run_ui(RawInput::default(), |ui| {
+            let _ = paint_catalog(ui, &WidgetProfile::default(), None, false);
+        });
+        let labels = output
+            .platform_output
+            .accesskit_update
+            .expect("catalog accessibility tree")
+            .nodes
+            .into_iter()
+            .filter_map(|(_, node)| node.label().map(str::to_owned))
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "Enable Clock"));
+        for label in [
+            "Warframe",
+            "Enable Warframe status",
+            "Enable Void fissures",
+            "Enable Warframe market",
+            "Enable Sortie & Archon",
+            "Enable Invasions",
+        ] {
+            assert!(
+                !labels.iter().any(|candidate| candidate == label),
+                "unexpected Warframe catalog label: {label}"
+            );
+        }
+    }
+
+    #[test]
     fn clicking_a_catalog_card_toggles_only_that_widget() {
         let context = egui::Context::default();
         context.enable_accesskit();
         let profile = WidgetProfile::default();
         let first = context.run_ui(RawInput::default(), |ui| {
-            let _ = paint_catalog(ui, &profile, None);
+            let _ = paint_catalog(ui, &profile, None, true);
         });
         let clock_card = first
             .platform_output
@@ -642,7 +682,7 @@ mod catalog {
                 events: vec![click],
                 ..RawInput::default()
             },
-            |ui| actions = paint_catalog(ui, &profile, None),
+            |ui| actions = paint_catalog(ui, &profile, None, true),
         );
 
         assert_eq!(actions, [CatalogAction::SetEnabled(WidgetId::Clock, true)]);
@@ -789,7 +829,7 @@ mod catalog {
                 ..RawInput::default()
             },
             |ui| {
-                let _ = paint_catalog(ui, &WidgetProfile::default(), None);
+                let _ = paint_catalog(ui, &WidgetProfile::default(), None, true);
             },
         );
         let text = output

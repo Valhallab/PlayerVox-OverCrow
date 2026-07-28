@@ -20,6 +20,22 @@ grep -Fq "installed_share='/usr/share/overcrow/integrations'" "$helper" ||
     fail 'the installed integration path is not fixed'
 grep -Fq "timeout_program='/usr/bin/timeout'" "$helper" ||
     fail 'the helper does not use the fixed timeout program'
+grep -Fq "qdbus_arch_program='/usr/bin/qdbus6'" "$helper" ||
+    fail 'the helper does not retain the fixed Arch qdbus path'
+grep -Fq "qdbus_fedora_program='/usr/bin/qdbus-qt6'" "$helper" ||
+    fail 'the helper does not support the fixed Fedora qdbus path'
+grep -Fq 'canonical_default_home' "$helper" ||
+    fail 'the helper does not normalize the default immutable-desktop home'
+grep -Fq '/var/home/' "$helper" ||
+    fail 'the helper does not recognize the Fedora Atomic home layout'
+# shellcheck disable=SC2016 # Verify literal variables in the helper source.
+grep -Fq '/Scripting unloadScript "$kwin_id"' "$helper" ||
+    fail 'the helper does not reload an upgraded KWin script'
+awk '
+    /\/Scripting unloadScript/ { unload = NR }
+    /\/KWin reconfigure/ { reconfigure = NR }
+    END { exit !(unload && reconfigure && unload < reconfigure) }
+' "$helper" || fail 'the helper does not unload the old KWin script before reconfiguration'
 # shellcheck disable=SC2016 # Verify literal variables in the helper source.
 grep -Fq '"$timeout_program" --signal=TERM --kill-after=1s 2s "$@"' "$helper" ||
     fail 'the helper command bound is not explicit'
@@ -38,6 +54,12 @@ grep -Fq "kwin_current_metadata_sha256='$kwin_metadata_sha256'" "$helper" ||
 grep -Fq "kwin_current_main_sha256='$kwin_main_sha256'" "$helper" ||
     fail 'the pinned KWin script fingerprint is stale'
 grep -Fq \
+    "kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'" \
+    "$helper" || fail 'the pre-alpha 3 KWin metadata fingerprint was not retained'
+grep -Fq \
+    "kwin_legacy_pre_alpha_3_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'" \
+    "$helper" || fail 'the pre-alpha 3 KWin script fingerprint was not retained'
+grep -Fq \
     "kwin_legacy_pre_alpha_2_metadata_sha256='72844f4e860c98974fa240a4fb1620d0ea25db6cd9facfe46dde3dbdb9adeb70'" \
     "$helper" || fail 'the pre-alpha 2 KWin metadata fingerprint was not retained'
 grep -Fq \
@@ -49,6 +71,8 @@ grep -Fq \
 grep -Fq \
     "kwin_legacy_pre_alpha_1_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'" \
     "$helper" || fail 'the pre-alpha 1 KWin script fingerprint was not retained'
+grep -Fq 'legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0' \
+    "$helper" || fail 'reviewed legacy KWin packages are not accepted by transaction recovery'
 
 grep -Fq "overcrow_hypr_timeout_program='/usr/bin/timeout'" "$library" ||
     fail 'the Hyprland library does not use the fixed timeout program'

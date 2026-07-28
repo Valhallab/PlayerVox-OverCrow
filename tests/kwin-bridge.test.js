@@ -31,10 +31,14 @@ function window(overrides = {}) {
         hidden: false,
         frameGeometry: { x: -100, y: 24, width: 1920, height: 1080 },
         output: { devicePixelRatio: 1.25 },
+        desktops: ["desktop-game"],
+        activities: ["activity-game"],
         frameGeometryChanged: new Signal(),
         captionChanged: new Signal(),
         windowClassChanged: new Signal(),
         outputChanged: new Signal(),
+        desktopsChanged: new Signal(),
+        activitiesChanged: new Signal(),
         minimizedChanged: new Signal(),
         windowHidden: new Signal(),
         windowShown: new Signal(),
@@ -54,6 +58,8 @@ const overlay = window({
     resourceClass: "io.github.overcrow.Overlay",
     caption: "OverCrow",
     frameGeometry: { x: 500, y: 500, width: 320, height: 200 },
+    desktops: ["desktop-other"],
+    activities: ["activity-other"],
 });
 const calls = [];
 const timers = [];
@@ -67,10 +73,14 @@ const workspace = {
 
 function QTimer() {
     this.interval = 0;
+    this.singleShot = false;
     this.timeout = new Signal();
     this.started = false;
     this.start = () => {
         this.started = true;
+    };
+    this.stop = () => {
+        this.started = false;
     };
     timers.push(this);
 }
@@ -121,11 +131,15 @@ assert.deepEqual(
     [-100, 24, 1920, 1080],
     "an overlay created before the game report must adopt the initial game geometry",
 );
+assert.deepEqual(overlay.desktops, game.desktops, "the overlay must follow the game desktop");
+assert.deepEqual(overlay.activities, game.activities, "the overlay must follow the game activity");
 
 const secondOverlay = window({
     pid: 85,
     resourceClass: "io.github.overcrow.Overlay",
     frameGeometry: { x: 600, y: 600, width: 200, height: 100 },
+    desktops: ["desktop-other"],
+    activities: ["activity-other"],
 });
 workspace.windowAdded.emit(secondOverlay);
 for (const property of ["keepAbove", "skipTaskbar", "skipPager", "skipSwitcher", "noBorder"]) {
@@ -136,6 +150,8 @@ assert.deepEqual(
     [-100, 24, 1920, 1080],
     "an overlay created after the game report must immediately adopt its geometry",
 );
+assert.deepEqual(secondOverlay.desktops, game.desktops, "new overlays follow the game desktop");
+assert.deepEqual(secondOverlay.activities, game.activities, "new overlays follow the game activity");
 
 const reportsBeforeOverlayFocus = reportCalls().length;
 workspace.activeWindow = overlay;
@@ -153,11 +169,56 @@ assert.deepEqual(
     "keepalive repositions every live overlay during prolonged overlay focus",
 );
 
+const clearsBeforeTransientActivation = clearCalls().length;
+workspace.activeWindow = null;
+workspace.windowActivated.emit(null);
+assert.equal(timers[1].started, true, "a null activation starts its own full grace timer");
+assert.equal(
+    clearCalls().length,
+    clearsBeforeTransientActivation,
+    "a transient null activation during focus transfer must not clear the game",
+);
+timers[0].timeout.emit();
+assert.equal(
+    clearCalls().length,
+    clearsBeforeTransientActivation,
+    "a periodic keepalive cannot shorten the null-activation grace period",
+);
+timers[1].timeout.emit();
+assert.equal(
+    clearCalls().length,
+    clearsBeforeTransientActivation + 1,
+    "a sustained missing active window fails closed after the full grace period",
+);
+workspace.activeWindow = game;
+workspace.windowActivated.emit(game);
+
+workspace.activeWindow = null;
+workspace.windowActivated.emit(null);
+workspace.activeWindow = game;
+workspace.windowActivated.emit(game);
+const clearsBeforeCancelledGrace = clearCalls().length;
+timers[1].timeout.emit();
+assert.equal(
+    clearCalls().length,
+    clearsBeforeCancelledGrace,
+    "a valid activation cancels the pending null clear",
+);
+
 game.frameGeometry = { x: 10, y: 20, width: 1280, height: 720 };
 game.frameGeometryChanged.emit();
 assert.deepEqual(reportCalls().at(-1).slice(7, 11), [10, 20, 1280, 720]);
 assert.deepEqual(geometryOf(overlay), [10, 20, 1280, 720]);
 assert.deepEqual(geometryOf(secondOverlay), [10, 20, 1280, 720]);
+
+game.desktops = ["desktop-next"];
+game.activities = ["activity-next"];
+game.desktopsChanged.emit();
+game.activitiesChanged.emit();
+for (const target of [overlay, secondOverlay]) {
+    assert.deepEqual(target.desktops, game.desktops, "desktop changes resynchronize every overlay");
+    assert.deepEqual(target.activities, game.activities, "activity changes resynchronize every overlay");
+}
 
 const clearsBeforeTrackedInvalidation = clearCalls().length;
 game.frameGeometry = { x: 10, y: 20, width: 0, height: 720 };
@@ -177,9 +238,12 @@ workspace.windowActivated.emit(invalid);
 assert.equal(reportCalls().length, reportsBeforeInvalidFocus, "invalid windows are never reported");
 assert.equal(clearCalls().length, clearsBeforeInvalidFocus + 1, "invalid non-overlay focus fails closed");
 
-assert.equal(timers.length, 1);
+assert.equal(timers.length, 2);
 assert.equal(timers[0].interval, 2000);
 assert.equal(timers[0].started, true);
+assert.equal(timers[1].interval, 500);
+assert.equal(timers[1].singleShot, true);
+assert.equal(timers[1].started, false);
 workspace.activeWindow = game;
 game.frameGeometry = { x: 10, y: 20, width: 1280, height: 720 };
 const reportsBeforeKeepalive = reportCalls().length;

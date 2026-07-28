@@ -237,6 +237,44 @@ fn content_size_change_keeps_the_last_visible_top_left() {
 }
 
 #[test]
+fn game_viewport_resize_reprojects_the_runtime_anchor_from_saved_position() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Media;
+    let initial_viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let resized_viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_200.0, 800.0));
+    let widget_size = vec2(240.0, 80.0);
+    let margin = 24.0;
+    profile.media.position = WidgetPosition { x: 0.75, y: 0.5 };
+
+    let initial = manager.screen_position(id, INTERACTIVE, initial_viewport, margin, &profile);
+    manager.finish_drag_only(
+        id,
+        INTERACTIVE,
+        initial_viewport,
+        margin,
+        &mut profile,
+        widget_size,
+        initial,
+        false,
+        false,
+    );
+
+    let resized = manager.screen_position(id, INTERACTIVE, resized_viewport, margin, &profile);
+
+    assert_eq!(
+        resized,
+        crate::placement::screen_position(
+            resized_viewport,
+            widget_size,
+            margin,
+            profile.media.position,
+        )
+    );
+    assert_ne!(resized, initial);
+}
+
+#[test]
 fn hovered_widget_exposes_the_shared_foreground_controls() {
     let context = eframe::egui::Context::default();
     context.enable_accesskit();
@@ -359,7 +397,7 @@ fn content_height_widgets_keep_the_visible_top_left_after_resize_release() {
         assert!(release_save);
         assert_eq!(profile.settings(id).width, 360.0);
         assert_eq!(profile.settings(id).height, 480.0);
-        let fresh_manager = WidgetManager::default();
+        let mut fresh_manager = WidgetManager::default();
         let restored = fresh_manager.screen_position(id, INTERACTIVE, viewport, margin, &profile);
         assert!((restored.x - visible_top_left.x).abs() < 0.01);
         assert!((restored.y - visible_top_left.y).abs() < 0.01);

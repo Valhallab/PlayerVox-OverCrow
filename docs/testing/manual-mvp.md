@@ -273,12 +273,19 @@ must still begin as `Passive`.
    screenshot showing the stopwatch above the borderless game and record
    `overcrowctl status` at the same time.
 
-4. **Verify the registered shortcut.** With a detected game, record
+4. **Verify virtual-desktop and activity scope.** Move the game between two
+   Plasma virtual desktops while the overlay is passive, then interactive.
+   When Plasma Activities are configured, repeat between two activities.
+   Finally assign the game to all desktops and, when available, all activities.
+   Expected evidence: every OverCrow top-level follows the exact game scope and
+   never remains visible on a desktop or activity where the game is absent.
+
+5. **Verify the registered shortcut.** With a detected game, record
    `overcrowctl status`, press `Meta+Alt+O`, and record status again. Expected
    evidence: one key press changes `Passive` to `Interactive`; a second changes
    it back to `Passive`. Confirm click-through tracks those two states.
 
-5. **Verify the Escape fail-safe on Wayland.** With a detected game, run
+6. **Verify the Escape fail-safe on Wayland.** With a detected game, run
    `overcrowctl interactive`, record `overcrowctl status`, click the overlay so
    it owns keyboard focus, then press Escape. Record status again. Expected
    evidence: the mode changes from `Interactive` to `Passive` and a click on the
@@ -286,13 +293,14 @@ must still begin as `Passive`.
    seeing `Passive` without verifying restored mouse passthrough is not a
    passing result.
 
-6. **Verify the five-second bridge lease.** Begin with a detected game, then
+7. **Verify the five-second bridge lease.** Begin with a detected game, then
    temporarily disable the KWin package and ask KWin to reconfigure:
 
    ```sh
+   # Fedora/Bazzite: use /usr/bin/qdbus-qt6 instead.
+   overcrow_qdbus=/usr/bin/qdbus6
    kwriteconfig6 --file kwinrc --group Plugins --key io.github.overcrow.kwinEnabled false
-   qdbus6 org.kde.KWin /KWin reconfigure
-   # If the distribution provides qdbus instead, use it with the same arguments.
+   "$overcrow_qdbus" org.kde.KWin /KWin reconfigure
    sleep 6
    overcrowctl status
    ```
@@ -304,7 +312,7 @@ must still begin as `Passive`.
 
    ```sh
    kwriteconfig6 --file kwinrc --group Plugins --key io.github.overcrow.kwinEnabled true
-   qdbus6 org.kde.KWin /KWin reconfigure
+   "$overcrow_qdbus" org.kde.KWin /KWin reconfigure
    overcrowctl status
    ```
 
@@ -321,11 +329,10 @@ must still begin as `Passive`.
            --key io.github.overcrow.kwinEnabled \
            "$overcrow_kwin_enabled_before"
    fi
-   qdbus6 org.kde.KWin /KWin reconfigure
-   # Use qdbus with the same arguments when qdbus6 is unavailable.
+   "$overcrow_qdbus" org.kde.KWin /KWin reconfigure
    ```
 
-7. **Verify non-reportable game states, exit, and daemon restart.** With the
+8. **Verify non-reportable game states, exit, and daemon restart.** With the
    game detected and the overlay interactive, minimize the game. `ClearWindow`
    must take effect immediately: `active_game` becomes `null`, mode becomes
    `Passive`, and the minimized game is no longer used to move/resize the
@@ -835,8 +842,8 @@ result so borderless is not mistaken for exclusive fullscreen.
 2. If the KWin lease-test restoration was not already completed, run its exact
    sentinel-based restoration block now: use `kwriteconfig6 --delete` when the
    key was initially absent, otherwise write its recorded original value. Then
-   run `qdbus6 org.kde.KWin /KWin reconfigure` (or the equivalent `qdbus`
-   command).
+   run `qdbus6 org.kde.KWin /KWin reconfigure` on Arch or
+   `qdbus-qt6 org.kde.KWin /KWin reconfigure` on Fedora/Bazzite.
 3. Quit the test game normally.
 4. Close the OverCrow window from the desktop. If it cannot be closed normally,
    terminate only the renderer process shown by `./scripts/diagnose.sh`.

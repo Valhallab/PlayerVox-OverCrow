@@ -1252,6 +1252,7 @@ impl eframe::App for OverlayApp {
                     ui.max_rect().size(),
                     &mut self.brand,
                     &self.preferences,
+                    is_warframe_active(self.state.snapshot()),
                     self.widgets.catalog_message(),
                 );
 
@@ -1466,6 +1467,7 @@ fn paint_widget_catalog(
     viewport: egui::Vec2,
     brand: &mut BrandAssets,
     profile: &overcrow_config::WidgetProfile,
+    warframe_active: bool,
     message: Option<&str>,
 ) -> (Vec<CatalogAction>, egui::Rect) {
     let layout = CatalogLayout::for_viewport(viewport);
@@ -1491,7 +1493,7 @@ fn paint_widget_catalog(
                         .max_height(layout.max_height)
                         .show(ui, |ui| {
                             ui.set_width(layout.width);
-                            actions.extend(paint_catalog(ui, profile, message));
+                            actions.extend(paint_catalog(ui, profile, message, warframe_active));
                         });
                 });
         });

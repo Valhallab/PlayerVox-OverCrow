@@ -5,6 +5,7 @@ const DBUS_PATH = "/io/github/overcrow/Core1";
 const DBUS_INTERFACE = "io.github.overcrow.Core1";
 const OVERLAY_APP_ID = "io.github.overcrow.Overlay";
 const KEEPALIVE_MS = 2000;
+const NULL_ACTIVATION_GRACE_MS = 500;
 const INT32_MAX = 2147483647;
 const INT32_MIN = -2147483648;
 
@@ -12,6 +13,7 @@ let lastReportableWindow = null;
 let lastReportSignature = null;
 let overlayWindows = [];
 let overlayBeingPlaced = null;
+let nullActivationPending = false;
 
 function appId(window) {
     return window ? String(window.resourceClass || "") : "";
@@ -49,6 +51,37 @@ function sameGeometry(left, right) {
     );
 }
 
+function scopeEntryId(entry) {
+    if (entry && entry.id !== undefined) {
+        return String(entry.id);
+    }
+    return String(entry);
+}
+
+function sameScope(left, right) {
+    if (!left || !right || left.length !== right.length) {
+        return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+        if (scopeEntryId(left[index]) !== scopeEntryId(right[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function syncOverlayScope(window) {
+    if (!lastReportableWindow) {
+        return;
+    }
+    if (!sameScope(window.desktops, lastReportableWindow.desktops)) {
+        window.desktops = lastReportableWindow.desktops;
+    }
+    if (!sameScope(window.activities, lastReportableWindow.activities)) {
+        window.activities = lastReportableWindow.activities;
+    }
+}
+
 function reportableGeometry(window) {
     if (!normalizedWindow(window)) {
         return null;
@@ -79,6 +112,7 @@ function configureOverlay(window) {
     window.skipSwitcher = true;
     window.noBorder = true;
 
+    syncOverlayScope(window);
     const geometry = reportableGeometry(lastReportableWindow);
     if (geometry && window !== overlayBeingPlaced && !sameGeometry(window.frameGeometry, geometry)) {
         const previouslyPlacedOverlay = overlayBeingPlaced;
@@ -220,6 +254,36 @@ function handleTrackedChange(window) {
     }
 }
 
+function cancelPendingNullActivation() {
+    if (!nullActivationPending) {
+        return;
+    }
+    nullActivationPending = false;
+    nullActivationTimer.stop();
+}
+
+function handleWindowActivation(window) {
+    const activeWindow = window || workspace.activeWindow;
+    if (activeWindow) {
+        cancelPendingNullActivation();
+        handleActiveWindow(activeWindow);
+        return;
+    }
+
+    nullActivationPending = true;
+    nullActivationTimer.start();
+}
+
+function handleKeepalive() {
+    const activeWindow = workspace.activeWindow;
+    if (activeWindow) {
+        cancelPendingNullActivation();
+        handleActiveWindow(activeWindow);
+    } else if (!nullActivationPending) {
+        handleActiveWindow(null);
+    }
+}
+
 function connectSignal(signal, callback) {
     if (signal && typeof signal.connect === "function") {
         signal.connect(callback);
@@ -235,6 +299,8 @@ function watchWindow(window) {
     connectSignal(window.captionChanged, () => handleTrackedChange(window));
     connectSignal(window.windowClassChanged, () => handleTrackedChange(window));
     connectSignal(window.outputChanged, () => handleTrackedChange(window));
+    connectSignal(window.desktopsChanged, () => handleTrackedChange(window));
+    connectSignal(window.activitiesChanged, () => handleTrackedChange(window));
     connectSignal(window.minimizedChanged, () => handleTrackedChange(window));
     connectSignal(window.windowHidden, () => handleTrackedChange(window));
     connectSignal(window.windowShown, () => handleTrackedChange(window));
@@ -245,6 +311,21 @@ for (const window of workspace.stackingOrder || []) {
     watchWindow(window);
 }
 
+const keepaliveTimer = new QTimer();
+keepaliveTimer.interval = KEEPALIVE_MS;
+keepaliveTimer.timeout.connect(handleKeepalive);
+
+const nullActivationTimer = new QTimer();
+nullActivationTimer.interval = NULL_ACTIVATION_GRACE_MS;
+nullActivationTimer.singleShot = true;
+nullActivationTimer.timeout.connect(() => {
+    if (!nullActivationPending) {
+        return;
+    }
+    nullActivationPending = false;
+    handleActiveWindow(workspace.activeWindow);
+});
+
 connectSignal(workspace.windowAdded, (window) => {
     watchWindow(window);
     if (window === workspace.activeWindow) {
@@ -252,13 +333,7 @@ connectSignal(workspace.windowAdded, (window) => {
     }
 });
 connectSignal(workspace.windowRemoved, (window) => forgetTrackedWindow(window));
-connectSignal(workspace.windowActivated, (window) => {
-    handleActiveWindow(window || workspace.activeWindow);
-});
+connectSignal(workspace.windowActivated, handleWindowActivation);
 
 handleActiveWindow(workspace.activeWindow);
-
-const keepaliveTimer = new QTimer();
-keepaliveTimer.interval = KEEPALIVE_MS;
-keepaliveTimer.timeout.connect(() => handleActiveWindow(workspace.activeWindow));
 keepaliveTimer.start();

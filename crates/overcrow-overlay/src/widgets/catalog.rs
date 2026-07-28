@@ -217,6 +217,7 @@ pub fn paint_catalog(
     ui: &mut egui::Ui,
     profile: &WidgetProfile,
     message: Option<&str>,
+    warframe_active: bool,
 ) -> Vec<CatalogAction> {
     let mut actions = Vec::new();
     let available = ui.available_width().max(200.0);
@@ -237,6 +238,9 @@ pub fn paint_catalog(
     let card_width = ((available - gap * (columns as f32 - 1.0)) / columns as f32).max(200.0);
 
     for category in WidgetCategory::ALL {
+        if category == WidgetCategory::Warframe && !warframe_active {
+            continue;
+        }
         paint_category_header(ui, category);
         ui.add_space(7.0);
         let widgets = BUILTIN_WIDGETS

@@ -58,13 +58,14 @@ impl WidgetManager {
     }
 
     pub(super) fn screen_position(
-        &self,
+        &mut self,
         id: WidgetId,
         mode: OverlayMode,
         viewport: Rect,
         margin: f32,
         profile: &WidgetProfile,
     ) -> Pos2 {
+        self.sync_viewport(viewport);
         // During resize, freeze the absolute top-left.
         if mode == OverlayMode::Interactive
             && let Some(session) = self.resize
@@ -93,6 +94,17 @@ impl WidgetManager {
             eframe::egui::vec2(w.max(1.0), h.max(1.0))
         };
         placement::screen_position(viewport, size, margin, profile.settings(id).position)
+    }
+
+    fn sync_viewport(&mut self, viewport: Rect) {
+        if self
+            .viewport
+            .is_some_and(|previous| rect_meaningfully_changed(previous, viewport))
+        {
+            self.runtime_anchors.fill(None);
+            self.resize = None;
+        }
+        self.viewport = Some(viewport);
     }
 
     pub(super) fn panel_size(
@@ -399,6 +411,12 @@ fn clamp_delta_at_limits(size: Vec2, mut delta: Vec2, min_width: f32) -> Vec2 {
 
 fn size_meaningfully_changed(before: Vec2, after: Vec2) -> bool {
     (after.x - before.x).abs() > 0.5 || (after.y - before.y).abs() > 0.5
+}
+
+fn rect_meaningfully_changed(before: Rect, after: Rect) -> bool {
+    (before.min.x - after.min.x).abs() > 0.5
+        || (before.min.y - after.min.y).abs() > 0.5
+        || size_meaningfully_changed(before.size(), after.size())
 }
 
 fn clamp_top_left(viewport: Rect, size: Vec2, margin: f32, position: Pos2) -> Pos2 {

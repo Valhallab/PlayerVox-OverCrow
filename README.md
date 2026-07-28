@@ -78,6 +78,10 @@ Start a selected game and focus its window. The default shortcuts are:
 | `Meta+Alt+P` | Start or pause the manual stopwatch. |
 | `Meta+Alt+R` | Reset the manual stopwatch. |
 
+Plasma Wayland asks once for permission to register these global shortcuts
+when the first selected game becomes active. Review the listed shortcuts, then
+confirm KDE's system dialog to enable them.
+
 The PlayerVox-styled **Widget library** groups general tools separately from
 game-specific widgets. It lets you enable, move, resize, scale, and reset each
 widget without leaving the overlay. Passive widgets are read-only and

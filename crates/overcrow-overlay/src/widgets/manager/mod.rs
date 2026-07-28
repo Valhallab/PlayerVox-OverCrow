@@ -88,6 +88,7 @@ pub struct WidgetManager {
     catalog_message: Option<String>,
     resize: Option<ResizeSession>,
     interaction_enabled: bool,
+    viewport: Option<Rect>,
 }
 
 impl Default for WidgetManager {
@@ -104,6 +105,7 @@ impl Default for WidgetManager {
             catalog_message: None,
             resize: None,
             interaction_enabled: true,
+            viewport: None,
         }
     }
 }

@@ -31,13 +31,17 @@ rmdir_program='/usr/bin/rmdir'
 kpackagetool_program='/usr/bin/kpackagetool6'
 kreadconfig_program='/usr/bin/kreadconfig6'
 kwriteconfig_program='/usr/bin/kwriteconfig6'
-qdbus_program='/usr/bin/qdbus6'
+qdbus_arch_program='/usr/bin/qdbus6'
+qdbus_fedora_program='/usr/bin/qdbus-qt6'
+qdbus_program=
 # Every supported KWin release has an exact four-entry tree and one reviewed
 # metadata/main fingerprint pair. This history is append-only: new releases
 # add a current pair and retain every supported reviewed legacy pair. Never add
 # a fingerprint from an untrusted installed package.
 kwin_current_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
-kwin_current_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
+kwin_current_main_sha256='109f47c4172337b8b479f2afaaaedd1bab7a77756cb7868d60eb8f7f1a24eb27'
+kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
+kwin_legacy_pre_alpha_3_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
 kwin_legacy_pre_alpha_2_metadata_sha256='72844f4e860c98974fa240a4fb1620d0ea25db6cd9facfe46dde3dbdb9adeb70'
 kwin_legacy_pre_alpha_2_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
 kwin_legacy_pre_alpha_1_metadata_sha256='d3f2a92714dbd0fb2c497341d9ae7eabd5498e7c87047a77dd7dcf9c54889f83'
@@ -128,12 +132,19 @@ trusted_plasma_programs_ready() {
         "$kwriteconfig_program"; do
         trusted_executable "$overcrow_system_program" || return 1
     done
-    if [ -e "$qdbus_program" ] || [ -L "$qdbus_program" ]; then
-        trusted_executable "$qdbus_program" || return 1
-        qdbus_ready=true
-    else
-        qdbus_ready=false
-    fi
+    qdbus_program=
+    qdbus_ready=false
+    for overcrow_qdbus_candidate in \
+        "$qdbus_arch_program" \
+        "$qdbus_fedora_program"; do
+        if [ -e "$overcrow_qdbus_candidate" ] || [ -L "$overcrow_qdbus_candidate" ]; then
+            trusted_executable "$overcrow_qdbus_candidate" || return 1
+            if [ -z "$qdbus_program" ]; then
+                qdbus_program=$overcrow_qdbus_candidate
+                qdbus_ready=true
+            fi
+        fi
+    done
 }
 
 file_sha256() {
@@ -195,6 +206,32 @@ direct_directory() {
     case $overcrow_permissions in
         ?????w????|????????w?) return 1 ;;
     esac
+}
+
+canonical_default_home() {
+    overcrow_home=$1
+    safe_path "$overcrow_home" || return 1
+    if direct_directory "$overcrow_home" "$current_uid"; then
+        printf '%s\n' "$overcrow_home"
+        return
+    fi
+
+    case $overcrow_home in
+        /home/*) ;;
+        *) return 1 ;;
+    esac
+    overcrow_home_name=${overcrow_home#/home/}
+    case $overcrow_home_name in
+        ''|*/*) return 1 ;;
+    esac
+    [ -L /home ] || return 1
+    [ "$("$readlink_program" -f -- /home 2>/dev/null)" = /var/home ] || return 1
+    direct_directory /var/home "$system_program_owner" || return 1
+    overcrow_canonical_home="/var/home/$overcrow_home_name"
+    direct_directory "$overcrow_canonical_home" "$current_uid" || return 1
+    [ "$("$readlink_program" -f -- "$overcrow_home" 2>/dev/null)" = \
+        "$overcrow_canonical_home" ] || return 1
+    printf '%s\n' "$overcrow_canonical_home"
 }
 
 regular_file() {
@@ -309,6 +346,9 @@ kwin_package_version() {
     case "$overcrow_metadata_digest:$overcrow_main_digest" in
         "$kwin_current_metadata_sha256:$kwin_current_main_sha256")
             printf '%s\n' current
+            ;;
+        "$kwin_legacy_pre_alpha_3_metadata_sha256:$kwin_legacy_pre_alpha_3_main_sha256")
+            printf '%s\n' legacy-pre-alpha-3
             ;;
         "$kwin_legacy_pre_alpha_2_metadata_sha256:$kwin_legacy_pre_alpha_2_main_sha256")
             printf '%s\n' legacy-pre-alpha-2
@@ -477,8 +517,13 @@ fail_bounded_status() {
 # shellcheck disable=SC2034
 overcrow_hypr_timeout_program=$timeout_program
 
-config_home=${XDG_CONFIG_HOME:-${HOME:-}/.config}
-data_home=${XDG_DATA_HOME:-${HOME:-}/.local/share}
+default_home=
+if [ -z "${XDG_CONFIG_HOME:-}" ] || [ -z "${XDG_DATA_HOME:-}" ]; then
+    default_home=$(canonical_default_home "${HOME:-}") || \
+        fail 'refusing an unsafe or unsupported home directory'
+fi
+config_home=${XDG_CONFIG_HOME:-"$default_home/.config"}
+data_home=${XDG_DATA_HOME:-"$default_home/.local/share"}
 kwin_destination="$data_home/kwin/scripts/$kwin_id"
 kwin_scripts_directory="$data_home/kwin/scripts"
 kwin_restore_build="$kwin_scripts_directory/.$kwin_id.overcrow-restore.build"
@@ -689,7 +734,7 @@ kwin_transaction_values() {
     overcrow_manifest_values=$("$awk_program" '
         NR == 1 && $0 != "OVERCROW_TRANSACTION_V1" { exit 71 }
         NR == 2 {
-            if ($0 !~ /^previous_package=(absent|current|legacy-pre-alpha-1|legacy-task7|legacy-mvp)$/) exit 72
+            if ($0 !~ /^previous_package=(absent|current|legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0|legacy-task7|legacy-mvp)$/) exit 72
             package = substr($0, 18)
         }
         NR == 3 {
@@ -1212,7 +1257,10 @@ if [ "$kwin_previous_package" = absent ]; then
         fi
         kwin_transaction_error='failed to install the exact OverCrow KWin package'
     fi
-elif [ "$kwin_previous_package" = legacy-pre-alpha-1 ] || \
+elif [ "$kwin_previous_package" = legacy-pre-alpha-3 ] || \
+    [ "$kwin_previous_package" = legacy-pre-alpha-2 ] || \
+    [ "$kwin_previous_package" = legacy-pre-alpha-1 ] || \
+    [ "$kwin_previous_package" = legacy-0.1.0 ] || \
     [ "$kwin_previous_package" = legacy-task7 ] || \
     [ "$kwin_previous_package" = legacy-mvp ]; then
     if run_bounded "$kpackagetool_program" \
@@ -1271,6 +1319,18 @@ if [ -n "$kwin_transaction_error" ]; then
 fi
 
 if [ "$qdbus_ready" = true ]; then
+    if run_bounded "$qdbus_program" \
+        org.kde.KWin /Scripting unloadScript "$kwin_id" >/dev/null 2>&1; then
+        :
+    else
+        overcrow_qdbus_status=$?
+        if bounded_status_is_fatal "$overcrow_qdbus_status"; then
+            fail_bounded_status 'Plasma script reload'
+        fi
+        printf '%s\n' \
+            'warning: durable KWin integration succeeded but the previous script could not be unloaded' \
+            >&2
+    fi
     if run_bounded "$qdbus_program" \
         org.kde.KWin /KWin reconfigure >/dev/null 2>&1; then
         :

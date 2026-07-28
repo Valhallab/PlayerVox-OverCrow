@@ -119,7 +119,18 @@ VirtIO, not llvmpipe.
 OverCrow is built in a Fedora toolbox matching `rpm -E %fedora`. Runtime files
 are staged after `sudo rpm-ostree usroverlay`; the installation disappears on
 reboot. Keep the guest running when creating its `overcrow-ready` full-system
-snapshot so the transient mount is captured.
+snapshot so the transient mount is captured. After staging desktop files,
+refresh the transient application metadata before starting OverCrow:
+
+```sh
+sudo update-desktop-database /usr/share/applications
+systemctl --user restart \
+  plasma-xdg-desktop-portal-kde.service \
+  xdg-desktop-portal.service
+```
+
+This refresh is specific to the development-only `/usr` overlay. A native
+package installation runs the distribution's normal desktop-database hooks.
 
 ## CachyOS KDE guest
 
