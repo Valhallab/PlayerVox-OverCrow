@@ -116,21 +116,24 @@ glxinfo -B | rg 'direct rendering|OpenGL renderer'
 The session must be Plasma Wayland and the renderer must identify virgl or
 VirtIO, not llvmpipe.
 
-OverCrow is built in a Fedora toolbox matching `rpm -E %fedora`. Runtime files
-are staged after `sudo rpm-ostree usroverlay`; the installation disappears on
-reboot. Keep the guest running when creating its `overcrow-ready` full-system
-snapshot so the transient mount is captured. After staging desktop files,
-refresh the transient application metadata before starting OverCrow:
+Build the native RPM in a Fedora toolbox matching `rpm -E %fedora`. In
+addition to the normal build dependencies, the toolbox needs `rpm-build`,
+`redhat-rpm-config`, and `zstd`. Install the resulting package as a persistent
+layer:
 
 ```sh
-sudo update-desktop-database /usr/share/applications
-systemctl --user restart \
-  plasma-xdg-desktop-portal-kde.service \
-  xdg-desktop-portal.service
+toolbox run --container overcrow-build sh -lc \
+  'cd "$HOME/OverCrow" && ./scripts/build-rpm-package.sh'
+rpm_file=$(find "$HOME/OverCrow/dist" -maxdepth 1 -type f \
+  -name 'overcrow-*.fc42.x86_64.rpm' -print -quit)
+sudo rpm-ostree install "$rpm_file"
+systemctl reboot
 ```
 
-This refresh is specific to the development-only `/usr` overlay. A native
-package installation runs the distribution's normal desktop-database hooks.
+After reboot, `rpm -q overcrow` and `rpm -V --nomtime overcrow` must succeed.
+The `--nomtime` exception is limited to timestamps normalized by OSTree; every
+content, ownership, permission, and digest check remains enabled. The three
+OverCrow user services must remain inactive until the user opts in.
 
 ## CachyOS KDE guest
 
@@ -186,9 +189,8 @@ cargo install cargo-about --version 0.9.1 --locked
 sudo pacman -U ./dist/overcrow-bin-*.pkg.tar.zst
 ```
 
-The Bazzite toolbox and transient staging commands are intentionally kept in
-the implementation plan because they are a development-only procedure, not a
-supported user installation.
+The Bazzite RPM build is a maintainer test procedure. End users should consume
+a signed repository package once Fedora distribution is published.
 
 ## Snapshots and reset
 
@@ -196,8 +198,8 @@ Create `clean-os` after the updated system, guest agent, network, and virgl are
 working. Do not include Steam credentials.
 
 Create `overcrow-ready` after installing the tested commit but before
-onboarding. CachyOS snapshots are powered off. Bazzite uses a running
-full-system snapshot to preserve its transient `/usr` overlay.
+onboarding. Power every guest off before taking the snapshot; the Bazzite RPM
+layer persists normally across reboots.
 
 ```sh
 virsh -c qemu:///system snapshot-list overcrow-bazzite-kde
@@ -234,8 +236,9 @@ diagnostics.
   accelerated result.
 - If a guest cannot reach the network, check
   `virsh -c qemu:///system net-info default`.
-- If a Bazzite reboot removes OverCrow, restore its running
-  `overcrow-ready` snapshot or repeat the transient staging procedure.
+- If Bazzite boots a newer broken deployment, select the previous OSTree
+  deployment before attributing the failure to OverCrow. Confirm the booted
+  base with `rpm-ostree status`, then layer the RPM on that exact base.
 - Save only sanitized `overcrowctl logs` and the shortest reproduction
   sequence. Never copy notes, chat, Twitch identity, Steam credentials, or
   private host paths into this repository.

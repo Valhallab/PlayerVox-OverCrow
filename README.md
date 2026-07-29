@@ -165,8 +165,9 @@ Security issues should be reported privately as described in
 
 ## Limitations
 
-- Linux support currently means native Arch/Omarchy packaging and the display
-  matrix above. DEB and RPM packages are planned.
+- Linux support currently means native Arch/Omarchy distribution and the
+  display matrix above. A Fedora 42 RPM is available for maintainer testing;
+  a public Fedora repository and DEB distribution are still planned.
 - A selected game must be focused before a passive overlay can appear.
 - Compositor-level placement can briefly lag during geometry changes.
 - Performance telemetry describes host/game resource use, not injected frame

@@ -1,0 +1,58 @@
+%global debug_package %{nil}
+%global _build_id_links none
+
+Name:           overcrow
+Version:        @RPM_VERSION@
+Release:        1%{?dist}
+Summary:        Opt-in external Linux game overlay by PlayerVox
+
+License:        AGPL-3.0-only
+URL:            https://github.com/Valhallab/PlayerVox-OverCrow
+Source0:        @BUNDLE_NAME@
+Source1:        @CHECKSUM_NAME@
+
+BuildArch:      x86_64
+BuildRequires:  coreutils
+BuildRequires:  tar
+BuildRequires:  zstd
+Requires:       systemd
+Requires:       xdg-desktop-portal
+
+%description
+PlayerVox OverCrow is an opt-in external Linux game overlay. It provides
+movable widgets without injecting code into game processes.
+
+%prep
+cd %{_sourcedir}
+sha256sum --check --status %{SOURCE1}
+
+%build
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+tar --zstd --extract --file %{SOURCE0} --directory %{buildroot} --no-same-owner
+test -d %{buildroot}%{_prefix}
+
+%files
+%{_bindir}/overcrow-control
+%{_bindir}/overcrow-core
+%{_bindir}/overcrow-hyprland
+%{_bindir}/overcrow-overlay
+%{_bindir}/overcrowctl
+%{_prefix}/lib/overcrow
+%{_prefix}/lib/systemd/user/overcrow-core.service
+%{_prefix}/lib/systemd/user/overcrow-hyprland.service
+%{_prefix}/lib/systemd/user/overcrow-overlay.service
+%{_datadir}/applications/com.playervox.OverCrow.desktop
+%{_datadir}/icons/hicolor/512x512/apps/com.playervox.OverCrow.png
+%license %{_datadir}/licenses/overcrow/LICENSE
+%license %{_datadir}/licenses/overcrow/NOTICE
+%license %{_datadir}/licenses/overcrow/NotoSans-OFL.txt
+%license %{_datadir}/licenses/overcrow/THIRD_PARTY_LICENSES.md
+%{_datadir}/metainfo/com.playervox.OverCrow.metainfo.xml
+%{_datadir}/overcrow
+
+%post
+printf '%s\n' 'PlayerVox OverCrow was installed inertly.'
+printf '%s\n' 'Open the desktop control center to select games and opt in.'

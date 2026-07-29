@@ -15,6 +15,7 @@ sh -n "$builder"
 for contract in \
     'npm ci --ignore-scripts' \
     'npm run build' \
+    'cargo fetch --locked' \
     'cargo build --workspace --release --locked' \
     '--remap-path-prefix=' \
     'scripts/generate-third-party-notices.sh' \

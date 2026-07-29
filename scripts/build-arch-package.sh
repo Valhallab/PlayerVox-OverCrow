@@ -75,6 +75,7 @@ else
     RUSTFLAGS=$remap_flag
 fi
 export RUSTFLAGS
+cargo fetch --locked
 cargo build --workspace --release --locked
 
 notices="$work_dir/THIRD_PARTY_LICENSES.md"

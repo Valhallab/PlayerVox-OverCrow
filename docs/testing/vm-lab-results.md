@@ -10,6 +10,17 @@ values are `PASS`, `FAIL`, and `BLOCKED`.
 | CachyOS KDE | Plasma X11 | | | | | | | | |
 | CachyOS XFCE | XFCE X11 | | | | | | | | |
 
+## Native package acceptance
+
+| Date | Environment | Package | Build | Reboot persistence | Integrity | Inert services | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-29 | Bazzite KDE, Fedora 42 base | `overcrow-0.1.0~pre_alpha.3-1.fc42.x86_64` | PASS | PASS | PASS | PASS | PASS |
+
+`rpm -V --nomtime overcrow` returned zero after reboot. OSTree changed only
+payload timestamps. `overcrow-core` was disabled and all three user services
+were inactive. Graphical onboarding and in-game acceptance remain separate
+manual checks and are not implied by this package result.
+
 ## Failure record
 
 Copy this section for each `FAIL` or `BLOCKED` result.

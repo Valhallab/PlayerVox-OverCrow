@@ -29,6 +29,7 @@ trap 'rm -f -- "$tmp"' EXIT HUP INT TERM
 
 cd "$project_root"
 cargo about generate --locked --offline --fail --workspace \
+    --target x86_64-unknown-linux-gnu \
     --config about.toml \
     --output-file "$tmp" \
     packaging/licenses/third-party.hbs

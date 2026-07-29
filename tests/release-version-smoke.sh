@@ -29,6 +29,13 @@ done
 
 test "$(overcrow_arch_version 0.1.0)" = 0.1.0
 test "$(overcrow_arch_version "$version")" = 0.1.0prealpha3
+test "$(overcrow_rpm_version 0.1.0)" = 0.1.0
+test "$(overcrow_rpm_version "$version")" = '0.1.0~pre_alpha.3'
+
+if overcrow_rpm_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
+    printf '%s\n' 'RPM normalization accepted an invalid release version' >&2
+    exit 1
+fi
 test "$(vercmp 0.1.0prealpha3 0.1.0)" -lt 0
 
 grep -Fqx "version = \"$version\"" "$project_root/Cargo.toml"

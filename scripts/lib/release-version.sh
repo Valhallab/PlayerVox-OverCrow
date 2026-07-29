@@ -23,3 +23,21 @@ overcrow_arch_version() {
             ;;
     esac
 }
+
+overcrow_rpm_version() {
+    test "$#" -eq 1 || return 1
+    overcrow_version_is_valid "$1" || return 1
+
+    case $1 in
+        *-*)
+            base=${1%%-*}
+            prerelease=${1#*-}
+            normalized=$(printf '%s\n' "$prerelease" | LC_ALL=C tr '-' '_')
+            test -n "$normalized" || return 1
+            printf '%s~%s\n' "$base" "$normalized"
+            ;;
+        *)
+            printf '%s\n' "$1"
+            ;;
+    esac
+}

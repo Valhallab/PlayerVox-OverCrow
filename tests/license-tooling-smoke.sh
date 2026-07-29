@@ -18,6 +18,8 @@ test -x scripts/generate-third-party-notices.sh
 
 sh -n scripts/check-dependency-licenses.sh
 sh -n scripts/generate-third-party-notices.sh
+grep -Fq -- '--target x86_64-unknown-linux-gnu' \
+    scripts/generate-third-party-notices.sh
 
 scripts/check-dependency-licenses.sh
 
