@@ -17,6 +17,10 @@ if ! rpm_version=$(overcrow_rpm_version "$version"); then
     printf '%s\n' "error: cannot normalize RPM version: $version" >&2
     exit 1
 fi
+if ! rpm_artifact_version=$(overcrow_rpm_artifact_version "$version"); then
+    printf '%s\n' "error: cannot normalize RPM artifact version: $version" >&2
+    exit 1
+fi
 
 if [ "$(id -u)" -eq 0 ]; then
     printf '%s\n' 'error: build the package as a regular desktop user' >&2
@@ -191,6 +195,6 @@ if grep -Eq 'systemctl|rpm-ostree|kpackagetool|qdbus|hyprctl' \
     exit 1
 fi
 
-artifact="$dist_dir/${built_rpm##*/}"
+artifact="$dist_dir/overcrow-$rpm_artifact_version-1.fc$fedora_version.x86_64.rpm"
 publish_artifact "$built_rpm" "$artifact"
 printf '%s\n' 'Nothing was installed or started.'

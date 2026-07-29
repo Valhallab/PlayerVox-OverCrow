@@ -41,3 +41,9 @@ overcrow_rpm_version() {
             ;;
     esac
 }
+
+overcrow_rpm_artifact_version() {
+    test "$#" -eq 1 || return 1
+    rpm_version=$(overcrow_rpm_version "$1") || return 1
+    printf '%s\n' "$rpm_version" | LC_ALL=C tr '~' '.'
+}

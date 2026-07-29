@@ -23,8 +23,8 @@ if ! arch_version=$(overcrow_arch_version "$version"); then
     printf '%s\n' 'error: could not normalize the Arch version' >&2
     exit 2
 fi
-if ! rpm_version=$(overcrow_rpm_version "$version"); then
-    printf '%s\n' 'error: could not normalize the RPM version' >&2
+if ! rpm_artifact_version=$(overcrow_rpm_artifact_version "$version"); then
+    printf '%s\n' 'error: could not normalize the RPM artifact version' >&2
     exit 2
 fi
 case $source_dir in
@@ -51,7 +51,7 @@ if test -e "$output_dir" || test -L "$output_dir"; then
 fi
 
 arch_artifact="overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst"
-rpm_artifact="overcrow-$rpm_version-1.fc42.x86_64.rpm"
+rpm_artifact="overcrow-$rpm_artifact_version-1.fc42.x86_64.rpm"
 for artifact in "$arch_artifact" "$rpm_artifact"; do
     source_path="$source_dir/$artifact"
     if ! test -f "$source_path" || test -L "$source_path" ||

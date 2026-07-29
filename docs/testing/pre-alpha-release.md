@@ -22,7 +22,7 @@ sudo pacman -U overcrow-bin-0.1.0prealpha4-1-x86_64.pkg.tar.zst
 overcrow-control
 ```
 
-On Fedora 42 use `sudo dnf install ./overcrow-0.1.0~pre_alpha.4-1.fc42.x86_64.rpm`.
+On Fedora 42 use `sudo dnf install ./overcrow-0.1.0.pre_alpha.4-1.fc42.x86_64.rpm`.
 On Bazzite use `rpm-ostree install` with that RPM, then reboot.
 
 - [ ] The app is identified as **PlayerVox OverCrow**.

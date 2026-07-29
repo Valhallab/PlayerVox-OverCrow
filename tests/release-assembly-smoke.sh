@@ -5,7 +5,7 @@ project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 assembler="$project_root/packaging/release/assemble.sh"
 version=0.1.0-pre-alpha.1
 arch_version=0.1.0prealpha1
-rpm_version='0.1.0~pre_alpha.1'
+rpm_version=0.1.0.pre_alpha.1
 arch_artifact="overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst"
 rpm_artifact="overcrow-$rpm_version-1.fc42.x86_64.rpm"
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/overcrow-release-assembly.XXXXXX")

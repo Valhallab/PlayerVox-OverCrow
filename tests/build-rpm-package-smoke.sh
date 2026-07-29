@@ -30,6 +30,10 @@ grep -Fq 'rpm -qpl' "$builder" ||
     fail 'RPM payload is not inspected'
 grep -Fq 'rpm -qpR' "$builder" ||
     fail 'RPM dependencies are not inspected'
+# This is an intentional literal command shape read from the target script.
+# shellcheck disable=SC2016
+grep -Fq 'overcrow_rpm_artifact_version "$version"' "$builder" ||
+    fail 'GitHub-safe RPM artifact naming is not used'
 grep -Fq 'Nothing was installed or started.' "$builder" ||
     fail 'inert build result is not explicit'
 

@@ -47,8 +47,8 @@ if ! arch_version=$(overcrow_arch_version "$version"); then
     printf '%s\n' "error: cannot normalize Arch version: $version" >&2
     exit 1
 fi
-if ! rpm_version=$(overcrow_rpm_version "$version"); then
-    printf '%s\n' "error: cannot normalize RPM version: $version" >&2
+if ! rpm_artifact_version=$(overcrow_rpm_artifact_version "$version"); then
+    printf '%s\n' "error: cannot normalize RPM artifact version: $version" >&2
     exit 1
 fi
 if test "$(uname -m)" != x86_64; then
@@ -65,7 +65,7 @@ case $SOURCE_DATE_EPOCH in
 esac
 export SOURCE_DATE_EPOCH
 
-rpm_artifact="$project_root/dist/overcrow-$rpm_version-1.fc42.x86_64.rpm"
+rpm_artifact="$project_root/dist/overcrow-$rpm_artifact_version-1.fc42.x86_64.rpm"
 if ! test -f "$rpm_artifact" || test -L "$rpm_artifact" ||
         ! test -s "$rpm_artifact"; then
     printf '%s\n' "error: validated Fedora 42 RPM is required: $rpm_artifact" >&2

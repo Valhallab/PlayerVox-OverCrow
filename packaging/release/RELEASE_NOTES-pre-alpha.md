@@ -29,7 +29,7 @@ Install `overcrow-bin` on Arch or the Fedora 42 `overcrow` RPM for the complete
 application, runtime, overlay, and compositor integrations.
 
 See the [pre-alpha acceptance checklist](https://github.com/Valhallab/PlayerVox-OverCrow/blob/master/docs/testing/pre-alpha-release.md)
-before publication.
+for installation and validation details.
 
 ## Known limitations
 
