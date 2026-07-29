@@ -147,6 +147,8 @@ mv -T -n -- "$working_spec" "$output" ||
     { printf '%s\n' 'error: could not publish RPM spec' >&2; exit 1; }
 working_spec=
 
-test -f "$output" && test ! -L "$output" ||
-    { printf '%s\n' 'error: RPM spec publication failed' >&2; exit 1; }
+if ! test -f "$output" || test -L "$output"; then
+    printf '%s\n' 'error: RPM spec publication failed' >&2
+    exit 1
+fi
 published_checksum=false
