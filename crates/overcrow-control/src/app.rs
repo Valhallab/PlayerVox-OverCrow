@@ -404,6 +404,7 @@ impl ControlController {
                         &game.name,
                         crate::MAX_CONTROL_GAME_NAME_BYTES,
                     ),
+                    kind: game.kind.into(),
                     selected: self
                         .model
                         .settings
@@ -662,7 +663,7 @@ impl ControlController {
         self.start_picker_with(|| {
             let selected = pollster::block_on(
                 rfd::AsyncFileDialog::new()
-                    .set_title("Select a native game executable")
+                    .set_title("Select a native Linux game executable")
                     .pick_file(),
             );
             picker_result(selected.map(|file| file.path().to_path_buf()))

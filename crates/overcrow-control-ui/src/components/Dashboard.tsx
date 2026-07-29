@@ -11,6 +11,7 @@ import type {
 import { Brand } from './Brand';
 import { CompatibilityCard } from './CompatibilityCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { GameSourceLabel } from './GameSourceLabel';
 
 type Page = 'overview' | 'games' | 'diagnostics' | 'about';
 
@@ -150,7 +151,7 @@ export function Dashboard(props: DashboardProps) {
               {filteredGames.map((game) => (
                 <label className="game-row" key={game.app_id}>
                   <span className="game-row__icon" aria-hidden="true">{game.name.slice(0, 1).toUpperCase()}</span>
-                  <span className="game-row__name">{game.name}<small>{en.dashboard.steam} · {en.dashboard.app} {game.app_id}</small></span>
+                  <span className="game-row__name">{game.name}<GameSourceLabel game={game} /></span>
                   <input type="checkbox" checked={game.selected} disabled={busy || !snapshot.selection_editing_enabled} onChange={(event) => props.onSelectGame(game.app_id, event.currentTarget.checked)} />
                   <span className="switch" aria-hidden="true" />
                 </label>

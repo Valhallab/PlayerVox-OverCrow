@@ -81,7 +81,7 @@ describe('Control Center onboarding', () => {
         lifecycle: 'enabled',
         master_switch_checked: true,
         selection_editing_enabled: false,
-        games: [{ app_id: 4242, name: 'Example Game', selected: true }],
+        games: [{ app_id: 4242, name: 'Example Game', kind: 'steam_game', selected: true }],
       }),
     );
     const storage = memoryStorage();
@@ -123,7 +123,7 @@ describe('Control Center dashboard', () => {
     const storage = memoryStorage();
     storage.setItem('overcrow.onboardingVersion', '1');
     const client = memoryClient(
-      snapshot({ games: [{ app_id: 4242, name: 'Example Game', selected: true }] }),
+      snapshot({ games: [{ app_id: 4242, name: 'Example Game', kind: 'steam_game', selected: true }] }),
     );
     render(<App client={client} storage={storage} />);
 
@@ -146,6 +146,25 @@ describe('Control Center dashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Games' }));
     expect(screen.getByRole('checkbox', { name: /Example Game.*Steam · App 4242/ })).toBeChecked();
+  });
+
+  it('labels Steam shortcuts and unverified application types', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = memoryClient(
+      snapshot({
+        games: [
+          { app_id: 101, name: 'Shortcut Game', kind: 'steam_shortcut', selected: false },
+          { app_id: 202, name: 'Unverified Game', kind: 'unverified', selected: false },
+        ],
+      }),
+    );
+    render(<App client={client} storage={storage} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Games' }));
+
+    expect(screen.getByText('Steam shortcut · App 101')).toBeVisible();
+    expect(screen.getByText('Type unverified · App 202')).toBeVisible();
   });
 
   it('shows the release version below compatibility and on the About page', async () => {
@@ -178,7 +197,7 @@ describe('Control Center dashboard', () => {
     const storage = memoryStorage();
     storage.setItem('overcrow.onboardingVersion', '1');
     const initial = snapshot({
-      games: [{ app_id: 4242, name: 'Example Game', selected: true }],
+      games: [{ app_id: 4242, name: 'Example Game', kind: 'steam_game', selected: true }],
     });
     const client = memoryClient(initial);
     render(<App client={client} storage={storage} />);

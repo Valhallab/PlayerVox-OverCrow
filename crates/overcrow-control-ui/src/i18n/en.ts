@@ -177,6 +177,8 @@ export const en = {
     explicitlyAuthorized: 'Explicitly authorized',
     shortcutScope: 'Active only in allowed games',
     steam: 'Steam',
+    steamShortcut: 'Steam shortcut',
+    typeUnverified: 'Type unverified',
     app: 'App',
   },
   errors: {

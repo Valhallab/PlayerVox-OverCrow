@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     CompatibilityReason, CompatibilityReport, CompatibilityStatus, DesktopEnvironment,
-    DisplaySession, GraphicsVendor, Level, LifecycleStatus, NoticeOperation, UiNoticeLevel,
-    compatibility::MAX_ENVIRONMENT_LABEL_BYTES, model::is_stable_manual_game_id,
+    DisplaySession, GraphicsVendor, Level, LifecycleStatus, NoticeOperation, SteamGameKind,
+    UiNoticeLevel, compatibility::MAX_ENVIRONMENT_LABEL_BYTES, model::is_stable_manual_game_id,
 };
 
-pub const CONTROL_SNAPSHOT_SCHEMA_VERSION: u32 = 2;
+pub const CONTROL_SNAPSHOT_SCHEMA_VERSION: u32 = 3;
 pub const MAX_CONTROL_SNAPSHOT_BYTES: usize = 512 * 1024;
 pub const CONTROL_LOG_SCHEMA_VERSION: u32 = 1;
 pub const MAX_CONTROL_LOG_LINES: usize = 500;
@@ -208,7 +208,26 @@ impl ControlOperationState {
 pub struct ControlGame {
     pub app_id: u32,
     pub name: String,
+    pub kind: ControlGameKind,
     pub selected: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ControlGameKind {
+    SteamGame,
+    SteamShortcut,
+    Unverified,
+}
+
+impl From<SteamGameKind> for ControlGameKind {
+    fn from(kind: SteamGameKind) -> Self {
+        match kind {
+            SteamGameKind::SteamGame => Self::SteamGame,
+            SteamGameKind::SteamShortcut => Self::SteamShortcut,
+            SteamGameKind::Unverified => Self::Unverified,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

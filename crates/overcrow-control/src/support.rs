@@ -441,7 +441,7 @@ mod tests {
 
     use crate::{
         CompatibilityReason, CompatibilityStatus, ControlCompatibility, ControlDiagnostic,
-        ControlGame, ControlLifecycle, ControlLogSnapshot, ControlManualGame,
+        ControlGame, ControlGameKind, ControlLifecycle, ControlLogSnapshot, ControlManualGame,
         ControlOperationState, ControlSnapshot, DesktopEnvironment, DiagnosticLevelCode,
         DisplaySession,
     };
@@ -473,11 +473,13 @@ mod tests {
                 ControlGame {
                     app_id: 4242,
                     name: "Private game title".to_owned(),
+                    kind: ControlGameKind::SteamGame,
                     selected: true,
                 },
                 ControlGame {
                     app_id: 9999,
                     name: "Other private title".to_owned(),
+                    kind: ControlGameKind::Unverified,
                     selected: false,
                 },
             ],

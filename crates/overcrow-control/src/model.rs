@@ -334,9 +334,10 @@ impl fmt::Display for SelectionError {
             }
             Self::ExecutableNotExecutable => formatter
                 .write_str("manual game executable must have at least one Unix execute bit"),
-            Self::WineIdentityUnavailable => {
-                formatter.write_str("exact Wine executable identity is not yet available")
-            }
+            Self::WineIdentityUnavailable => formatter.write_str(
+                "Windows executables cannot be selected directly. Add the game to Steam, \
+                     force a Proton compatibility tool, launch it once, then refresh this list.",
+            ),
             Self::DuplicateManualExecutable => {
                 formatter.write_str("manual game executable is already selected")
             }

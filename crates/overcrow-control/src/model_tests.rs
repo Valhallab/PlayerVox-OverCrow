@@ -14,6 +14,7 @@ use tempfile::TempDir;
 
 use crate::{
     ControlModel, DiscoveryReport, NativePathValidator, PathValidator, SelectionError, SteamGame,
+    SteamGameKind,
 };
 
 struct FakeValidator {
@@ -51,7 +52,8 @@ fn game(app_id: u32, name: &str) -> SteamGame {
     SteamGame {
         app_id,
         name: name.to_owned(),
-        install_dir: PathBuf::from(format!("/steam/{app_id}")),
+        kind: SteamGameKind::SteamGame,
+        install_dir: Some(PathBuf::from(format!("/steam/{app_id}"))),
         icon: None,
     }
 }
@@ -785,6 +787,11 @@ fn native_validator_fails_closed_for_exe_paths_case_insensitively() {
         let error = NativePathValidator.canonical_executable(&path).unwrap_err();
 
         assert_eq!(error, SelectionError::WineIdentityUnavailable);
+        assert_eq!(
+            error.to_string(),
+            "Windows executables cannot be selected directly. Add the game to Steam, force a \
+             Proton compatibility tool, launch it once, then refresh this list."
+        );
     }
 }
 

@@ -66,6 +66,17 @@ OverCrow starts disabled. Select at least one detected game, then enable the
 runtime from the System Status card. Runtime services and shortcuts become
 available only for explicitly selected games.
 
+Windows games added manually to Steam are discovered through their Steam
+shortcut identity. In Steam, add the game, force a Proton compatibility tool,
+launch it once, then select **Refresh games** in OverCrow. The native executable
+picker accepts Linux executables only; selecting a `.exe` directly is
+intentionally unsupported.
+
+Steam tools, runtimes, redistributables, DLC, and media are hidden when Steam
+identifies their type. An installed entry with missing or newer metadata stays
+selectable with a **Type unverified** label instead of being guessed from its
+name.
+
 Closing the Control Center hides its window while PlayerVox OverCrow remains
 available from the system tray. The tray menu shows the current status and
 provides **Start OverCrow**, **Stop OverCrow**, **Open Control Center**, and
@@ -179,6 +190,8 @@ Security issues should be reported privately as described in
 
 - Distribution is currently through the AUR, Fedora COPR, and direct release
   packages. DEB distribution is still planned.
+- Non-Steam Windows games must be launched as Steam shortcuts through Proton;
+  direct Wine executable matching is not supported.
 - A selected game must be focused before a passive overlay can appear.
 - Compositor-level placement can briefly lag during geometry changes.
 - Performance telemetry describes host/game resource use, not injected frame

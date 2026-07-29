@@ -25,6 +25,18 @@ commands and does not modify the desktop.
 An unfocused, unselected, unsupported, or ambiguously identified game fails
 closed and cannot authorize an overlay.
 
+## A Windows game added to Steam is missing
+
+1. In Steam, add the Windows game as a non-Steam game.
+2. Open its Steam properties and force a Proton compatibility tool.
+3. Launch the game once through Steam so Steam assigns its runtime app ID.
+4. Open **Games** in the Control Center and select **Refresh games**.
+5. Select the row marked **Steam shortcut**.
+
+Do not use **Add a native game** for a `.exe`; that picker deliberately accepts
+native Linux executables only. **Type unverified** means Steam did not provide a
+known application type. It is a warning, not a compatibility failure.
+
 ## Input or overlay mode is stuck
 
 First press `Esc`, then `Meta+Alt+O`. If the mode still does not return to

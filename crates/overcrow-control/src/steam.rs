@@ -6,10 +6,12 @@ use std::{
 };
 
 use keyvalues_parser::{Obj, Value};
+use unicode_casefold::UnicodeCaseFold;
 
 use crate::presentation::{
     MAX_CONTROL_GAME_NAME_BYTES, MAX_CONTROL_MESSAGE_BYTES, bounded_control_text,
 };
+use crate::steam_binary::{SteamAppType, SteamShortcut, read_binary_metadata};
 
 /// Maximum accepted size of `libraryfolders.vdf` (4 MiB).
 pub const MAX_LIBRARY_VDF_BYTES: usize = 4 * 1024 * 1024;
@@ -25,11 +27,19 @@ pub const MAX_WARNINGS: usize = 64;
 pub const MAX_KEYVALUES_NESTING_DEPTH: usize = 64;
 const MAX_PATH_COMPONENT_BYTES: usize = 255;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SteamGameKind {
+    SteamGame,
+    SteamShortcut,
+    Unverified,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SteamGame {
     pub app_id: u32,
     pub name: String,
-    pub install_dir: PathBuf,
+    pub kind: SteamGameKind,
+    pub install_dir: Option<PathBuf>,
     pub icon: Option<PathBuf>,
 }
 
@@ -183,12 +193,16 @@ pub fn discover_from_roots(roots: &[PathBuf]) -> DiscoveryReport {
         }
     }
 
-    for library in libraries {
+    let metadata_roots = libraries
+        .iter()
+        .map(|library| library.icon_root.clone())
+        .collect::<BTreeSet<_>>();
+    for library in &libraries {
         if manifest_limit_reported {
             break;
         }
         scan_library(
-            &library,
+            library,
             &mut games,
             &mut report.warnings,
             &mut manifests_inspected,
@@ -196,8 +210,96 @@ pub fn discover_from_roots(roots: &[PathBuf]) -> DiscoveryReport {
         );
     }
 
+    merge_binary_metadata(metadata_roots, &mut games, &mut report.warnings);
     report.games = games.into_values().collect();
+    report.games.sort_by_cached_key(|game| {
+        (
+            game.name.as_str().case_fold().collect::<String>(),
+            game.app_id,
+        )
+    });
     report
+}
+
+fn merge_binary_metadata(
+    roots: BTreeSet<PathBuf>,
+    games: &mut BTreeMap<u32, SteamGame>,
+    warnings: &mut Vec<String>,
+) {
+    let mut app_types = BTreeMap::new();
+    let mut shortcuts = BTreeMap::<u32, SteamShortcut>::new();
+    let mut ambiguous_ids = BTreeSet::new();
+
+    for root in roots {
+        let metadata = read_binary_metadata(&root);
+        for warning in metadata.warnings {
+            push_warning(warnings, warning);
+        }
+        for (app_id, app_type) in metadata.app_types {
+            match app_types.get(&app_id) {
+                Some(existing) if *existing != app_type => {
+                    app_types.remove(&app_id);
+                    ambiguous_ids.insert(app_id);
+                }
+                Some(_) => {}
+                None if !ambiguous_ids.contains(&app_id) => {
+                    app_types.insert(app_id, app_type);
+                }
+                None => {}
+            }
+        }
+        for shortcut in metadata.shortcuts {
+            match shortcuts.get(&shortcut.app_id) {
+                Some(existing) if existing.name != shortcut.name => {
+                    shortcuts.remove(&shortcut.app_id);
+                    ambiguous_ids.insert(shortcut.app_id);
+                }
+                Some(_) => {}
+                None if !ambiguous_ids.contains(&shortcut.app_id) => {
+                    shortcuts.insert(shortcut.app_id, shortcut);
+                }
+                None => {}
+            }
+        }
+    }
+
+    for app_id in games.keys() {
+        if shortcuts.contains_key(app_id) {
+            ambiguous_ids.insert(*app_id);
+        }
+    }
+    for app_id in &ambiguous_ids {
+        games.remove(app_id);
+        shortcuts.remove(app_id);
+        push_warning(
+            warnings,
+            format!("ambiguous Steam app ID {app_id} was omitted"),
+        );
+    }
+
+    games.retain(|app_id, game| match app_types.get(app_id) {
+        Some(SteamAppType::Game) => {
+            game.kind = SteamGameKind::SteamGame;
+            true
+        }
+        Some(SteamAppType::NonGame) => false,
+        Some(SteamAppType::Unknown) | None => {
+            game.kind = SteamGameKind::Unverified;
+            true
+        }
+    });
+    for shortcut in shortcuts.into_values() {
+        games.insert(
+            shortcut.app_id,
+            SteamGame {
+                app_id: shortcut.app_id,
+                name: shortcut.name,
+                kind: SteamGameKind::SteamShortcut,
+                install_dir: None,
+                icon: None,
+            },
+        );
+    }
 }
 
 fn canonical_directory(path: &Path) -> Result<PathBuf, String> {
@@ -582,7 +684,8 @@ fn parse_manifest(
     Ok(Some(SteamGame {
         app_id,
         name: name.to_owned(),
-        install_dir,
+        kind: SteamGameKind::Unverified,
+        install_dir: Some(install_dir),
         icon,
     }))
 }

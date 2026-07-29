@@ -22,7 +22,7 @@ use crate::diagnostics::{
 };
 use crate::{
     Availability, ControlModel, DiagnosticInput, DiscoveryReport, Level, PathValidator,
-    PortalPickerInput, SelectionError, SteamGame, collect_foundation_diagnostics,
+    PortalPickerInput, SelectionError, SteamGame, SteamGameKind, collect_foundation_diagnostics,
 };
 
 #[derive(Clone, Copy)]
@@ -759,13 +759,15 @@ fn diagnostic_snapshot_syncs_only_bounded_model_results_and_counts() {
                 SteamGame {
                     app_id: 620,
                     name: "Portal 2".into(),
-                    install_dir: PathBuf::from("/steam/portal2"),
+                    kind: SteamGameKind::SteamGame,
+                    install_dir: Some(PathBuf::from("/steam/portal2")),
                     icon: None,
                 },
                 SteamGame {
                     app_id: 1_623_730,
                     name: "Palworld".into(),
-                    install_dir: PathBuf::from("/steam/palworld"),
+                    kind: SteamGameKind::SteamGame,
+                    install_dir: Some(PathBuf::from("/steam/palworld")),
                     icon: None,
                 },
             ],

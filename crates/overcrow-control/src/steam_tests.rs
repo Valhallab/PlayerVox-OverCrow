@@ -4,12 +4,89 @@ use std::{
     os::unix::{ffi::OsStringExt, fs::symlink},
     path::Path,
 };
+use unicode_casefold::UnicodeCaseFold;
 
 use crate::{
     MAX_KEYVALUES_NESTING_DEPTH, MAX_LIBRARY_VDF_BYTES, MAX_MANIFEST_BYTES,
-    MAX_MANIFESTS_INSPECTED, MAX_SECONDARY_LIBRARIES, MAX_WARNINGS, candidate_steam_roots,
-    discover_from_roots,
+    MAX_MANIFESTS_INSPECTED, MAX_SECONDARY_LIBRARIES, MAX_WARNINGS, SteamGameKind,
+    candidate_steam_roots, discover_from_roots,
 };
+
+const APPINFO_MAGIC_V41: u32 = 0x0756_4429;
+
+fn binary_object(bytes: &mut Vec<u8>, key_index: u32) {
+    bytes.push(0);
+    bytes.extend_from_slice(&key_index.to_le_bytes());
+}
+
+fn binary_string(bytes: &mut Vec<u8>, key_index: u32, value: &str) {
+    bytes.push(1);
+    bytes.extend_from_slice(&key_index.to_le_bytes());
+    bytes.extend_from_slice(value.as_bytes());
+    bytes.push(0);
+}
+
+fn binary_end(bytes: &mut Vec<u8>) {
+    bytes.push(8);
+}
+
+fn appinfo_types(entries: &[(u32, &str)]) -> Vec<u8> {
+    let strings = ["appinfo", "common", "type"];
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&APPINFO_MAGIC_V41.to_le_bytes());
+    bytes.extend_from_slice(&1_u32.to_le_bytes());
+    bytes.extend_from_slice(&0_u64.to_le_bytes());
+    for (app_id, app_type) in entries {
+        let mut vdf = Vec::new();
+        binary_object(&mut vdf, 0);
+        binary_object(&mut vdf, 1);
+        binary_string(&mut vdf, 2, app_type);
+        binary_end(&mut vdf);
+        binary_end(&mut vdf);
+        binary_end(&mut vdf);
+        bytes.extend_from_slice(&app_id.to_le_bytes());
+        bytes.extend_from_slice(&(60_u32 + u32::try_from(vdf.len()).unwrap()).to_le_bytes());
+        bytes.extend_from_slice(&[0; 60]);
+        bytes.extend_from_slice(&vdf);
+    }
+    bytes.extend_from_slice(&0_u32.to_le_bytes());
+    let table_offset = u64::try_from(bytes.len()).unwrap();
+    bytes[8..16].copy_from_slice(&table_offset.to_le_bytes());
+    bytes.extend_from_slice(&u32::try_from(strings.len()).unwrap().to_le_bytes());
+    for value in strings {
+        bytes.extend_from_slice(value.as_bytes());
+        bytes.push(0);
+    }
+    bytes
+}
+
+fn shortcut(app_id: u32, name: &str) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.push(0);
+    bytes.extend_from_slice(b"shortcuts\0");
+    bytes.push(0);
+    bytes.extend_from_slice(b"0\0");
+    bytes.push(2);
+    bytes.extend_from_slice(b"appid\0");
+    bytes.extend_from_slice(&app_id.to_le_bytes());
+    bytes.push(1);
+    bytes.extend_from_slice(b"appname\0");
+    bytes.extend_from_slice(name.as_bytes());
+    bytes.push(0);
+    binary_end(&mut bytes);
+    binary_end(&mut bytes);
+    bytes
+}
+
+fn write_binary_metadata(root: &Path, app_types: &[(u32, &str)], shortcuts: &[(u32, &str)]) {
+    fs::create_dir_all(root.join("appcache")).unwrap();
+    fs::write(root.join("appcache/appinfo.vdf"), appinfo_types(app_types)).unwrap();
+    for (index, (app_id, name)) in shortcuts.iter().enumerate() {
+        let config = root.join(format!("userdata/{}/config", index + 1));
+        fs::create_dir_all(&config).unwrap();
+        fs::write(config.join("shortcuts.vdf"), shortcut(*app_id, name)).unwrap();
+    }
+}
 
 fn materialize_fixture(temp: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
     let root = temp.join("root");
@@ -56,6 +133,27 @@ fn write_malformed_manifest_names(steamapps: &Path) {
         )
         .unwrap();
     }
+}
+
+fn game_by_id(report: &crate::DiscoveryReport, app_id: u32) -> &crate::SteamGame {
+    report
+        .games
+        .iter()
+        .find(|game| game.app_id == app_id)
+        .expect("fixture game must be present")
+}
+
+fn assert_alphabetical(games: &[crate::SteamGame]) {
+    let keys = games
+        .iter()
+        .map(|game| {
+            (
+                game.name.as_str().case_fold().collect::<String>(),
+                game.app_id,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(keys.windows(2).all(|pair| pair[0] <= pair[1]));
 }
 
 #[test]
@@ -129,22 +227,101 @@ fn discovers_games_and_local_metadata_across_keyvalues_v1_libraries() {
             .iter()
             .map(|game| (game.app_id, game.name.as_str()))
             .collect::<Vec<_>>(),
-        vec![(620, "Portal 2"), (1_623_730, "Palworld")]
+        vec![(1_623_730, "Palworld"), (620, "Portal 2")]
     );
+    let portal = game_by_id(&report, 620);
+    let palworld = game_by_id(&report, 1_623_730);
     assert_eq!(
-        report.games[0].install_dir,
-        root.join("steamapps/common/Portal 2")
+        portal.install_dir,
+        Some(root.join("steamapps/common/Portal 2"))
     );
+    assert_eq!(portal.icon, Some(root.join("steam/games/portal2-icon.ico")));
     assert_eq!(
-        report.games[0].icon,
-        Some(root.join("steam/games/portal2-icon.ico"))
+        palworld.install_dir,
+        Some(secondary.join("steamapps/common/Palworld"))
     );
-    assert_eq!(
-        report.games[1].install_dir,
-        secondary.join("steamapps/common/Palworld")
-    );
-    assert_eq!(report.games[1].icon, None);
+    assert_eq!(palworld.icon, None);
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+}
+
+#[test]
+fn filters_known_tools_adds_shortcuts_and_sorts_names_case_insensitively() {
+    let temp = tempfile::tempdir().unwrap();
+    let (root, _) = materialize_fixture(temp.path());
+    write_binary_metadata(
+        &root,
+        &[(620, "Game"), (1_623_730, "Tool")],
+        &[(2_369_324_441, "alpha Shortcut")],
+    );
+
+    let report = discover_from_roots(&[root]);
+
+    assert_eq!(
+        report
+            .games
+            .iter()
+            .map(|game| (game.app_id, game.name.as_str(), game.kind))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                2_369_324_441,
+                "alpha Shortcut",
+                SteamGameKind::SteamShortcut,
+            ),
+            (620, "Portal 2", SteamGameKind::SteamGame),
+        ]
+    );
+    assert_eq!(report.games[0].install_dir, None);
+    assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+}
+
+#[test]
+fn unknown_or_missing_types_keep_official_games_as_unverified() {
+    let temp = tempfile::tempdir().unwrap();
+    let (root, _) = materialize_fixture(temp.path());
+    write_binary_metadata(&root, &[(620, "UnexpectedFutureType")], &[]);
+
+    let report = discover_from_roots(&[root]);
+
+    assert_eq!(
+        report
+            .games
+            .iter()
+            .map(|game| (game.app_id, game.kind))
+            .collect::<Vec<_>>(),
+        vec![
+            (1_623_730, SteamGameKind::Unverified),
+            (620, SteamGameKind::Unverified),
+        ]
+    );
+}
+
+#[test]
+fn an_official_and_shortcut_app_id_collision_is_omitted() {
+    let temp = tempfile::tempdir().unwrap();
+    let (root, _) = materialize_fixture(temp.path());
+    write_binary_metadata(
+        &root,
+        &[(620, "Game"), (1_623_730, "Game")],
+        &[(620, "Conflicting Shortcut")],
+    );
+
+    let report = discover_from_roots(&[root]);
+
+    assert_eq!(
+        report
+            .games
+            .iter()
+            .map(|game| game.app_id)
+            .collect::<Vec<_>>(),
+        vec![1_623_730]
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("ambiguous Steam app ID 620"))
+    );
 }
 
 #[test]
@@ -168,7 +345,7 @@ fn legacy_direct_keyvalues_library_paths_are_supported() {
             .iter()
             .map(|game| game.app_id)
             .collect::<Vec<_>>(),
-        vec![620, 1_623_730]
+        vec![1_623_730, 620]
     );
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
 }
@@ -290,7 +467,7 @@ fn a_malformed_library_entry_does_not_hide_other_libraries() {
             .iter()
             .map(|game| game.app_id)
             .collect::<Vec<_>>(),
-        vec![620, 1_623_730]
+        vec![1_623_730, 620]
     );
     assert_eq!(report.warnings.len(), 1);
     assert!(report.warnings[0].starts_with(&library_file.display().to_string()));
@@ -376,7 +553,7 @@ fn hostile_manifest_fields_fail_closed_without_hiding_valid_games() {
             .iter()
             .map(|game| game.app_id)
             .collect::<Vec<_>>(),
-        vec![620, 1_623_730]
+        vec![1_623_730, 620]
     );
     assert_eq!(report.warnings.len(), 5);
     assert!(
@@ -556,8 +733,7 @@ fn keyvalues_preflight_ignores_braces_in_escaped_strings_and_comments() {
 
     let report = discover_from_roots(&[root]);
 
-    assert_eq!(report.games[0].app_id, 620);
-    assert_eq!(report.games[0].name, "Portal \"Quoted\" {Edition}");
+    assert_eq!(game_by_id(&report, 620).name, "Portal \"Quoted\" {Edition}");
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
 }
 
@@ -634,12 +810,7 @@ fn manifest_inspection_count_is_bounded_deterministically() {
             .iter()
             .any(|warning| warning.contains("manifest inspection limit"))
     );
-    assert!(
-        report
-            .games
-            .windows(2)
-            .all(|pair| pair[0].app_id < pair[1].app_id)
-    );
+    assert_alphabetical(&report.games);
 }
 
 #[test]
@@ -720,10 +891,10 @@ fn an_icon_symlink_must_not_escape_canonical_steam_games() {
     symlink(&outside, &icon).unwrap();
 
     let report = discover_from_roots(&[root]);
+    let portal = game_by_id(&report, 620);
 
     assert_eq!(report.games.len(), 2);
-    assert_eq!(report.games[0].app_id, 620);
-    assert_eq!(report.games[0].icon, None);
+    assert_eq!(portal.icon, None);
     assert_eq!(report.warnings.len(), 1);
     assert!(report.warnings[0].starts_with(&icon.display().to_string()));
     assert!(report.warnings[0].contains("outside canonical Steam games directory"));
@@ -766,7 +937,7 @@ fn malformed_names_do_not_displace_a_valid_root_manifest_or_consume_quota() {
             .iter()
             .map(|game| game.app_id)
             .collect::<Vec<_>>(),
-        vec![620, 1_623_730]
+        vec![1_623_730, 620]
     );
     assert_eq!(report.warnings.len(), MAX_WARNINGS);
     assert!(report.warnings.last().unwrap().contains("warning limit"));
@@ -786,7 +957,7 @@ fn malformed_names_in_a_later_library_do_not_exhaust_global_parse_quota() {
             .iter()
             .map(|game| game.app_id)
             .collect::<Vec<_>>(),
-        vec![620, 1_623_730]
+        vec![1_623_730, 620]
     );
     assert_eq!(report.warnings.len(), MAX_WARNINGS);
     assert!(report.warnings.last().unwrap().contains("warning limit"));
@@ -839,6 +1010,6 @@ fn slashes_between_tokens_still_start_a_line_comment() {
 
     let report = discover_from_roots(&[root]);
 
-    assert_eq!(report.games[0].app_id, 620);
+    assert_eq!(game_by_id(&report, 620).app_id, 620);
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
 }

@@ -21,7 +21,7 @@ use crate::{
     ControlView, CorePassiveClient, DiagnosticInput, DiscoveryReport, IntegrationSetup, Level,
     LifecycleController, LifecycleSettingsRepository, NativePathValidator, NoticeOperation,
     PickerFailure, PickerResult, SaveOutcome, SelectionStore, ShortcutDisplay, SteamGame,
-    UiNoticeLevel, WorkStart,
+    SteamGameKind, UiNoticeLevel, WorkStart,
 };
 
 #[derive(Clone)]
@@ -154,7 +154,8 @@ fn game(app_id: u32, name: &str) -> SteamGame {
     SteamGame {
         app_id,
         name: name.to_owned(),
-        install_dir: PathBuf::from(format!("/games/{name}")),
+        kind: SteamGameKind::SteamGame,
+        install_dir: Some(PathBuf::from(format!("/games/{name}"))),
         icon: None,
     }
 }

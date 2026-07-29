@@ -51,7 +51,12 @@ export interface ControlSnapshot {
     picker: boolean;
     lifecycle: boolean;
   };
-  games: Array<{ app_id: number; name: string; selected: boolean }>;
+  games: Array<{
+    app_id: number;
+    name: string;
+    kind: 'steam_game' | 'steam_shortcut' | 'unverified';
+    selected: boolean;
+  }>;
   manual_games: Array<{ id: string; name: string; executable: string }>;
   notices: Array<{
     operation: 'selection_save' | 'refresh' | 'picker' | 'lifecycle';

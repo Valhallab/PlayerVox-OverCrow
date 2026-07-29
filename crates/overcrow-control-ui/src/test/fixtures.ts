@@ -8,7 +8,7 @@ export function snapshot(
   overrides: Partial<ControlSnapshot> = {},
 ): ControlSnapshot {
   return {
-    schema_version: 2,
+    schema_version: 3,
     compatibility: {
       operating_system: 'Arch Linux',
       session: 'wayland',
@@ -24,7 +24,7 @@ export function snapshot(
     selection_editing_enabled: true,
     shortcut: 'SUPER+ALT+O',
     operations: { refresh: false, picker: false, lifecycle: false },
-    games: [{ app_id: 4242, name: 'Example Game', selected: false }],
+    games: [{ app_id: 4242, name: 'Example Game', kind: 'steam_game', selected: false }],
     manual_games: [],
     notices: [],
     diagnostics: [{ label: 'Desktop session', detail: 'Wayland — Hyprland detected.', level: 'ok' }],

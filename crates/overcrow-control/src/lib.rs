@@ -8,6 +8,7 @@ mod model;
 mod presentation;
 mod settings_diagnostic;
 mod steam;
+mod steam_binary;
 mod support;
 
 pub use app::{
@@ -33,8 +34,8 @@ pub use lifecycle::{
 pub use model::{ControlModel, NativePathValidator, PathValidator, SelectionError, SelectionStore};
 pub use presentation::{
     CONTROL_LOG_SCHEMA_VERSION, CONTROL_SNAPSHOT_SCHEMA_VERSION, ControlCompatibility,
-    ControlDiagnostic, ControlGame, ControlLifecycle, ControlLogSnapshot, ControlManualGame,
-    ControlNotice, ControlOperationState, ControlSnapshot, DiagnosticLevelCode,
+    ControlDiagnostic, ControlGame, ControlGameKind, ControlLifecycle, ControlLogSnapshot,
+    ControlManualGame, ControlNotice, ControlOperationState, ControlSnapshot, DiagnosticLevelCode,
     MAX_CONTROL_GAME_NAME_BYTES, MAX_CONTROL_LOG_LINE_BYTES, MAX_CONTROL_LOG_LINES,
     MAX_CONTROL_LOG_RESPONSE_BYTES, MAX_CONTROL_SNAPSHOT_BYTES, NoticeLevelCode,
     NoticeOperationCode,
@@ -46,7 +47,7 @@ pub use settings_diagnostic::{
 };
 pub use steam::{
     DiscoveryReport, MAX_KEYVALUES_NESTING_DEPTH, MAX_LIBRARY_VDF_BYTES, MAX_MANIFEST_BYTES,
-    MAX_MANIFESTS_INSPECTED, MAX_SECONDARY_LIBRARIES, MAX_WARNINGS, SteamGame,
+    MAX_MANIFESTS_INSPECTED, MAX_SECONDARY_LIBRARIES, MAX_WARNINGS, SteamGame, SteamGameKind,
     candidate_steam_roots, discover_from_roots,
 };
 pub use support::{
@@ -56,6 +57,10 @@ pub use support::{
 #[cfg(test)]
 #[path = "steam_tests.rs"]
 mod steam_tests;
+
+#[cfg(test)]
+#[path = "steam_binary_tests.rs"]
+mod steam_binary_tests;
 
 #[cfg(test)]
 #[path = "model_tests.rs"]

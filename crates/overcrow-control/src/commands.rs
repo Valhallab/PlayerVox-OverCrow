@@ -114,7 +114,7 @@ mod tests {
 
     use crate::{
         ControlController, ControlModel, DiagnosticInput, DiscoveryReport, NativePathValidator,
-        SelectionStore, SteamGame,
+        SelectionStore, SteamGame, SteamGameKind,
     };
 
     use super::{ControlCommandService, LogReader};
@@ -137,7 +137,8 @@ mod tests {
                 games: vec![SteamGame {
                     app_id: 4242,
                     name: "Example Game".to_owned(),
-                    install_dir: PathBuf::from("/games/example"),
+                    kind: SteamGameKind::SteamGame,
+                    install_dir: Some(PathBuf::from("/games/example")),
                     icon: None,
                 }],
                 warnings: Vec::new(),

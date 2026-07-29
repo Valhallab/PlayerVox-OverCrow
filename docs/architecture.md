@@ -25,6 +25,12 @@ The Control Center starts Core only after a selected game and supported display
 environment pass validation. The renderer and Wayland bridge run on demand
 while an authorized game process exists.
 
+Steam discovery joins installed manifests with bounded `appinfo.vdf` type
+metadata and non-Steam `shortcuts.vdf` identities. A local iterative parser
+extracts only app IDs, names, and application types. Known non-games are
+excluded, unknown types remain explicitly marked, and shortcuts reuse Core's
+existing `SteamAppId` authority without executable-path matching.
+
 ### Native portal identity
 
 Before Core uses an application-scoped desktop portal, it registers the same

@@ -4,6 +4,7 @@ import { en } from '../i18n/en';
 import type { ControlSnapshot } from '../lib/control';
 import { Brand } from './Brand';
 import { CompatibilityCard } from './CompatibilityCard';
+import { GameSourceLabel } from './GameSourceLabel';
 
 type Step = 'welcome' | 'compatibility' | 'games' | 'ready';
 
@@ -179,7 +180,7 @@ export function GameSelector({
       {snapshot.games.map((game) => (
         <label className="game-row" key={game.app_id}>
           <span className="game-row__icon" aria-hidden="true">{game.name.slice(0, 1).toUpperCase()}</span>
-          <span className="game-row__name">{game.name}</span>
+          <span className="game-row__name">{game.name}<GameSourceLabel game={game} /></span>
           <input
             type="checkbox"
             checked={game.selected}

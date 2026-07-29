@@ -6,7 +6,7 @@ use crate::{
     CONTROL_LOG_SCHEMA_VERSION, CompatibilityStatus, ControlController, ControlLogSnapshot,
     ControlModel, DiagnosticInput, DiscoveryReport, MAX_CONTROL_GAME_NAME_BYTES,
     MAX_CONTROL_LOG_LINE_BYTES, MAX_CONTROL_LOG_LINES, MAX_CONTROL_LOG_RESPONSE_BYTES,
-    MAX_CONTROL_SNAPSHOT_BYTES, NativePathValidator, SelectionStore, SteamGame,
+    MAX_CONTROL_SNAPSHOT_BYTES, NativePathValidator, SelectionStore, SteamGame, SteamGameKind,
 };
 
 struct MemoryStore;
@@ -21,7 +21,8 @@ fn controller_with_game(name: String) -> ControlController {
     let game = SteamGame {
         app_id: 4242,
         name,
-        install_dir: PathBuf::from("/games/example"),
+        kind: SteamGameKind::SteamGame,
+        install_dir: Some(PathBuf::from("/games/example")),
         icon: None,
     };
     let mut settings = LifecycleSettings::default();
@@ -59,6 +60,7 @@ fn snapshot_projects_authority_as_bounded_presentation_data() {
         snapshot.schema_version,
         crate::CONTROL_SNAPSHOT_SCHEMA_VERSION
     );
+    assert_eq!(snapshot.schema_version, 3);
     assert_eq!(
         snapshot.compatibility.status,
         CompatibilityStatus::Supported
@@ -68,6 +70,10 @@ fn snapshot_projects_authority_as_bounded_presentation_data() {
     assert_eq!(snapshot.games.len(), 1);
     assert_eq!(snapshot.games[0].app_id, 4242);
     assert_eq!(snapshot.games[0].name, "Example Game");
+    assert_eq!(
+        snapshot.games[0].kind,
+        crate::presentation::ControlGameKind::SteamGame
+    );
     assert!(snapshot.games[0].selected);
     assert!(!snapshot.operations.any_in_flight());
     assert!(snapshot.selection_editing_enabled);
