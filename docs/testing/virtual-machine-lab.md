@@ -9,6 +9,8 @@ physical GPU performance or driver compatibility.
 | Environment | Display path | Resources |
 | --- | --- | --- |
 | Bazzite KDE Desktop | Plasma Wayland | 6 vCPU, 10 GiB RAM, 100 GiB qcow2 |
+| Xubuntu 24.04 LTS | XFCE X11 and DEB build baseline | 4 vCPU, 6 GiB RAM, 80 GiB qcow2 |
+| Debian 13 KDE | Plasma Wayland | 4 vCPU, 8 GiB RAM, 80 GiB qcow2 |
 | CachyOS KDE | Plasma Wayland and Plasma X11 | 4 vCPU, 8 GiB RAM, 80 GiB qcow2 |
 | CachyOS XFCE | XFCE X11 | 4 vCPU, 6 GiB RAM, 60 GiB qcow2 |
 
@@ -63,6 +65,11 @@ For CachyOS, use the current official Desktop ISO and checksum from the
 [download validation page](https://wiki.cachyos.org/cachyos_basic/download/).
 The two CachyOS guests reuse the same verified ISO.
 
+For the DEB build baseline, use the official Xubuntu 24.04 LTS desktop image
+and its published SHA256 checksum. For Plasma 6 validation, use the official
+Debian 13 KDE image and checksum. Kubuntu 24.04 is not suitable because it
+ships Plasma 5, while OverCrow's KWin bridge targets Plasma 6.
+
 ```sh
 sudo install -d -m 0755 /var/lib/libvirt/boot/overcrow
 sudo install -m 0644 "$HOME/Downloads/bazzite-stable-amd64.iso" \
@@ -84,13 +91,16 @@ Every domain uses:
 - VirtIO video with OpenGL and 3D acceleration;
 - no host filesystem share.
 
-The exact `virt-install` definitions are recorded in
+The original Bazzite and CachyOS `virt-install` definitions are recorded in
 [the implementation plan](../plans/2026-07-28-virtual-machine-lab-implementation.md).
-Inspect every resulting domain:
+The Xubuntu and Debian guests follow the same hardware contract. Inspect every
+resulting domain:
 
 ```sh
 for domain in \
   overcrow-bazzite-kde \
+  overcrow-xubuntu-x11 \
+  overcrow-debian-kde \
   overcrow-cachyos-kde \
   overcrow-cachyos-xfce
 do
@@ -134,6 +144,42 @@ After reboot, `rpm -q overcrow` and `rpm -V --nomtime overcrow` must succeed.
 The `--nomtime` exception is limited to timestamps normalized by OSTree; every
 content, ownership, permission, and digest check remains enabled. The three
 OverCrow user services must remain inactive until the user opts in.
+
+## Xubuntu 24.04 guest
+
+Install Xubuntu 24.04 LTS, update it, and provision Rust stable plus Node.js 22.
+Install the native build dependencies without recommended extras:
+
+```sh
+sudo apt update
+sudo apt install --no-install-recommends \
+  build-essential dpkg-dev fontconfig libgl1-mesa-dev \
+  libwebkit2gtk-4.1-dev libwayland-dev libx11-dev libx11-xcb-dev \
+  libxcb1-dev libxkbcommon-dev pkg-config
+cargo install cargo-about --version 0.9.1 --locked
+```
+
+Build and inspect the package as the regular desktop user:
+
+```sh
+cd "$HOME/OverCrow"
+./scripts/build-deb-package.sh
+dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+sudo apt install ./dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+```
+
+The package must install without running or enabling OverCrow. Native-window
+tracking, exact geometry, stacking, interactive clicks, shortcuts, and focus
+restoration have passed in this guest. Steam/Proton, reboot persistence,
+HiDPI, multi-monitor, and physical-GPU checks remain before the Ubuntu/XFCE
+path can leave experimental status.
+
+## Debian 13 KDE guest
+
+Install the already-built DEB on a clean Debian 13 KDE system. Do not rebuild
+it there: the release artifact must remain the one produced on Ubuntu 24.04.
+Complete onboarding, Plasma 6 Wayland overlay, upgrade, and removal checks with
+that identical file before describing Debian 13 as validated.
 
 ## CachyOS KDE guest
 
@@ -203,6 +249,8 @@ layer persists normally across reboots.
 
 ```sh
 virsh -c qemu:///system snapshot-list overcrow-bazzite-kde
+virsh -c qemu:///system snapshot-list overcrow-xubuntu-x11
+virsh -c qemu:///system snapshot-list overcrow-debian-kde
 virsh -c qemu:///system snapshot-list overcrow-cachyos-kde
 virsh -c qemu:///system snapshot-list overcrow-cachyos-xfce
 ```

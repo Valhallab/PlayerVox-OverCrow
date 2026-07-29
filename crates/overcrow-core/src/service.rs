@@ -7,7 +7,7 @@ use overcrow_protocol::{CoreSnapshot, CoreState, Rect, VersionedCoreSnapshot};
 use tokio::sync::RwLock;
 use tokio::time::{MissedTickBehavior, interval};
 
-use crate::{CoreRuntime, OVERLAY_APP_ID, WindowObservation, WindowSource};
+use crate::{CoreRuntime, OVERLAY_APP_ID, WindowObservation, WindowSource, X11WindowSource};
 
 pub const WINDOW_POLL_INTERVAL: Duration = Duration::from_millis(250);
 pub const WIDGET_SETTINGS_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
@@ -389,7 +389,7 @@ pub async fn poll_window_once<S: WindowSource + ?Sized>(
     Ok(())
 }
 
-pub async fn run_window_polling<S: WindowSource>(mut source: S, runtime: CoreRuntime) {
+pub async fn run_x11_window_polling(mut source: X11WindowSource, runtime: CoreRuntime) {
     let mut window_poll = interval(WINDOW_POLL_INTERVAL);
     window_poll.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
@@ -398,6 +398,11 @@ pub async fn run_window_polling<S: WindowSource>(mut source: S, runtime: CoreRun
         if let Err(error) = poll_window_once(&mut source, &runtime).await {
             runtime.clear_game().await;
             eprintln!("OverCrow X11 poll failed: {error:#}");
+            continue;
+        }
+        let overlay_mode = runtime.versioned_snapshot().snapshot.overlay_mode;
+        if let Err(error) = source.restore_underlying_focus(overlay_mode) {
+            eprintln!("OverCrow X11 focus restoration failed: {error:#}");
         }
     }
 }

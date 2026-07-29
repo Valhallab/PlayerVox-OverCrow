@@ -1,0 +1,19 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PlayerVox OverCrow
+Source: https://github.com/Valhallab/PlayerVox-OverCrow
+
+Files: *
+Copyright: 2026 Valhallab
+License: AGPL-3.0-only
+ The complete license text is installed at
+ /usr/share/licenses/overcrow/LICENSE.
+
+Files: assets/branding/fonts/NotoSans-*.ttf
+Copyright: 2012 Google Inc.
+License: OFL-1.1
+ The complete license text is installed at
+ /usr/share/licenses/overcrow/NotoSans-OFL.txt.
+
+Comment:
+ Third-party Rust and JavaScript license notices are installed at
+ /usr/share/licenses/overcrow/THIRD_PARTY_LICENSES.md.

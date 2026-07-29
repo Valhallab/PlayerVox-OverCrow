@@ -126,6 +126,10 @@ fn x11_scale_changed(
         && applied != Some(valid_pixels_per_point(current))
 }
 
+fn x11_should_request_focus(x11_session: bool, mode_event: Option<OverlayMode>) -> bool {
+    x11_session && mode_event == Some(OverlayMode::Interactive)
+}
+
 fn authoritative_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> CoreSnapshot {
     if core_authority {
         snapshot.clone()
@@ -239,11 +243,16 @@ pub struct OverlayApp {
     brand: BrandAssets,
     about_open: bool,
     core_authority: bool,
+    x11_session: bool,
     x11_viewport_pixels_per_point: Option<f32>,
 }
 
 impl OverlayApp {
-    pub fn new(creation_context: &eframe::CreationContext<'_>, logger: EventLogger) -> Self {
+    pub fn new(
+        creation_context: &eframe::CreationContext<'_>,
+        logger: EventLogger,
+        x11_session: bool,
+    ) -> Self {
         install_fonts(&creation_context.egui_ctx);
         install_theme(&creation_context.egui_ctx);
         let repaint_context = creation_context.egui_ctx.clone();
@@ -323,6 +332,7 @@ impl OverlayApp {
             brand: BrandAssets::default(),
             about_open: false,
             core_authority: false,
+            x11_session,
             x11_viewport_pixels_per_point: None,
         }
     }
@@ -346,11 +356,13 @@ impl OverlayApp {
             .sync(self.state.snapshot().manual_stopwatch, received_at);
         self.client
             .set_manual_stopwatch_running(self.manual_stopwatch_clock.running());
-        if !viewport_update_changed(&previous, self.core_authority, pixels_per_point, &update) {
-            return;
+        if viewport_update_changed(&previous, self.core_authority, pixels_per_point, &update) {
+            self.apply_viewport_update(context, update, pixels_per_point);
         }
 
-        self.apply_viewport_update(context, update, pixels_per_point);
+        if x11_should_request_focus(self.x11_session, mode_event) {
+            context.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
     }
 
     fn sync_core_authority(&mut self, context: &egui::Context) {
@@ -406,6 +418,11 @@ impl OverlayApp {
         context.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(
             update.mouse_passthrough,
         ));
+        if self.x11_session {
+            context.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
+                egui::WindowLevel::AlwaysOnTop,
+            ));
+        }
         if let Some([x, y]) = update.position {
             context.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x, y)));
         }

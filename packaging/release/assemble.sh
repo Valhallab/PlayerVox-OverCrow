@@ -27,6 +27,10 @@ if ! rpm_artifact_version=$(overcrow_rpm_artifact_version "$version"); then
     printf '%s\n' 'error: could not normalize the RPM artifact version' >&2
     exit 2
 fi
+if ! deb_package_version=$(overcrow_deb_package_version "$version"); then
+    printf '%s\n' 'error: could not normalize the Debian package version' >&2
+    exit 2
+fi
 case $source_dir in
     /*) ;;
     *) printf '%s\n' 'error: SOURCE_DIR must be absolute' >&2; exit 2 ;;
@@ -52,7 +56,8 @@ fi
 
 arch_artifact="overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst"
 rpm_artifact="overcrow-$rpm_artifact_version-1.fc42.x86_64.rpm"
-for artifact in "$arch_artifact" "$rpm_artifact"; do
+deb_artifact="overcrow_${deb_package_version}_amd64.deb"
+for artifact in "$arch_artifact" "$deb_artifact" "$rpm_artifact"; do
     source_path="$source_dir/$artifact"
     if ! test -f "$source_path" || test -L "$source_path" ||
             ! test -s "$source_path"; then
@@ -84,13 +89,13 @@ trap handle_signal HUP INT TERM
 
 working=$(mktemp -d "$output_parent/.overcrow-release.XXXXXX")
 chmod 0700 "$working"
-for artifact in "$arch_artifact" "$rpm_artifact"; do
+for artifact in "$arch_artifact" "$deb_artifact" "$rpm_artifact"; do
     install -m 0644 "$source_dir/$artifact" "$working/$artifact"
 done
 
 (
     cd "$working"
-    sha256sum "$arch_artifact" "$rpm_artifact" > SHA256SUMS
+    sha256sum "$arch_artifact" "$deb_artifact" "$rpm_artifact" > SHA256SUMS
     chmod 0644 SHA256SUMS
     sha256sum -c SHA256SUMS >/dev/null
 )

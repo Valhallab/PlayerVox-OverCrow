@@ -47,3 +47,27 @@ overcrow_rpm_artifact_version() {
     rpm_version=$(overcrow_rpm_version "$1") || return 1
     printf '%s\n' "$rpm_version" | LC_ALL=C tr '~' '.'
 }
+
+overcrow_deb_upstream_version() {
+    test "$#" -eq 1 || return 1
+    overcrow_version_is_valid "$1" || return 1
+
+    case $1 in
+        *-*)
+            base=${1%%-*}
+            prerelease=${1#*-}
+            normalized=$(printf '%s\n' "$prerelease" | LC_ALL=C tr '-' '.')
+            test -n "$normalized" || return 1
+            printf '%s~%s\n' "$base" "$normalized"
+            ;;
+        *)
+            printf '%s\n' "$1"
+            ;;
+    esac
+}
+
+overcrow_deb_package_version() {
+    test "$#" -eq 1 || return 1
+    deb_upstream_version=$(overcrow_deb_upstream_version "$1") || return 1
+    printf '%s-1\n' "$deb_upstream_version"
+}

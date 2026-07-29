@@ -28,11 +28,14 @@ for native_file in \
         crates/overcrow-control/src/commands.rs \
         crates/overcrow-control/src/integration.rs \
         crates/overcrow-control/src/lib.rs \
+        packaging/deb/control.in \
+        packaging/deb/render-control.sh \
         packaging/release/manifest.txt \
         packaging/release/stage.sh \
         packaging/release/assemble.sh \
         packaging/release/inspect.sh \
         scripts/build-arch-package.sh \
+        scripts/build-deb-package.sh \
         scripts/prepare-release.sh; do
     if grep -Eiq \
             'overcrow-control-host|ControlHost1|flatpak-control|overcrow-companion|build-flatpak|org\.freedesktop\.Flatpak|ostree' \

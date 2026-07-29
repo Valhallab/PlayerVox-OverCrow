@@ -6,7 +6,7 @@ use super::{
     handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
     paint_control_notices, paint_overlay_version, paint_widget_catalog, settings_failure_target,
     stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate, viewport_builder,
-    viewport_update_changed, widget_actions_allowed, x11_scale_changed,
+    viewport_update_changed, widget_actions_allowed, x11_scale_changed, x11_should_request_focus,
 };
 use crate::{
     branding::{BrandAssets, install_fonts},
@@ -1119,6 +1119,23 @@ fn x11_viewport_requests_the_portable_always_on_top_hint() {
     let viewport = viewport_builder(true);
 
     assert_eq!(viewport.window_level, Some(WindowLevel::AlwaysOnTop));
+}
+
+#[test]
+fn x11_requests_focus_only_for_an_interactive_transition() {
+    assert!(!x11_should_request_focus(true, None));
+    assert!(x11_should_request_focus(
+        true,
+        Some(OverlayMode::Interactive)
+    ));
+}
+
+#[test]
+fn wayland_leaves_focus_to_the_compositor_bridge() {
+    assert!(!x11_should_request_focus(
+        false,
+        Some(OverlayMode::Interactive)
+    ));
 }
 
 #[test]

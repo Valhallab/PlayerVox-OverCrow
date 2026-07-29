@@ -7,6 +7,7 @@ sanitized Diagnostics logs when reporting a problem.
 ## What changed
 
 - Native Fedora 42 RPM validated end-to-end on Bazzite KDE
+- Ubuntu 24.04-baseline DEB added for direct Debian-family installation
 - Stabilized Plasma 6 Wayland placement, focus, input, and KWin integration
 - Native X11/EWMH shortcuts, focus tracking, HiDPI geometry, and fail-closed recovery
 - NVIDIA Wayland startup compatibility and GPU detection in the Control Center
@@ -20,13 +21,15 @@ packets, or modify game files.
 - Linux x86_64 only
 - Hyprland 0.55+ Wayland: primary validated target
 - Plasma 6 Wayland: supported and validated on Bazzite KDE/Fedora 42
-- X11/EWMH: experimental
+- XFCE X11: experimental native-window validation passed on Xubuntu 24.04
+- Other X11/EWMH desktops: experimental and awaiting broader validation
 - GNOME, Sway, Gamescope, and exclusive fullscreen: not compatible for now
 
 ## Installation
 
-Install `overcrow-bin` on Arch or the Fedora 42 `overcrow` RPM for the complete
-application, runtime, overlay, and compositor integrations.
+Install `overcrow-bin` on Arch, the Fedora 42 `overcrow` RPM, or the
+Ubuntu-baseline `amd64.deb` for the complete application, runtime, overlay, and
+compositor integrations.
 
 See the [pre-alpha acceptance checklist](https://github.com/Valhallab/PlayerVox-OverCrow/blob/master/docs/testing/pre-alpha-release.md)
 for installation and validation details.
@@ -36,4 +39,6 @@ for installation and validation details.
 - No true in-game FPS counter
 - Windowed and borderless-fullscreen games only
 - Display behavior still needs broader X11, hardware, and scaling tests
-- DEB, ARM64, GNOME, Sway, and Gamescope support are not included
+- The DEB still needs Steam/Proton and broader Ubuntu, Mint, and Debian
+  desktop validation
+- ARM64, GNOME, Sway, and Gamescope support are not included

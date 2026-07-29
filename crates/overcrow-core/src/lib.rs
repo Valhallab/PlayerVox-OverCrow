@@ -33,7 +33,7 @@ pub use runtime::{
 };
 pub use service::{
     CoreService, WIDGET_SETTINGS_REFRESH_INTERVAL, WINDOW_POLL_INTERVAL, apply_window_observation,
-    poll_window_once, run_widget_settings_refresh, run_window_polling,
+    poll_window_once, run_widget_settings_refresh, run_x11_window_polling,
 };
 pub use session::{
     AppliedState, CommandFuture, CommandRunner, DesktopSession, SESSION_SHUTDOWN_TIMEOUT,

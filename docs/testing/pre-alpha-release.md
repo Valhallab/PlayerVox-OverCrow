@@ -1,7 +1,7 @@
 # Pre-alpha release acceptance
 
-Run this checklist on the real Arch or Fedora/Bazzite desktop before publishing
-`v0.1.0-pre-alpha.4`. Check only results you personally observe.
+Run this checklist on the real Arch, Fedora/Bazzite, and Ubuntu desktop before
+publishing `v0.1.0-pre-alpha.4`. Check only results you personally observe.
 
 ## 1. Candidate integrity
 
@@ -11,8 +11,9 @@ sha256sum -c SHA256SUMS
 ls -lh
 ```
 
-- [ ] Both package checksums report `OK`.
-- [ ] The directory contains only the Arch package, Fedora 42 RPM, and `SHA256SUMS`.
+- [ ] All three package checksums report `OK`.
+- [ ] The directory contains only the Arch package, Fedora 42 RPM,
+  Ubuntu-baseline DEB, and `SHA256SUMS`.
 
 ## 2. Native installation
 
@@ -31,6 +32,14 @@ On Fedora 43 or 44 enable COPR with
 Fedora/Bazzite 42 are no longer available as new COPR build targets. The
 standalone Fedora 42 RPM remains the fallback:
 `sudo dnf install ./overcrow-0.1.0.pre_alpha.4-1.fc42.x86_64.rpm`.
+
+On the Xubuntu 24.04 X11 validation guest:
+
+```sh
+sudo apt remove overcrow 2>/dev/null || true
+sudo apt install ./overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+overcrow-control
+```
 
 - [ ] The app is identified as **PlayerVox OverCrow**.
 - [ ] Onboarding correctly identifies the current desktop compatibility.
@@ -61,7 +70,8 @@ systemctl --user daemon-reload
 pgrep -af '^(.*/)?overcrow-(core|overlay|hyprland)( |$)' || true
 ```
 
-Use `sudo dnf remove overcrow` on Fedora. On Bazzite use
+Use `sudo dnf remove overcrow` on Fedora or `sudo apt remove overcrow` on
+Ubuntu/Debian. On Bazzite use
 `sudo rpm-ostree uninstall overcrow`, then reboot.
 
 - [ ] No OverCrow runtime process remains.
@@ -70,7 +80,27 @@ Use `sudo dnf remove overcrow` on Fedora. On Bazzite use
 User settings are intentionally preserved under
 `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`.
 
-## 4. COPR publication
+## 4. DEB validation
+
+Build only inside the clean Ubuntu 24.04 x86_64 guest:
+
+```sh
+./scripts/build-deb-package.sh
+dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+```
+
+- [ ] The builder produces exactly one non-symlinked `amd64.deb`.
+- [ ] Package identity is `overcrow`, version `0.1.0~pre.alpha.4-1`,
+  architecture `amd64`.
+- [ ] Installation performs no service activation or compositor mutation.
+- [ ] A fresh Xubuntu 24.04 X11 session completes the installation and overlay
+  checklist.
+- [ ] A fresh Debian 13 Plasma 6 Wayland session completes the same checklist
+  with the identical DEB.
+- [ ] Removal leaves no runtime process while preserving user settings.
+
+## 5. COPR publication
 
 The Fedora builder also produces
 `dist/overcrow-0.1.0.pre_alpha.4-1.fc42.src.rpm`. Verify that source package

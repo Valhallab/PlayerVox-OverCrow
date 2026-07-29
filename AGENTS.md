@@ -160,11 +160,11 @@ For shell, packaging, or integration changes, run the touched smoke tests plus:
 ```sh
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
   packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-  packaging/release/*.sh packaging/rpm/*.sh
+  packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
 shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
   packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-  packaging/release/*.sh packaging/rpm/*.sh
+  packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
 bash -n packaging/aur/PKGBUILD
 ```
 
@@ -191,7 +191,9 @@ for smoke_test in tests/*-smoke.sh; do "$smoke_test"; done
 
 Run `./scripts/build-arch-package.sh` only when validating a distributable Arch
 artifact. Run `./scripts/build-rpm-package.sh` only inside the supported Fedora
-build environment when validating a distributable RPM. Do not run either for
+build environment when validating a distributable RPM. Run
+`./scripts/build-deb-package.sh` only inside the supported Ubuntu 24.04 build
+environment when validating a distributable DEB. Do not run these builders for
 unrelated changes.
 
 Always finish with:

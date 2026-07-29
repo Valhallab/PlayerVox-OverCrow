@@ -67,11 +67,11 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
             packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-            packaging/release/*.sh packaging/rpm/*.sh
+            packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
           shellcheck -s bash packaging/aur/PKGBUILD
           sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
             packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-            packaging/release/*.sh packaging/rpm/*.sh
+            packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
           bash -n packaging/aur/PKGBUILD
           node --check integrations/kwin/contents/code/main.js
 
@@ -81,6 +81,7 @@ jobs:
           node --test tests/kwin-bridge.test.js
           tests/qjsvalue-variant-smoke.sh
           tests/aur-package-smoke.sh
+          tests/deb-package-smoke.sh
           tests/public-docs-smoke.sh
           tests/public-license-policy-smoke.sh
           tests/native-only-distribution-smoke.sh

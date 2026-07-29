@@ -33,6 +33,10 @@ test "$(overcrow_rpm_version 0.1.0)" = 0.1.0
 test "$(overcrow_rpm_version "$version")" = '0.1.0~pre_alpha.4'
 test "$(overcrow_rpm_artifact_version 0.1.0)" = 0.1.0
 test "$(overcrow_rpm_artifact_version "$version")" = '0.1.0.pre_alpha.4'
+test "$(overcrow_deb_upstream_version 0.1.0)" = 0.1.0
+test "$(overcrow_deb_upstream_version "$version")" = '0.1.0~pre.alpha.4'
+test "$(overcrow_deb_package_version 0.1.0)" = '0.1.0-1'
+test "$(overcrow_deb_package_version "$version")" = '0.1.0~pre.alpha.4-1'
 
 if overcrow_rpm_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
     printf '%s\n' 'RPM normalization accepted an invalid release version' >&2
@@ -40,6 +44,10 @@ if overcrow_rpm_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
 fi
 if overcrow_rpm_artifact_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
     printf '%s\n' 'RPM artifact normalization accepted an invalid version' >&2
+    exit 1
+fi
+if overcrow_deb_package_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
+    printf '%s\n' 'DEB normalization accepted an invalid release version' >&2
     exit 1
 fi
 test "$(vercmp 0.1.0prealpha4 0.1.0)" -lt 0

@@ -33,6 +33,11 @@ grep -Fq 'yay -S overcrow-bin' README.md
 grep -Fq 'On Fedora 43 or 44' README.md
 grep -Fq 'dnf copr enable grmpy/playervox-overcrow' README.md
 grep -Fq 'dnf5 copr enable grmpy/playervox-overcrow' README.md
+grep -Fq 'Ubuntu 24.04' README.md
+grep -Fq \
+    'sudo apt install ./overcrow_0.1.0~pre.alpha.4-1_amd64.deb' \
+    README.md
+grep -Fq 'one Ubuntu-baseline DEB' README.md
 grep -Fq \
     'https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4' \
     README.md

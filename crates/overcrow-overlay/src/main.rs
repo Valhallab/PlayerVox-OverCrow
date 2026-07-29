@@ -47,17 +47,19 @@ fn run_overlay() -> eframe::Result {
         .as_ref()
         .map(LoggerRuntime::logger)
         .unwrap_or_else(EventLogger::disabled);
-    logger.info(
-        "process_started",
-        format_args!("x11_session={}", is_x11_session()),
-    );
-    let options = native_options(is_x11_session());
+    let x11_session = is_x11_session();
+    logger.info("process_started", format_args!("x11_session={x11_session}"));
+    let options = native_options(x11_session);
     let app_logger = logger.clone();
     let result = eframe::run_native(
         APP_ID,
         options,
         Box::new(move |creation_context| {
-            Ok(Box::new(OverlayApp::new(creation_context, app_logger)))
+            Ok(Box::new(OverlayApp::new(
+                creation_context,
+                app_logger,
+                x11_session,
+            )))
         }),
     );
     logger.info("process_stopping", format_args!("reason=event_loop_ended"));

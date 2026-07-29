@@ -26,7 +26,7 @@ if test -n "$(git status --porcelain --untracked-files=all)"; then
     exit 1
 fi
 
-for program in bsdtar cargo git node npm sha256sum shellcheck; do
+for program in ar bsdtar cargo git node npm sha256sum shellcheck; do
     command -v "$program" >/dev/null 2>&1 || {
         printf '%s\n' "error: required release tool is unavailable: $program" >&2
         exit 1
@@ -51,6 +51,10 @@ if ! rpm_artifact_version=$(overcrow_rpm_artifact_version "$version"); then
     printf '%s\n' "error: cannot normalize RPM artifact version: $version" >&2
     exit 1
 fi
+if ! deb_package_version=$(overcrow_deb_package_version "$version"); then
+    printf '%s\n' "error: cannot normalize Debian package version: $version" >&2
+    exit 1
+fi
 if test "$(uname -m)" != x86_64; then
     printf '%s\n' 'error: releases are currently built for x86_64 only' >&2
     exit 1
@@ -69,6 +73,12 @@ rpm_artifact="$project_root/dist/overcrow-$rpm_artifact_version-1.fc42.x86_64.rp
 if ! test -f "$rpm_artifact" || test -L "$rpm_artifact" ||
         ! test -s "$rpm_artifact"; then
     printf '%s\n' "error: validated Fedora 42 RPM is required: $rpm_artifact" >&2
+    exit 1
+fi
+deb_artifact="$project_root/dist/overcrow_${deb_package_version}_amd64.deb"
+if ! test -f "$deb_artifact" || test -L "$deb_artifact" ||
+        ! test -s "$deb_artifact"; then
+    printf '%s\n' "error: validated Ubuntu-baseline DEB is required: $deb_artifact" >&2
     exit 1
 fi
 
@@ -94,11 +104,11 @@ cargo deny --locked check bans sources
 
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
     packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-    packaging/release/*.sh packaging/rpm/*.sh
+    packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
 shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
     packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-    packaging/release/*.sh packaging/rpm/*.sh
+    packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
 bash -n packaging/aur/PKGBUILD
 node --check integrations/kwin/contents/code/main.js
 node --test tests/kwin-bridge.test.js

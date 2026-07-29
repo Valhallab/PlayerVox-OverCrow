@@ -6,6 +6,8 @@ values are `PASS`, `FAIL`, and `BLOCKED`.
 | Environment | Session | Commit | Native game | Proton game | Overlay | Input | Scaling | Recovery | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bazzite KDE | Plasma Wayland | | | | | | | | |
+| Xubuntu 24.04 | XFCE X11 | | | | | | | | |
+| Debian 13 KDE | Plasma Wayland | | | | | | | | |
 | CachyOS KDE | Plasma Wayland | | | | | | | | |
 | CachyOS KDE | Plasma X11 | | | | | | | | |
 | CachyOS XFCE | XFCE X11 | | | | | | | | |

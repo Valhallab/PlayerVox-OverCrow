@@ -1,9 +1,12 @@
 use anyhow::Context;
-use overcrow_protocol::Rect;
+use overcrow_protocol::{OverlayMode, Rect};
+use x11rb::CURRENT_TIME;
 use x11rb::connection::Connection;
 use x11rb::errors::ReplyError;
 use x11rb::protocol::ErrorKind;
-use x11rb::protocol::xproto::{Atom, AtomEnum, ConnectionExt as _, MapState, Window};
+use x11rb::protocol::xproto::{
+    Atom, AtomEnum, ClientMessageEvent, ConnectionExt as _, EventMask, MapState, Window,
+};
 use x11rb::rust_connection::RustConnection;
 
 use crate::{OVERLAY_APP_ID, WindowObservation, WindowSource};
@@ -13,6 +16,7 @@ const MAX_TEXT_PROPERTY_LENGTH: u32 = 4096;
 pub struct X11WindowSource {
     backend: Box<dyn X11Backend>,
     last_non_overlay_window: Option<Window>,
+    underlying_focus_target: Option<Window>,
 }
 
 struct LiveX11Backend {
@@ -25,6 +29,7 @@ trait X11Backend {
     fn active_window(&mut self) -> anyhow::Result<Option<Window>>;
     fn read_window(&mut self, window: Window)
     -> Result<Option<WindowObservation>, ReadWindowError>;
+    fn activate_window(&mut self, window: Window) -> anyhow::Result<()>;
 }
 
 #[derive(Debug)]
@@ -81,6 +86,7 @@ impl X11WindowSource {
         Self {
             backend: Box::new(backend),
             last_non_overlay_window: None,
+            underlying_focus_target: None,
         }
     }
 
@@ -91,10 +97,25 @@ impl X11WindowSource {
             Err(ReadWindowError::Other(error)) => Err(error),
         }
     }
+
+    pub(crate) fn restore_underlying_focus(
+        &mut self,
+        overlay_mode: OverlayMode,
+    ) -> anyhow::Result<bool> {
+        if overlay_mode != OverlayMode::Passive {
+            return Ok(false);
+        }
+        let Some(window) = self.underlying_focus_target else {
+            return Ok(false);
+        };
+        self.backend.activate_window(window)?;
+        Ok(true)
+    }
 }
 
 impl WindowSource for X11WindowSource {
     fn active_window(&mut self) -> anyhow::Result<Option<WindowObservation>> {
+        self.underlying_focus_target = None;
         let Some(active_window) = self.backend.active_window()? else {
             self.last_non_overlay_window = None;
             return Ok(None);
@@ -115,6 +136,8 @@ impl WindowSource for X11WindowSource {
         let observation = self.read_window(underlying_window)?;
         if observation.is_none() {
             self.last_non_overlay_window = None;
+        } else {
+            self.underlying_focus_target = Some(underlying_window);
         }
         Ok(observation)
     }
@@ -212,6 +235,25 @@ impl X11Backend for LiveX11Backend {
             height: geometry.height,
         })))
     }
+
+    fn activate_window(&mut self, window: Window) -> anyhow::Result<()> {
+        let event = ClientMessageEvent::new(
+            32,
+            window,
+            self.atoms.active_window,
+            [1, CURRENT_TIME, x11rb::NONE, 0, 0],
+        );
+        self.connection
+            .send_event(
+                false,
+                self.root,
+                EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+                event,
+            )?
+            .check()?;
+        self.connection.flush()?;
+        Ok(())
+    }
 }
 
 fn read_reply<T>(
@@ -273,7 +315,7 @@ fn normalize_text(value: &[u8]) -> String {
 mod tests {
     use std::collections::VecDeque;
 
-    use overcrow_protocol::Rect;
+    use overcrow_protocol::{OverlayMode, Rect};
     use x11rb::errors::ReplyError;
     use x11rb::protocol::ErrorKind;
     use x11rb::protocol::xproto::Window;
@@ -370,6 +412,73 @@ mod tests {
         assert_eq!(
             source.active_window().expect("underlying game refresh"),
             Some(sample_observation("portal2", 100, 200))
+        );
+    }
+
+    #[test]
+    fn passive_overlay_focus_can_be_restored_to_the_underlying_window() {
+        const GAME: Window = 10;
+        const OVERLAY: Window = 20;
+        let backend = FakeBackend::new(
+            [Some(GAME), Some(OVERLAY)],
+            [
+                (
+                    GAME,
+                    FakeRead::Observed(sample_observation("portal2", 100, 200)),
+                ),
+                (
+                    OVERLAY,
+                    FakeRead::Observed(sample_observation("io.github.overcrow.Overlay", 100, 200)),
+                ),
+                (
+                    GAME,
+                    FakeRead::Observed(sample_observation("portal2", 100, 200)),
+                ),
+            ],
+        )
+        .expect_activation(GAME);
+        let mut source = X11WindowSource::from_backend(backend);
+
+        source.active_window().expect("initial game observation");
+        source.active_window().expect("underlying game refresh");
+
+        assert!(
+            source
+                .restore_underlying_focus(OverlayMode::Passive)
+                .expect("focus restoration succeeds")
+        );
+    }
+
+    #[test]
+    fn interactive_overlay_focus_is_not_restored_to_the_game() {
+        const GAME: Window = 10;
+        const OVERLAY: Window = 20;
+        let backend = FakeBackend::new(
+            [Some(GAME), Some(OVERLAY)],
+            [
+                (
+                    GAME,
+                    FakeRead::Observed(sample_observation("portal2", 100, 200)),
+                ),
+                (
+                    OVERLAY,
+                    FakeRead::Observed(sample_observation("io.github.overcrow.Overlay", 100, 200)),
+                ),
+                (
+                    GAME,
+                    FakeRead::Observed(sample_observation("portal2", 100, 200)),
+                ),
+            ],
+        );
+        let mut source = X11WindowSource::from_backend(backend);
+
+        source.active_window().expect("initial game observation");
+        source.active_window().expect("underlying game refresh");
+
+        assert!(
+            !source
+                .restore_underlying_focus(OverlayMode::Interactive)
+                .expect("interactive focus policy succeeds")
         );
     }
 
@@ -573,6 +682,7 @@ mod tests {
     struct FakeBackend {
         active_windows: VecDeque<Option<Window>>,
         reads: VecDeque<(Window, FakeRead)>,
+        expected_activation: Option<Window>,
     }
 
     enum FakeRead {
@@ -590,7 +700,13 @@ mod tests {
             Self {
                 active_windows: active_windows.into_iter().collect(),
                 reads: reads.into_iter().collect(),
+                expected_activation: None,
             }
+        }
+
+        fn expect_activation(mut self, window: Window) -> Self {
+            self.expected_activation = Some(window);
+            self
         }
     }
 
@@ -614,6 +730,11 @@ mod tests {
                 FakeRead::Disappeared => Err(ReadWindowError::Disappeared),
                 FakeRead::Failed(message) => Err(ReadWindowError::Other(anyhow::anyhow!(message))),
             }
+        }
+
+        fn activate_window(&mut self, window: Window) -> anyhow::Result<()> {
+            assert_eq!(self.expected_activation.take(), Some(window));
+            Ok(())
         }
     }
 

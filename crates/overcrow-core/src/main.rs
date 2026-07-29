@@ -9,8 +9,8 @@ use overcrow_core::{
     ProcessInfo, SESSION_SHUTDOWN_TIMEOUT, SHORTCUT_SHUTDOWN_TIMEOUT, SessionCoordinator,
     ShortcutError, SystemctlRunner, X11ShortcutProvider, X11WindowSource, run_bridge_watchdog,
     run_core_event_logging, run_process_refresh, run_session_coordinator,
-    run_snapshot_signal_publisher, run_widget_settings_refresh, run_window_polling, scan_processes,
-    shutdown_session_coordinator,
+    run_snapshot_signal_publisher, run_widget_settings_refresh, run_x11_window_polling,
+    scan_processes, shutdown_session_coordinator,
 };
 use overcrow_logging::{Component, EventLogger, LoggerRuntime};
 use overcrow_protocol::{Core1Proxy, CoreState};
@@ -110,7 +110,7 @@ async fn run_core(
     let polling = async move {
         if use_x11 {
             match X11WindowSource::connect() {
-                Ok(source) => run_window_polling(source, polling_runtime).await,
+                Ok(source) => run_x11_window_polling(source, polling_runtime).await,
                 Err(error) => {
                     eprintln!("OverCrow X11 source unavailable; remaining passive: {error:#}");
                     std::future::pending::<()>().await;

@@ -53,7 +53,9 @@ for required in \
         'cargo deny --locked check advisories licenses' \
         'cargo deny --locked check bans sources' \
         'overcrow_rpm_artifact_version "$version"' \
-        'packaging/release/*.sh packaging/rpm/*.sh' \
+        'overcrow_deb_package_version "$version"' \
+        'packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh' \
+        'overcrow_${deb_package_version}_amd64.deb' \
         '"$project_root/scripts/build-arch-package.sh"' \
         '"$project_root/packaging/release/inspect.sh"' \
         '"$project_root/packaging/release/assemble.sh"'; do

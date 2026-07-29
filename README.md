@@ -1,10 +1,8 @@
 # OverCrow
 
 OverCrow is an opt-in external Linux game overlay built by Valhallab and
-distributed under the PlayerVox brand. It adds movable widgets without injection.
-
-The project is usable today on Hyprland and Plasma Wayland, but remains an
-early release. X11 still needs broader real-machine coverage.
+distributed under the PlayerVox brand. It adds movable widgets without
+injection. Hyprland and Plasma Wayland are supported; X11 remains experimental.
 
 ## Compatibility
 
@@ -12,11 +10,13 @@ early release. X11 still needs broader real-machine coverage.
 | --- | --- | --- |
 | Hyprland 0.55+ Wayland | **Supported** | Primary Arch/Omarchy target; native Wayland and XWayland games. |
 | Plasma 6 Wayland | **Supported** | Validated on Bazzite KDE/Fedora 42; native Wayland and XWayland games through the KWin bridge. |
-| Generic X11/EWMH (including Plasma and XFCE) | **Experimental — for now** | Window tracking works without a Wayland bridge; shortcuts, HiDPI, and desktop-specific behavior need more validation. |
+| XFCE X11 on Xubuntu 24.04 | **Experimental — validated in VM** | DEB installation, native-window tracking, geometry, stacking, interactive clicks, shortcuts, and focus restoration passed. Steam/Proton, physical GPU, HiDPI, and multi-monitor validation remain. |
+| Other X11/EWMH desktops | **Experimental — for now** | The shared X11 path is implemented, but Plasma X11 and other window managers still need real-machine validation. |
 | GNOME Wayland | **Not compatible — for now** | Requires a dedicated GNOME Shell/Mutter bridge. |
 | Sway Wayland | **Not compatible — for now** | Requires a dedicated Sway IPC and layer-shell bridge. |
 | Gamescope / Steam Deck Game Mode | **Not compatible — for now** | No nested-compositor integration yet. |
 | Other Wayland compositors | **Not compatible — for now** | A transparent window alone cannot provide safe placement and input control. |
+| Windows host | **Not compatible — for now** | OverCrow is Linux-only; Windows games may run through Steam/Proton on a supported Linux desktop. |
 
 Windowed and borderless-fullscreen games are supported. Exclusive fullscreen
 may bypass compositor windows and is outside the current design.
@@ -24,14 +24,14 @@ may bypass compositor windows and is outside the current design.
 ## Quick start
 
 The current pre-alpha provides complete x86_64 packages for Arch Linux,
-Fedora, and Bazzite. On Arch, install from the AUR:
+Fedora, Bazzite, and an Ubuntu 24.04-baseline DEB. On Arch, install from the
+AUR:
 
 ```sh
 yay -S overcrow-bin
 ```
 
-`paru -S overcrow-bin` works as an alternative. Without an AUR helper,
-download the package from the
+`paru` also works. Without an AUR helper, download the package from the
 [latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4)
 and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
 
@@ -50,10 +50,19 @@ sudo rpm-ostree install overcrow
 systemctl reboot
 ```
 
-Fedora/Bazzite 42 are no longer accepted as new COPR build targets. The
-standalone Fedora 42 RPM remains available from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4)
-as a fallback.
+Fedora/Bazzite 42 users can use the standalone RPM from the latest release as
+a fallback.
+
+On Ubuntu 24.04 x86_64, download the `amd64.deb` from the latest pre-alpha
+release and install it with:
+
+```sh
+sudo apt install ./overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+```
+
+The DEB uses Ubuntu 24.04 as its binary compatibility baseline. Linux Mint,
+Debian, newer Ubuntu releases, and other Debian-family desktops are not yet
+validated.
 
 Nothing starts during installation. Open **PlayerVox OverCrow** from the
 application menu, or run:
@@ -66,34 +75,22 @@ OverCrow starts disabled. Select at least one detected game, then enable the
 runtime from the System Status card. Runtime services and shortcuts become
 available only for explicitly selected games.
 
-Windows games added manually to Steam are discovered through their Steam
-shortcut identity. In Steam, add the game, force a Proton compatibility tool,
-launch it once, then select **Refresh games** in OverCrow. The native executable
-picker accepts Linux executables only; selecting a `.exe` directly is
-intentionally unsupported.
+For a non-Steam Windows game, add it to Steam, force Proton, launch it once,
+then select **Refresh games**. The native picker accepts Linux executables only.
+Known Steam tools and runtimes are hidden; uncertain entries remain selectable
+with a **Type unverified** label.
 
-Steam tools, runtimes, redistributables, DLC, and media are hidden when Steam
-identifies their type. An installed entry with missing or newer metadata stays
-selectable with a **Type unverified** label instead of being guessed from its
-name.
+Closing the Control Center keeps OverCrow available from the tray. **Quit**
+disables the runtime before exiting.
 
-Closing the Control Center hides its window while PlayerVox OverCrow remains
-available from the system tray. The tray menu shows the current status and
-provides **Start OverCrow**, **Stop OverCrow**, **Open Control Center**, and
-**Quit**. Quit disables the runtime before the tray application exits.
-
-To uninstall on Arch, choose **Quit** from the tray, then run:
-
-```sh
-sudo pacman -R overcrow-bin
-```
-
-Use `sudo dnf remove overcrow` on Fedora. On Bazzite, use
+To uninstall after choosing tray **Quit**, use `sudo pacman -R overcrow-bin`,
+`sudo dnf remove overcrow`, or `sudo apt remove overcrow`. On Bazzite, use
 `sudo rpm-ostree uninstall overcrow`, then reboot.
 
 User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`.
 
-Each release contains one Arch package, one Fedora 42 RPM, and `SHA256SUMS`.
+Each release contains Arch, Fedora 42 RPM, and one Ubuntu-baseline DEB package,
+plus `SHA256SUMS`.
 
 ## Using OverCrow
 
@@ -157,15 +154,9 @@ Resizable widgets keep their configured editing size in Interactive mode. In
 Passive mode their height follows visible content, up to the game viewport, so
 hidden sections and short content do not leave an empty panel.
 
-Twitch chat is disabled by default. It connects only while an explicitly
-selected game is active and the widget is enabled. Incoming chat uses Twitch
-EventSub and outgoing messages use the Helix API. Messages and drafts remain
-in memory; only the selected channel, favorites, and passive display lifetime
-are stored locally. Native Twitch emotes use static PNGs from Twitch's CDN with
-a bounded in-memory cache and text fallback; badge images are not rendered.
-OAuth tokens use the desktop Secret Service when available and otherwise
-remain in memory until OverCrow exits. The release build contains a public
-Twitch application Client ID, never a Client Secret.
+Twitch chat is disabled by default and connects only for an active selected
+game. Messages stay in memory, credentials use Secret Service when available,
+and the release contains a public Client ID—never a Client Secret.
 
 ## Safety
 
@@ -189,7 +180,8 @@ Security issues should be reported privately as described in
 ## Limitations
 
 - Distribution is currently through the AUR, Fedora COPR, and direct release
-  packages. DEB distribution is still planned.
+  packages. The DEB is a direct download while a signed APT repository remains
+  planned.
 - Non-Steam Windows games must be launched as Steam shortcuts through Proton;
   direct Wine executable matching is not supported.
 - A selected game must be focused before a passive overlay can appear.
@@ -223,12 +215,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets --locked
 ```
 
-Twitch uses a compiled public Client ID, never a Client Secret. Forks can
-override it at compile time:
-
-```sh
-OVERCROW_TWITCH_CLIENT_ID="<public-client-id>" cargo build --workspace
-```
+Forks can override the compiled public Twitch application ID with the
+`OVERCROW_TWITCH_CLIENT_ID` build variable.
 
 Shell, KWin, packaging, and release checks are documented in
 [AGENTS.md](AGENTS.md). Contributions should stay focused and preserve the
@@ -236,13 +224,7 @@ external-window safety model; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-OverCrow is open-source software licensed under
-[AGPL-3.0-only](LICENSE). It was originally created by **Valhallab SASU** and
-is distributed under the PlayerVox brand; required attribution is recorded in
-[NOTICE](NOTICE).
-
-PlayerVox is a registered trademark owned by Valhallab SASU. The AGPL license
-does not grant permission to present modified distributions as official
-PlayerVox products. See [TRADEMARKS.md](TRADEMARKS.md).
-
-Third-party dependencies retain their respective licenses.
+OverCrow is licensed under [AGPL-3.0-only](LICENSE), created by Valhallab SASU,
+and distributed under the PlayerVox brand. Attribution is recorded in
+[NOTICE](NOTICE); trademark terms are in [TRADEMARKS.md](TRADEMARKS.md).
+Third-party dependencies retain their licenses.

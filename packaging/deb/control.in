@@ -1,0 +1,13 @@
+Package: overcrow
+Version: @DEB_VERSION@
+Section: games
+Priority: optional
+Architecture: amd64
+Maintainer: Valhallab <contact@valhallab.com>
+Installed-Size: @INSTALLED_SIZE@
+Depends: @DEPENDS@
+Homepage: https://overcrow.playervox.com
+Description: Opt-in external Linux game overlay by PlayerVox
+ PlayerVox OverCrow provides movable widgets without injecting code into
+ game processes. It remains disabled until the user selects a game and starts
+ the runtime from the Control Center.
