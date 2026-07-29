@@ -43,6 +43,8 @@ grep -Fq '%{_bindir}/overcrow-control' "$spec" ||
     fail 'the complete application payload is not listed'
 grep -Fq "Source0:        ${bundle##*/}" "$spec" ||
     fail 'source bundle basename is not pinned'
+grep -Fq "Source1:        ${bundle##*/}.sha256" "$spec" ||
+    fail 'source checksum basename is not pinned'
 
 digest=$(sha256sum "$bundle")
 digest=${digest%% *}

@@ -13,7 +13,7 @@ test -f .github/ISSUE_TEMPLATE/bug-report.yml
 test ! -e docs/superpowers
 
 readme_lines=$(wc -l < README.md)
-test "$readme_lines" -le 220
+test "$readme_lines" -le 240
 
 for heading in \
     '## Compatibility' \
@@ -30,6 +30,9 @@ done
 
 grep -Fq 'https://github.com/Valhallab/PlayerVox-OverCrow' README.md
 grep -Fq 'yay -S overcrow-bin' README.md
+grep -Fq 'On Fedora 43 or 44' README.md
+grep -Fq 'dnf copr enable grmpy/playervox-overcrow' README.md
+grep -Fq 'dnf5 copr enable grmpy/playervox-overcrow' README.md
 grep -Fq \
     'https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4' \
     README.md

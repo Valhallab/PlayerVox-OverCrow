@@ -60,11 +60,12 @@ trap cleanup EXIT HUP INT TERM
 publish_artifact() {
     source_path=$1
     artifact=$2
+    label=$3
     published_work=$(mktemp "$dist_dir/.overcrow-rpm-package.XXXXXX")
     install -m 0644 "$source_path" "$published_work"
     mv -T -f -- "$published_work" "$artifact"
     published_work=
-    printf '\n%s\n' "RPM package ready: $artifact"
+    printf '\n%s\n' "$label: $artifact"
 }
 
 : "${SOURCE_DATE_EPOCH:=$(date +%s)}"
@@ -123,7 +124,7 @@ bundle="$rpm_root/SOURCES/overcrow-$version-x86_64-linux.tar.zst"
 spec="$rpm_root/SPECS/overcrow.spec"
 "$project_root/packaging/rpm/render-spec.sh" "$version" "$bundle" "$spec"
 
-rpmbuild -bb \
+rpmbuild -ba \
     --define "_topdir $rpm_root" \
     --define "_sourcedir $rpm_root/SOURCES" \
     --define "dist .fc$fedora_version" \
@@ -144,6 +145,40 @@ identity=$(rpm -qp --qf '%{NAME}|%{VERSION}|%{RELEASE}|%{ARCH}\n' "$built_rpm")
 expected_identity="overcrow|$rpm_version|1.fc$fedora_version|x86_64"
 if [ "$identity" != "$expected_identity" ]; then
     printf '%s\n' "error: unexpected RPM identity: $identity" >&2
+    exit 1
+fi
+
+built_srpm="$rpm_root/SRPMS/overcrow-$rpm_version-1.fc$fedora_version.src.rpm"
+if [ ! -f "$built_srpm" ] || [ -L "$built_srpm" ]; then
+    printf '%s\n' 'error: rpmbuild did not produce the expected source RPM' >&2
+    exit 1
+fi
+set -- "$rpm_root"/SRPMS/*.src.rpm
+if [ "$#" -ne 1 ] || [ "$1" != "$built_srpm" ]; then
+    printf '%s\n' 'error: rpmbuild produced an unexpected source RPM set' >&2
+    exit 1
+fi
+
+source_identity=$(rpm -qp --qf '%{NAME}|%{VERSION}|%{RELEASE}|%{ARCH}\n' \
+    "$built_srpm")
+expected_source_identity="overcrow|$rpm_version|1.fc$fedora_version|x86_64"
+if [ "$source_identity" != "$expected_source_identity" ]; then
+    printf '%s\n' "error: unexpected source RPM identity: $source_identity" >&2
+    exit 1
+fi
+
+rpm -qpl "$built_srpm" | LC_ALL=C sort > "$work_dir/source-package-files.txt"
+{
+    printf '%s\n' \
+        "${bundle##*/}" \
+        "${bundle##*/}.sha256" \
+        'overcrow.spec'
+} | LC_ALL=C sort > "$work_dir/expected-source-package-files.txt"
+if ! cmp -s "$work_dir/expected-source-package-files.txt" \
+        "$work_dir/source-package-files.txt"; then
+    printf '%s\n' 'error: source RPM contains unexpected files' >&2
+    diff -u "$work_dir/expected-source-package-files.txt" \
+        "$work_dir/source-package-files.txt" >&2 || true
     exit 1
 fi
 
@@ -196,5 +231,7 @@ if grep -Eq 'systemctl|rpm-ostree|kpackagetool|qdbus|hyprctl' \
 fi
 
 artifact="$dist_dir/overcrow-$rpm_artifact_version-1.fc$fedora_version.x86_64.rpm"
-publish_artifact "$built_rpm" "$artifact"
+source_artifact="$dist_dir/overcrow-$rpm_artifact_version-1.fc$fedora_version.src.rpm"
+publish_artifact "$built_rpm" "$artifact" 'RPM package ready'
+publish_artifact "$built_srpm" "$source_artifact" 'Source RPM ready'
 printf '%s\n' 'Nothing was installed or started.'

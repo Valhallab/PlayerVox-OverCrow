@@ -22,14 +22,25 @@ grep -Fq 'packaging/release/manifest.txt' "$builder" ||
     fail 'staged payload is not checked against the manifest'
 grep -Fq 'packaging/rpm/render-spec.sh' "$builder" ||
     fail 'reviewed RPM spec renderer is not used'
-grep -Fq 'rpmbuild -bb' "$builder" ||
-    fail 'binary RPM build is missing'
+grep -Fq 'rpmbuild -ba' "$builder" ||
+    fail 'binary and source RPM build is missing'
 grep -Fq 'rpm -qp' "$builder" ||
     fail 'RPM identity is not inspected'
 grep -Fq 'rpm -qpl' "$builder" ||
     fail 'RPM payload is not inspected'
 grep -Fq 'rpm -qpR' "$builder" ||
     fail 'RPM dependencies are not inspected'
+# This intentionally searches for a literal command in the target script.
+# shellcheck disable=SC2016
+grep -Fq 'rpm -qpl "$built_srpm"' "$builder" ||
+    fail 'source RPM contents are not inspected'
+# This intentionally searches for a literal identity expression.
+# shellcheck disable=SC2016
+grep -Fq 'expected_source_identity="overcrow|$rpm_version|1.fc$fedora_version|x86_64"' \
+        "$builder" ||
+    fail 'source RPM identity does not match the architecture-bound spec'
+grep -Fq "'Source RPM ready'" "$builder" ||
+    fail 'source RPM publication is not explicit'
 # This is an intentional literal command shape read from the target script.
 # shellcheck disable=SC2016
 grep -Fq 'overcrow_rpm_artifact_version "$version"' "$builder" ||
