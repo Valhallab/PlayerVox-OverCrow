@@ -32,6 +32,11 @@
   <url type="help">https://github.com/Valhallab/PlayerVox-OverCrow#quick-start</url>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.0-pre-alpha.4" date="2026-07-29">
+      <description>
+        <p>Adds validated Bazzite and Fedora packaging, stabilizes Plasma Wayland, and introduces native X11 shortcuts.</p>
+      </description>
+    </release>
     <release version="0.1.0-pre-alpha.3" date="2026-07-26">
       <description>
         <p>Redesigns the overlay, expands notes, and adds resilient Twitch chat with replies and native emotes.</p>

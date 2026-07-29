@@ -3,16 +3,15 @@
 OverCrow is an opt-in external Linux game overlay built by Valhallab and
 distributed under the PlayerVox brand. It adds movable widgets without injection.
 
-The project is usable today on its primary Hyprland target, but remains an
-early release. Plasma and X11 need more real-machine coverage before they can
-be considered equally mature.
+The project is usable today on Hyprland and Plasma Wayland, but remains an
+early release. X11 still needs broader real-machine coverage.
 
 ## Compatibility
 
 | Environment | Status | Notes |
 | --- | --- | --- |
 | Hyprland 0.55+ Wayland | **Supported** | Primary Arch/Omarchy target; native Wayland and XWayland games. |
-| Plasma 6 Wayland | **Support validation in progress** | KWin bridge is implemented; broader hardware testing is needed. |
+| Plasma 6 Wayland | **Supported** | Validated on Bazzite KDE/Fedora 42; native Wayland and XWayland games through the KWin bridge. |
 | Generic X11/EWMH (including Plasma and XFCE) | **Experimental — for now** | Window tracking works without a Wayland bridge; shortcuts, HiDPI, and desktop-specific behavior need more validation. |
 | GNOME Wayland | **Not compatible — for now** | Requires a dedicated GNOME Shell/Mutter bridge. |
 | Sway Wayland | **Not compatible — for now** | Requires a dedicated Sway IPC and layer-shell bridge. |
@@ -24,8 +23,8 @@ may bypass compositor windows and is outside the current design.
 
 ## Quick start
 
-The current pre-alpha supports Arch Linux and Arch-based distributions on
-x86_64. Install the complete application from the AUR:
+The current pre-alpha provides complete x86_64 packages for Arch Linux and
+Fedora 42/Bazzite. On Arch, install from the AUR:
 
 ```sh
 yay -S overcrow-bin
@@ -33,8 +32,12 @@ yay -S overcrow-bin
 
 `paru -S overcrow-bin` works as an alternative. Without an AUR helper,
 download the package from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.3)
+[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4)
 and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
+
+On Fedora 42, download the RPM and run
+`sudo dnf install ./overcrow-*.fc42.x86_64.rpm`.
+On Bazzite, use `rpm-ostree install ./overcrow-*.fc42.x86_64.rpm`, then reboot.
 
 Nothing starts during installation. Open **PlayerVox OverCrow** from the
 application menu, or run:
@@ -60,12 +63,7 @@ sudo pacman -R overcrow-bin
 
 User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`.
 
-### Release artifacts
-
-The pre-alpha release contains one complete x86_64 package and its checksum:
-
-- `overcrow-bin-0.1.0prealpha3-1-x86_64.pkg.tar.zst`
-- `SHA256SUMS`
+Each release contains one Arch package, one Fedora 42 RPM, and `SHA256SUMS`.
 
 ## Using OverCrow
 
@@ -88,13 +86,8 @@ widget without leaving the overlay. Passive widgets are read-only and
 click-through. Interactive mode captures input only over the authorized game
 and always retains a close path.
 
-Useful diagnostics:
-
-```sh
-overcrowctl status
-overcrowctl logs
-./scripts/diagnose.sh
-```
+Useful diagnostics: `overcrowctl status`, `overcrowctl logs`, and
+`./scripts/diagnose.sh`.
 
 Logs stay local under `${XDG_STATE_HOME:-$HOME/.local/state}/overcrow/logs/`.
 They rotate, are bounded, and exclude private content. See
@@ -165,9 +158,8 @@ Security issues should be reported privately as described in
 
 ## Limitations
 
-- Linux support currently means native Arch/Omarchy distribution and the
-  display matrix above. A Fedora 42 RPM is available for maintainer testing;
-  a public Fedora repository and DEB distribution are still planned.
+- Distribution is currently through the AUR and direct Arch/Fedora 42 release
+  packages. Public Fedora repository and DEB distribution are still planned.
 - A selected game must be focused before a passive overlay can appear.
 - Compositor-level placement can briefly lag during geometry changes.
 - Performance telemetry describes host/game resource use, not injected frame

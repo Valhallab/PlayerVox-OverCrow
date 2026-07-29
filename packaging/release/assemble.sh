@@ -23,6 +23,10 @@ if ! arch_version=$(overcrow_arch_version "$version"); then
     printf '%s\n' 'error: could not normalize the Arch version' >&2
     exit 2
 fi
+if ! rpm_version=$(overcrow_rpm_version "$version"); then
+    printf '%s\n' 'error: could not normalize the RPM version' >&2
+    exit 2
+fi
 case $source_dir in
     /*) ;;
     *) printf '%s\n' 'error: SOURCE_DIR must be absolute' >&2; exit 2 ;;
@@ -46,13 +50,16 @@ if test -e "$output_dir" || test -L "$output_dir"; then
     exit 2
 fi
 
-artifact="overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst"
-source_path="$source_dir/$artifact"
-if ! test -f "$source_path" || test -L "$source_path" ||
-        ! test -s "$source_path"; then
-    printf '%s\n' "error: invalid release artifact: $artifact" >&2
-    exit 1
-fi
+arch_artifact="overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst"
+rpm_artifact="overcrow-$rpm_version-1.fc42.x86_64.rpm"
+for artifact in "$arch_artifact" "$rpm_artifact"; do
+    source_path="$source_dir/$artifact"
+    if ! test -f "$source_path" || test -L "$source_path" ||
+            ! test -s "$source_path"; then
+        printf '%s\n' "error: invalid release artifact: $artifact" >&2
+        exit 1
+    fi
+done
 
 working=
 cleanup_working() {
@@ -77,11 +84,13 @@ trap handle_signal HUP INT TERM
 
 working=$(mktemp -d "$output_parent/.overcrow-release.XXXXXX")
 chmod 0700 "$working"
-install -m 0644 "$source_path" "$working/$artifact"
+for artifact in "$arch_artifact" "$rpm_artifact"; do
+    install -m 0644 "$source_dir/$artifact" "$working/$artifact"
+done
 
 (
     cd "$working"
-    sha256sum "$artifact" > SHA256SUMS
+    sha256sum "$arch_artifact" "$rpm_artifact" > SHA256SUMS
     chmod 0644 SHA256SUMS
     sha256sum -c SHA256SUMS >/dev/null
 )

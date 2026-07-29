@@ -38,7 +38,7 @@ qdbus_program=
 # metadata/main fingerprint pair. This history is append-only: new releases
 # add a current pair and retain every supported reviewed legacy pair. Never add
 # a fingerprint from an untrusted installed package.
-kwin_current_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
+kwin_current_metadata_sha256='ae9fe7a737443fdf6b92994420ee031f12aabf6523a32cb3fdd4e2e78f484690'
 kwin_current_main_sha256='109f47c4172337b8b479f2afaaaedd1bab7a77756cb7868d60eb8f7f1a24eb27'
 kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
 kwin_legacy_pre_alpha_3_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'

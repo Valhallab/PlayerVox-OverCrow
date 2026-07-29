@@ -52,6 +52,8 @@ for required in \
         'cargo test --workspace --all-targets --locked' \
         'cargo deny --locked check advisories licenses' \
         'cargo deny --locked check bans sources' \
+        'overcrow_rpm_version "$version"' \
+        'packaging/release/*.sh packaging/rpm/*.sh' \
         '"$project_root/scripts/build-arch-package.sh"' \
         '"$project_root/packaging/release/inspect.sh"' \
         '"$project_root/packaging/release/assemble.sh"'; do

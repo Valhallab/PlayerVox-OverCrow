@@ -47,6 +47,10 @@ if ! arch_version=$(overcrow_arch_version "$version"); then
     printf '%s\n' "error: cannot normalize Arch version: $version" >&2
     exit 1
 fi
+if ! rpm_version=$(overcrow_rpm_version "$version"); then
+    printf '%s\n' "error: cannot normalize RPM version: $version" >&2
+    exit 1
+fi
 if test "$(uname -m)" != x86_64; then
     printf '%s\n' 'error: releases are currently built for x86_64 only' >&2
     exit 1
@@ -60,6 +64,13 @@ case $SOURCE_DATE_EPOCH in
         ;;
 esac
 export SOURCE_DATE_EPOCH
+
+rpm_artifact="$project_root/dist/overcrow-$rpm_version-1.fc42.x86_64.rpm"
+if ! test -f "$rpm_artifact" || test -L "$rpm_artifact" ||
+        ! test -s "$rpm_artifact"; then
+    printf '%s\n' "error: validated Fedora 42 RPM is required: $rpm_artifact" >&2
+    exit 1
+fi
 
 for output in \
         "$project_root/dist/overcrow-bin-$arch_version-1-x86_64.pkg.tar.zst" \
@@ -83,11 +94,11 @@ cargo deny --locked check bans sources
 
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
     packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-    packaging/release/*.sh
+    packaging/release/*.sh packaging/rpm/*.sh
 shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
     packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-    packaging/release/*.sh
+    packaging/release/*.sh packaging/rpm/*.sh
 bash -n packaging/aur/PKGBUILD
 node --check integrations/kwin/contents/code/main.js
 node --test tests/kwin-bridge.test.js

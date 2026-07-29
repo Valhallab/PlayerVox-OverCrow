@@ -1,7 +1,7 @@
 # Pre-alpha release acceptance
 
-Run this checklist on the real Arch desktop before publishing
-`v0.1.0-pre-alpha.3`. Check only results you personally observe.
+Run this checklist on the real Arch or Fedora/Bazzite desktop before publishing
+`v0.1.0-pre-alpha.4`. Check only results you personally observe.
 
 ## 1. Candidate integrity
 
@@ -11,16 +11,19 @@ sha256sum -c SHA256SUMS
 ls -lh
 ```
 
-- [ ] The package checksum reports `OK`.
-- [ ] The directory contains only the Arch package and `SHA256SUMS`.
+- [ ] Both package checksums report `OK`.
+- [ ] The directory contains only the Arch package, Fedora 42 RPM, and `SHA256SUMS`.
 
 ## 2. Native installation
 
 ```sh
 sudo pacman -Rns overcrow-bin 2>/dev/null || true
-sudo pacman -U overcrow-bin-0.1.0prealpha3-1-x86_64.pkg.tar.zst
+sudo pacman -U overcrow-bin-0.1.0prealpha4-1-x86_64.pkg.tar.zst
 overcrow-control
 ```
+
+On Fedora 42 use `sudo dnf install ./overcrow-0.1.0~pre_alpha.4-1.fc42.x86_64.rpm`.
+On Bazzite use `rpm-ostree install` with that RPM, then reboot.
 
 - [ ] The app is identified as **PlayerVox OverCrow**.
 - [ ] Onboarding correctly identifies the current desktop compatibility.
@@ -50,6 +53,9 @@ sudo pacman -Rns overcrow-bin
 systemctl --user daemon-reload
 pgrep -af '^(.*/)?overcrow-(core|overlay|hyprland)( |$)' || true
 ```
+
+Use `sudo dnf remove overcrow` on Fedora. On Bazzite use
+`sudo rpm-ostree uninstall overcrow`, then reboot.
 
 - [ ] No OverCrow runtime process remains.
 - [ ] The application launcher no longer contains PlayerVox OverCrow.
