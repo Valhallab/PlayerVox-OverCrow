@@ -171,6 +171,27 @@ credentials and with bounded request, response, and timeout. The Tauri host
 accepts only the latest native-generated report ID and permits one submission
 at a time.
 
+## Native update boundary
+
+The Control Center owns one serialized update state machine. Its webview can
+request a check, installation, or the official release page, but cannot supply
+a URL, path, executable, or package-manager argument.
+
+Release selection uses semantic versions and exact package names for the
+detected installed channel. Metadata and packages come only from allowlisted
+GitHub HTTPS hosts with redirects, bytes, entries, strings, and time bounded.
+Packages are streamed into a private cache, hashed against GitHub's SHA-256
+digest, synchronized, atomically published, and revalidated before use.
+
+Automatic installation is available only when the canonical Control Center
+binary is owned by exactly one reviewed package database. Installer command
+shapes are fixed for pacman, dnf, apt, and rpm-ostree and run through PolicyKit
+without a shell. The existing lifecycle disable transaction runs after
+verification and before privilege. A failed shutdown, ambiguous installation,
+missing manager, invalid package, or cancelled authorization fails closed.
+rpm-ostree success records a restart-required state and never reboots
+automatically.
+
 ## Security boundary
 
 OverCrow reads same-user process metadata and compositor state. It does not use

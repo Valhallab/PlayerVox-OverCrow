@@ -43,6 +43,8 @@ grep -Fq '%{_bindir}/overcrow-control' "$spec" ||
     fail 'the complete application payload is not listed'
 grep -Fq 'Suggests:       gnome-shell' "$spec" ||
     fail 'the optional GNOME integration is not advertised'
+grep -Fq 'Requires:       xdg-utils' "$spec" ||
+    fail 'the fixed release-page opener dependency is missing'
 grep -Fq '%{_datadir}/gnome-shell/extensions/overcrow@playervox.com' "$spec" ||
     fail 'the GNOME extension payload is not listed'
 grep -Fq "Source0:        ${bundle##*/}" "$spec" ||

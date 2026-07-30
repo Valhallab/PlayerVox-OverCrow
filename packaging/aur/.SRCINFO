@@ -15,6 +15,7 @@ pkgbase = overcrow-bin
 	depends = wayland
 	depends = mesa
 	depends = xdg-desktop-portal
+	depends = xdg-utils
 	depends = gtk3
 	depends = webkit2gtk-4.1
 	depends = libayatana-appindicator

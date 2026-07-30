@@ -16,12 +16,14 @@ overcrow-logging = { path = "../overcrow-logging" }
 overcrow-protocol = { path = "../overcrow-protocol" }
 pollster = "=0.4.0"
 rfd = { version = "=0.17.2", default-features = false, features = ["xdg-portal"] }
+semver = "=1.0.28"
 sha2 = "=0.10.9"
 serde.workspace = true
 serde_json.workspace = true
 unicode-casefold = "=0.2.0"
 tokio.workspace = true
 ureq = { version = "3", default-features = true }
+url = "=2.5.8"
 uuid = { version = "1", features = ["v4"] }
 zbus.workspace = true
 

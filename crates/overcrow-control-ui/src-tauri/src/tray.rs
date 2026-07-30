@@ -262,7 +262,7 @@ fn monitor_lifecycle(app: AppHandle) {
 fn stop_and_quit(app: AppHandle) {
     // Finish any active transition before requesting the same fail-closed
     // disable transaction used by the Control Center.
-    if stop_runtime_for_quit(&app).is_ok() {
+    if stop_runtime(&app).is_ok() {
         app.exit(0);
         return;
     }
@@ -276,7 +276,7 @@ fn stop_and_quit(app: AppHandle) {
     show_main_window(&app);
 }
 
-fn stop_runtime_for_quit(app: &AppHandle) -> Result<(), &'static str> {
+pub(crate) fn stop_runtime(app: &AppHandle) -> Result<(), &'static str> {
     wait_for_lifecycle(app)?;
     app.state::<CommandState>()
         .set_overcrow_enabled(false)

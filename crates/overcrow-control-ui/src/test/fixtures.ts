@@ -2,6 +2,7 @@ import type {
   ControlClient,
   ControlLogSnapshot,
   ControlSnapshot,
+  ControlUpdateState,
 } from '../lib/control';
 
 export function snapshot(
@@ -46,14 +47,35 @@ export function logSnapshot(
   };
 }
 
-export function memoryClient(initial: ControlSnapshot): ControlClient & {
+export function updateState(
+  overrides: Partial<ControlUpdateState> = {},
+): ControlUpdateState {
+  return {
+    schema_version: 1,
+    phase: 'up_to_date',
+    current_version: '0.1.0-pre-alpha.4',
+    latest_version: null,
+    install_kind: 'arch',
+    last_checked_at: '2026-07-30T20:00:00.000Z',
+    error: null,
+    ...overrides,
+  };
+}
+
+export function memoryClient(
+  initial: ControlSnapshot,
+  initialUpdate = updateState(),
+): ControlClient & {
   calls: string[];
   emitState(snapshot: ControlSnapshot): void;
+  emitUpdate(state: ControlUpdateState): void;
 } {
   let current = structuredClone(initial);
+  let currentUpdate = structuredClone(initialUpdate);
   const logs = logSnapshot();
   const calls: string[] = [];
   const listeners = new Set<(snapshot: ControlSnapshot) => void>();
+  const updateListeners = new Set<(state: ControlUpdateState) => void>();
   return {
     calls,
     async subscribe(listener) {
@@ -65,9 +87,43 @@ export function memoryClient(initial: ControlSnapshot): ControlClient & {
       current = structuredClone(snapshot);
       for (const listener of listeners) listener(structuredClone(current));
     },
+    async subscribeUpdates(listener) {
+      calls.push('subscribeUpdates');
+      updateListeners.add(listener);
+      return () => updateListeners.delete(listener);
+    },
+    emitUpdate(state) {
+      currentUpdate = structuredClone(state);
+      for (const listener of updateListeners) {
+        listener(structuredClone(currentUpdate));
+      }
+    },
     async getState() {
       calls.push('getState');
       return structuredClone(current);
+    },
+    async getUpdateState() {
+      calls.push('getUpdateState');
+      return structuredClone(currentUpdate);
+    },
+    async checkForUpdates(force) {
+      calls.push(`checkForUpdates:${force}`);
+      return structuredClone(currentUpdate);
+    },
+    async installAvailableUpdate() {
+      calls.push('installAvailableUpdate');
+      currentUpdate = {
+        ...currentUpdate,
+        phase:
+          currentUpdate.install_kind === 'rpm_ostree'
+            ? 'restart_required'
+            : 'installed',
+        error: null,
+      };
+      return structuredClone(currentUpdate);
+    },
+    async openUpdatePage() {
+      calls.push('openUpdatePage');
     },
     async getRecentLogs() {
       calls.push('getRecentLogs');

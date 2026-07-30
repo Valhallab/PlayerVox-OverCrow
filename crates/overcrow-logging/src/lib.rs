@@ -32,16 +32,18 @@ const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Component {
+    Control,
     Core,
     Overlay,
     Hyprland,
 }
 
 impl Component {
-    const ALL: [Self; 3] = [Self::Core, Self::Overlay, Self::Hyprland];
+    const ALL: [Self; 4] = [Self::Control, Self::Core, Self::Overlay, Self::Hyprland];
 
     fn name(self) -> &'static str {
         match self {
+            Self::Control => "control",
             Self::Core => "core",
             Self::Overlay => "overlay",
             Self::Hyprland => "hyprland",
@@ -50,6 +52,7 @@ impl Component {
 
     fn file_name(self) -> &'static str {
         match self {
+            Self::Control => "control.log",
             Self::Core => "core.log",
             Self::Overlay => "overlay.log",
             Self::Hyprland => "hyprland.log",
@@ -719,6 +722,27 @@ mod tests {
                 .mode()
                 & 0o777,
             0o600
+        );
+    }
+
+    #[test]
+    fn control_events_use_their_own_file_and_join_recent_diagnostics() {
+        let temp = tempfile::tempdir().expect("create temp directory");
+        let runtime =
+            LoggerRuntime::start_in(Component::Control, temp.path()).expect("start control logger");
+        runtime
+            .logger()
+            .info("control_update_failed", format_args!("category=network"));
+        drop(runtime);
+
+        let contents =
+            fs::read_to_string(temp.path().join("control.log")).expect("read control log");
+        assert!(contents.contains("INFO control control_update_failed category=network"));
+        assert!(
+            read_recent_logs_in(temp.path(), 10)
+                .expect("read recent diagnostics")
+                .iter()
+                .any(|line| line.contains(" control control_update_failed "))
         );
     }
 

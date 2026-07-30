@@ -13,7 +13,7 @@ test -f .github/ISSUE_TEMPLATE/bug-report.yml
 test ! -e docs/superpowers
 
 readme_lines=$(wc -l < README.md)
-test "$readme_lines" -le 240
+test "$readme_lines" -le 250
 
 for heading in \
     '## Compatibility' \

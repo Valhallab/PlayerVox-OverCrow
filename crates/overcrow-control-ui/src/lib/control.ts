@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 const CONTROL_STATE_EVENT = 'overcrow-control-state';
+const UPDATE_STATE_EVENT = 'overcrow-update-state';
 
 export type CompatibilityStatus =
   | 'supported'
@@ -89,9 +90,58 @@ export interface ControlSupportReceipt {
   received_at: string;
 }
 
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'up_to_date'
+  | 'available'
+  | 'downloading'
+  | 'installing'
+  | 'installed'
+  | 'restart_required'
+  | 'manual'
+  | 'failed';
+
+export type UpdateInstallKind =
+  | 'arch'
+  | 'rpm'
+  | 'deb'
+  | 'rpm_ostree'
+  | 'manual';
+
+export type UpdateErrorCode =
+  | 'busy'
+  | 'unavailable'
+  | 'network'
+  | 'invalid_response'
+  | 'download'
+  | 'verification'
+  | 'runtime_stop'
+  | 'authorization_cancelled'
+  | 'installation'
+  | 'timeout'
+  | 'open_page';
+
+export interface ControlUpdateState {
+  schema_version: 1;
+  phase: UpdatePhase;
+  current_version: string;
+  latest_version: string | null;
+  install_kind: UpdateInstallKind;
+  last_checked_at: string | null;
+  error: UpdateErrorCode | null;
+}
+
 export interface ControlClient {
   subscribe(listener: (snapshot: ControlSnapshot) => void): Promise<() => void>;
+  subscribeUpdates(
+    listener: (state: ControlUpdateState) => void,
+  ): Promise<() => void>;
   getState(): Promise<ControlSnapshot>;
+  getUpdateState(): Promise<ControlUpdateState>;
+  checkForUpdates(force: boolean): Promise<ControlUpdateState>;
+  installAvailableUpdate(): Promise<ControlUpdateState>;
+  openUpdatePage(): Promise<void>;
   getRecentLogs(): Promise<ControlLogSnapshot>;
   prepareSupportReport(
     description: string,
@@ -108,7 +158,15 @@ export interface ControlClient {
 export const controlClient: ControlClient = {
   subscribe: (listener) =>
     listen<ControlSnapshot>(CONTROL_STATE_EVENT, (event) => listener(event.payload)),
+  subscribeUpdates: (listener) =>
+    listen<ControlUpdateState>(UPDATE_STATE_EVENT, (event) =>
+      listener(event.payload),
+    ),
   getState: () => invoke('get_control_state'),
+  getUpdateState: () => invoke('get_update_state'),
+  checkForUpdates: (force) => invoke('check_for_updates', { force }),
+  installAvailableUpdate: () => invoke('install_available_update'),
+  openUpdatePage: () => invoke('open_update_page'),
   getRecentLogs: () => invoke('get_recent_logs'),
   prepareSupportReport: (description, includeLogs) =>
     invoke('prepare_support_report', { description, includeLogs }),

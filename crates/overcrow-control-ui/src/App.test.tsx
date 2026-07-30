@@ -7,6 +7,7 @@ import {
   memoryClient,
   memoryStorage,
   snapshot,
+  updateState,
 } from './test/fixtures';
 import { APP_VERSION } from './version';
 
@@ -25,7 +26,13 @@ describe('Control Center onboarding', () => {
     expect(within(brand).getByText('OverCrow')).toBeVisible();
     expect(brand).toHaveAccessibleName('PlayerVox OverCrow');
     expect(screen.queryByText('by PlayerVox')).not.toBeInTheDocument();
-    expect(client.calls).toEqual(['subscribe', 'getState']);
+    expect(client.calls).toEqual([
+      'subscribe',
+      'subscribeUpdates',
+      'getState',
+      'getUpdateState',
+      'checkForUpdates:false',
+    ]);
 
     fireEvent.click(screen.getByRole('button', { name: /check my system/i }));
     expect(await screen.findByText('Supported')).toBeVisible();
@@ -98,6 +105,96 @@ describe('Control Center onboarding', () => {
 });
 
 describe('Control Center dashboard', () => {
+  it('shows an available native update and installs only after an explicit click', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = memoryClient(
+      snapshot(),
+      updateState({
+        phase: 'available',
+        latest_version: '0.1.0-pre-alpha.5',
+        install_kind: 'arch',
+      }),
+    );
+    render(<App client={client} storage={storage} />);
+
+    expect(
+      await screen.findByText('PlayerVox OverCrow 0.1.0-pre-alpha.5 is available'),
+    ).toBeVisible();
+    expect(client.calls).not.toContain('installAvailableUpdate');
+    fireEvent.click(screen.getByRole('button', { name: 'Update now' }));
+    await waitFor(() =>
+      expect(client.calls).toContain('installAvailableUpdate'),
+    );
+    expect(await screen.findByText('Update installed')).toBeVisible();
+  });
+
+  it('keeps unknown package layouts manual and checks again from About', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = memoryClient(
+      snapshot(),
+      updateState({
+        phase: 'manual',
+        latest_version: '0.1.0-pre-alpha.5',
+        install_kind: 'manual',
+      }),
+    );
+    render(<App client={client} storage={storage} />);
+
+    expect(
+      await screen.findByRole('button', { name: 'Open release page' }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open release page' }));
+    await waitFor(() => expect(client.calls).toContain('openUpdatePage'));
+    fireEvent.click(screen.getByRole('button', { name: 'About' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check for updates' }));
+    await waitFor(() =>
+      expect(client.calls).toContain('checkForUpdates:true'),
+    );
+  });
+
+  it('stages rpm-ostree updates with explicit reboot guidance', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = memoryClient(
+      snapshot(),
+      updateState({
+        phase: 'available',
+        latest_version: '0.1.0-pre-alpha.5',
+        install_kind: 'rpm_ostree',
+      }),
+    );
+    render(<App client={client} storage={storage} />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Update now' }),
+    );
+    expect(
+      await screen.findByText('Update staged — restart required'),
+    ).toBeVisible();
+    expect(screen.getByText(/Bazzite has prepared the next deployment/i)).toBeVisible();
+  });
+
+  it('subscribes before update reads and schedules one six-hour deadline', async () => {
+    const storage = memoryStorage();
+    storage.setItem('overcrow.onboardingVersion', '1');
+    const client = memoryClient(snapshot());
+    const timeout = vi.spyOn(window, 'setTimeout');
+    const view = render(<App client={client} storage={storage} />);
+
+    await waitFor(() =>
+      expect(client.calls).toContain('checkForUpdates:false'),
+    );
+    expect(client.calls.indexOf('subscribeUpdates')).toBeLessThan(
+      client.calls.indexOf('getUpdateState'),
+    );
+    expect(timeout).toHaveBeenCalledWith(expect.any(Function), 6 * 60 * 60 * 1_000);
+
+    view.unmount();
+    timeout.mockRestore();
+  });
+
   it('registers native state events before loading the baseline', async () => {
     const client = memoryClient(snapshot());
     let finishSubscription: ((unsubscribe: () => void) => void) | undefined;
@@ -110,13 +207,19 @@ describe('Control Center dashboard', () => {
 
     render(<App client={client} storage={memoryStorage()} />);
 
-    await waitFor(() => expect(client.calls).toEqual(['subscribe']));
+    await waitFor(() =>
+      expect(
+        client.calls.filter((call) => call === 'subscribe' || call === 'getState'),
+      ).toEqual(['subscribe']),
+    );
     expect(client.calls).not.toContain('getState');
     await act(async () => {
       finishSubscription?.(() => {});
     });
     expect(await screen.findByText('Your games. Your overlay. Your control.')).toBeVisible();
-    expect(client.calls).toEqual(['subscribe', 'getState']);
+    expect(
+      client.calls.filter((call) => call === 'subscribe' || call === 'getState'),
+    ).toEqual(['subscribe', 'getState']);
   });
 
   it('loads returning users, refreshes discovery, and keeps activation explicit', async () => {

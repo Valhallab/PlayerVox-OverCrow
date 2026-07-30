@@ -1319,6 +1319,95 @@ input:disabled + .switch {
   overflow-wrap: anywhere;
 }
 
+.update-panel {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(120deg, rgb(163 230 53 / 7%), transparent 42%),
+    var(--card);
+}
+
+.update-panel--available,
+.update-panel--manual,
+.update-panel--installed,
+.update-panel--restart_required {
+  border-color: rgb(163 230 53 / 25%);
+}
+
+.update-panel--failed {
+  border-color: rgb(251 113 133 / 24%);
+  background:
+    linear-gradient(120deg, rgb(251 113 133 / 7%), transparent 42%),
+    var(--card);
+}
+
+.update-panel__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border: 1px solid rgb(163 230 53 / 22%);
+  border-radius: 13px;
+  color: var(--lime);
+  background: var(--lime-soft);
+}
+
+.update-panel__mark svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.update-panel__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.update-panel__copy h2 {
+  margin: 5px 0 4px;
+  font-size: 1.04rem;
+}
+
+.update-panel__copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.update-panel__copy small {
+  display: block;
+  margin-top: 7px;
+  color: var(--subtle);
+  font-size: 0.65rem;
+}
+
+.update-panel__copy .update-panel__error {
+  margin-top: 7px;
+  color: #fda4af;
+}
+
+.update-panel__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.update-panel--about {
+  max-width: 680px;
+}
+
 .about-card {
   max-width: 680px;
   padding: 30px;
@@ -1438,6 +1527,9 @@ input:disabled + .switch {
   .metric { min-height: 96px; }
   .section-intro { align-items: flex-start; flex-direction: column; }
   .principles { grid-template-columns: 1fr; }
+  .update-panel { align-items: flex-start; flex-wrap: wrap; }
+  .update-panel__copy { flex: 1 1 calc(100% - 70px); }
+  .update-panel__actions { width: 100%; justify-content: flex-start; }
 }
 
 @media (prefers-reduced-motion: reduce) {

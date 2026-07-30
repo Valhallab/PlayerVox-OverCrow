@@ -1,12 +1,13 @@
 use overcrow_control::{
     ControlCommandService, ControlLogSnapshot, ControlSnapshot, ControlSupportReceipt,
-    ControlSupportReport, SupportReportClient, SupportReportError,
-    prepare_support_report as build_support_report,
+    ControlSupportReport, ControlUpdateState, SupportReportClient, SupportReportError,
+    UpdateController, UpdateError, UpdateErrorCode, prepare_support_report as build_support_report,
 };
-use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, State};
 
 pub type CommandState = ControlCommandService;
+const UPDATE_STATE_EVENT: &str = "overcrow-update-state";
 
 #[derive(Default)]
 pub struct SupportReportState {
@@ -165,8 +166,80 @@ pub async fn submit_support_report(
     submission
 }
 
+#[tauri::command]
+pub fn get_update_state(state: State<'_, Arc<UpdateController>>) -> ControlUpdateState {
+    state.state()
+}
+
+#[tauri::command]
+pub async fn check_for_updates(
+    app: AppHandle,
+    state: State<'_, Arc<UpdateController>>,
+    force: bool,
+) -> Result<ControlUpdateState, String> {
+    let controller = Arc::clone(state.inner());
+    let event_app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        controller.check(force, |state| publish_update_state(&event_app, &state))
+    })
+    .await
+    .map_err(|_| "update_worker_failed".to_owned())?
+    .map_err(update_error)
+}
+
+#[tauri::command]
+pub async fn install_available_update(
+    app: AppHandle,
+    state: State<'_, Arc<UpdateController>>,
+) -> Result<ControlUpdateState, String> {
+    let controller = Arc::clone(state.inner());
+    let event_app = app.clone();
+    let stop_app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        controller.install_available_update(
+            |state| publish_update_state(&event_app, &state),
+            || crate::tray::stop_runtime(&stop_app).map_err(|_| UpdateError::RuntimeStop),
+        )
+    })
+    .await
+    .map_err(|_| "update_worker_failed".to_owned())?
+    .map_err(update_error)
+}
+
+#[tauri::command]
+pub async fn open_update_page(state: State<'_, Arc<UpdateController>>) -> Result<(), String> {
+    let controller = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || controller.open_release_page())
+        .await
+        .map_err(|_| "update_worker_failed".to_owned())?
+        .map_err(update_error)
+}
+
 fn support_error(error: overcrow_control::SupportReportError) -> String {
     error.code().to_owned()
+}
+
+fn update_error(error: UpdateError) -> String {
+    match error.code() {
+        UpdateErrorCode::Busy => "update_busy",
+        UpdateErrorCode::Unavailable => "update_unavailable",
+        UpdateErrorCode::Network => "update_network",
+        UpdateErrorCode::InvalidResponse => "update_invalid_response",
+        UpdateErrorCode::Download => "update_download",
+        UpdateErrorCode::Verification => "update_verification",
+        UpdateErrorCode::RuntimeStop => "update_runtime_stop",
+        UpdateErrorCode::AuthorizationCancelled => "update_authorization_cancelled",
+        UpdateErrorCode::Installation => "update_installation",
+        UpdateErrorCode::Timeout => "update_timeout",
+        UpdateErrorCode::OpenPage => "update_open_page",
+    }
+    .to_owned()
+}
+
+fn publish_update_state(app: &AppHandle, state: &ControlUpdateState) {
+    if let Err(error) = app.emit(UPDATE_STATE_EVENT, state) {
+        eprintln!("OverCrow could not publish update state: {error}");
+    }
 }
 
 fn sync_tray(
@@ -181,9 +254,9 @@ fn sync_tray(
 
 #[cfg(test)]
 mod tests {
-    use overcrow_control::ControlSupportReport;
+    use overcrow_control::{ControlSupportReport, UpdateError};
 
-    use super::SupportReportState;
+    use super::{SupportReportState, update_error};
 
     fn report(id: &str) -> ControlSupportReport {
         ControlSupportReport {
@@ -222,5 +295,18 @@ mod tests {
             .expect("successful submission");
 
         assert!(state.begin_submission("oc-first").is_err());
+    }
+
+    #[test]
+    fn native_update_errors_cross_the_webview_boundary_as_stable_codes() {
+        assert_eq!(update_error(UpdateError::OperationBusy), "update_busy");
+        assert_eq!(
+            update_error(UpdateError::AuthorizationCancelled),
+            "update_authorization_cancelled"
+        );
+        assert_eq!(
+            update_error(UpdateError::RuntimeStop),
+            "update_runtime_stop"
+        );
     }
 }

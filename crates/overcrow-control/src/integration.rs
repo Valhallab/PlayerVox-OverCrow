@@ -146,7 +146,7 @@ fn validate_helper(path: &Path) -> Result<(), String> {
 
 pub(crate) fn run_bounded_command(
     program: impl AsRef<std::ffi::OsStr>,
-    args: &'static [&'static str],
+    args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
     timeout: Duration,
 ) -> Result<(), String> {
     run_bounded_command_observed(program, args, timeout, |_| {})
@@ -154,10 +154,32 @@ pub(crate) fn run_bounded_command(
 
 pub(crate) fn run_bounded_command_observed(
     program: impl AsRef<std::ffi::OsStr>,
-    args: &'static [&'static str],
+    args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
     timeout: Duration,
     on_spawn: impl FnOnce(u32),
 ) -> Result<(), String> {
+    let status = run_bounded_command_status_observed(program, args, timeout, on_spawn)?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("command exited with {status}"))
+    }
+}
+
+pub(crate) fn run_bounded_command_status(
+    program: impl AsRef<std::ffi::OsStr>,
+    args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
+    timeout: Duration,
+) -> Result<std::process::ExitStatus, String> {
+    run_bounded_command_status_observed(program, args, timeout, |_| {})
+}
+
+fn run_bounded_command_status_observed(
+    program: impl AsRef<std::ffi::OsStr>,
+    args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
+    timeout: Duration,
+    on_spawn: impl FnOnce(u32),
+) -> Result<std::process::ExitStatus, String> {
     let mut command = Command::new(program);
     command
         .args(args)
@@ -269,7 +291,7 @@ impl LinuxNonReapingExitObserver {
 fn finish_observed_exit(
     child: &mut std::process::Child,
     group: ProcessGroup,
-) -> Result<(), String> {
+) -> Result<std::process::ExitStatus, String> {
     let cleanup_error = group.kill().err();
     let status = match child.wait() {
         Ok(status) => status,
@@ -279,18 +301,10 @@ fn finish_observed_exit(
             return Err(message);
         }
     };
-    if status.success() {
-        return match cleanup_error {
-            Some(error) => Err(format!(
-                "command succeeded but process-group cleanup failed: {error}"
-            )),
-            None => Ok(()),
-        };
+    if let Some(error) = cleanup_error {
+        return Err(format!("process-group cleanup failed: {error}"));
     }
-
-    let mut message = format!("command exited with {status}");
-    append_cleanup_error(&mut message, "process-group cleanup", cleanup_error);
-    Err(message)
+    Ok(status)
 }
 
 #[derive(Clone, Copy)]

@@ -93,6 +93,16 @@ User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcr
 Each release contains Arch, Fedora 42 RPM, and one Ubuntu-baseline DEB package,
 plus `SHA256SUMS`.
 
+## Updates
+
+The Control Center checks official GitHub releases at startup and at most every
+six hours; **About → Check for updates** also checks manually. Nothing is
+downloaded until **Update now** is selected. OverCrow verifies the package's
+GitHub SHA-256 digest, stops its runtime, then asks PolicyKit to run the native
+pacman, dnf, apt, or rpm-ostree transaction. Bazzite requires a reboot.
+Source and unrecognized installations open the official release page instead.
+Cancelling or failing a step leaves the current package unchanged.
+
 ## Using OverCrow
 
 Start a selected game and focus its window. The default shortcuts are:

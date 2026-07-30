@@ -4,10 +4,19 @@ set -eu
 project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 stage_script="$project_root/packaging/release/stage.sh"
 manifest="$project_root/packaging/release/manifest.txt"
+# shellcheck disable=SC1090,SC1091
+. "$project_root/scripts/lib/release-version.sh"
 cd "$project_root"
 
 test -x "$stage_script"
 test -f "$manifest"
+release_contract_version='0.1.0-pre-alpha.5'
+test "overcrow-bin-$(overcrow_arch_version "$release_contract_version")-1-x86_64.pkg.tar.zst" = \
+    'overcrow-bin-0.1.0prealpha5-1-x86_64.pkg.tar.zst'
+test "overcrow-$(overcrow_rpm_artifact_version "$release_contract_version")-1.fc42.x86_64.rpm" = \
+    'overcrow-0.1.0.pre_alpha.5-1.fc42.x86_64.rpm'
+test "overcrow_$(overcrow_deb_package_version "$release_contract_version")_amd64.deb" = \
+    'overcrow_0.1.0~pre.alpha.5-1_amd64.deb'
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/overcrow-stage.XXXXXX")
 trap 'rm -rf -- "$tmpdir"' EXIT HUP INT TERM

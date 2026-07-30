@@ -2,7 +2,7 @@ use std::path::Path;
 
 use overcrow_control::{GraphicsVendor, detect_graphics_vendors};
 #[cfg(not(test))]
-use std::{env, os::unix::process::CommandExt, process::Command};
+use std::{env, os::unix::process::CommandExt, process::Command, sync::Arc};
 
 // The test harness skips Tauri's generated context, so its command entrypoints
 // are intentionally unreferenced in test builds.
@@ -18,7 +18,7 @@ mod tray_tests;
 #[cfg(not(test))]
 use commands::{CommandState, SupportReportState};
 #[cfg(not(test))]
-use overcrow_control::run_settings_diagnostic_request;
+use overcrow_control::{UpdateController, run_settings_diagnostic_request};
 #[cfg(not(test))]
 use tauri::WindowEvent;
 
@@ -74,10 +74,21 @@ fn main() {
         eprintln!("OverCrow Control Center failed: {error}");
         std::process::exit(1);
     }
+    let update_state = match UpdateController::production() {
+        Ok(controller) => Arc::new(controller),
+        Err(error) => {
+            eprintln!(
+                "OverCrow Control Center failed to initialize updates: {:?}",
+                error.code()
+            );
+            std::process::exit(1);
+        }
+    };
 
     let builder = tauri::Builder::default()
         .manage(CommandState::production())
         .manage(SupportReportState::default())
+        .manage(update_state)
         .setup(|app| {
             if let Err(error) = tray::install(app) {
                 abort_startup(app, &format!("could not install the system tray: {error}"));
@@ -104,6 +115,10 @@ fn main() {
             commands::get_recent_logs,
             commands::prepare_support_report,
             commands::submit_support_report,
+            commands::get_update_state,
+            commands::check_for_updates,
+            commands::install_available_update,
+            commands::open_update_page,
         ]);
 
     let mut app = match builder.build(tauri::generate_context!()) {

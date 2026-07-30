@@ -7,11 +7,13 @@ import type {
   ControlSnapshot,
   ControlSupportReceipt,
   ControlSupportReport,
+  ControlUpdateState,
 } from '../lib/control';
 import { Brand } from './Brand';
 import { CompatibilityCard } from './CompatibilityCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { GameSourceLabel } from './GameSourceLabel';
+import { UpdatePanel } from './UpdatePanel';
 
 type Page = 'overview' | 'games' | 'diagnostics' | 'about';
 
@@ -29,6 +31,11 @@ interface DashboardProps {
     includeLogs: boolean,
   ): Promise<ControlSupportReport>;
   onSubmitSupportReport(reportId: string): Promise<ControlSupportReceipt>;
+  update: ControlUpdateState | null;
+  updateError: string | null;
+  onCheckForUpdates(): void;
+  onInstallUpdate(): void;
+  onOpenUpdatePage(): void;
 }
 
 export function Dashboard(props: DashboardProps) {
@@ -107,6 +114,14 @@ export function Dashboard(props: DashboardProps) {
 
         {page === 'overview' && (
           <div className="dashboard__content">
+            <UpdatePanel
+              variant="overview"
+              state={props.update}
+              actionError={props.updateError}
+              onCheck={props.onCheckForUpdates}
+              onInstall={props.onInstallUpdate}
+              onOpenRelease={props.onOpenUpdatePage}
+            />
             <section className={`status-hero ${snapshot.master_switch_checked ? 'status-hero--on' : ''}`}>
               <div className="status-hero__orb"><span /></div>
               <div className="status-hero__copy">
@@ -178,12 +193,22 @@ export function Dashboard(props: DashboardProps) {
         )}
 
         {page === 'about' && (
-          <div className="dashboard__content about-card">
-            <Brand />
-            <p>{en.dashboard.aboutBody}</p>
-            <p>{en.dashboard.license}</p>
-            <code>{en.dashboard.source}</code>
-            <p className="about-card__version">{en.dashboard.version} {APP_VERSION}</p>
+          <div className="dashboard__content">
+            <div className="about-card">
+              <Brand />
+              <p>{en.dashboard.aboutBody}</p>
+              <p>{en.dashboard.license}</p>
+              <code>{en.dashboard.source}</code>
+              <p className="about-card__version">{en.dashboard.version} {APP_VERSION}</p>
+            </div>
+            <UpdatePanel
+              variant="about"
+              state={props.update}
+              actionError={props.updateError}
+              onCheck={props.onCheckForUpdates}
+              onInstall={props.onInstallUpdate}
+              onOpenRelease={props.onOpenUpdatePage}
+            />
           </div>
         )}
       </main>

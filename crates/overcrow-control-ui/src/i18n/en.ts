@@ -181,6 +181,52 @@ export const en = {
     typeUnverified: 'Type unverified',
     app: 'App',
   },
+  updates: {
+    eyebrow: 'Software update',
+    readyTitle: 'Keep OverCrow current',
+    readyBody:
+      'Checks are read-only. Downloads and installation always require your confirmation.',
+    checkingTitle: 'Checking for updates…',
+    checkingBody: 'Looking for a compatible official release.',
+    currentTitle: 'OverCrow is up to date',
+    currentBody: (version: string) => `Version ${version} is the latest compatible release.`,
+    availableTitle: (version: string) =>
+      `PlayerVox OverCrow ${version} is available`,
+    availableBody:
+      'The official package will be verified before PolicyKit asks for permission to install it.',
+    manualBody:
+      'This installation layout cannot be updated automatically. Use the official release page.',
+    downloadingTitle: 'Downloading the verified package…',
+    downloadingBody:
+      'OverCrow is still running. It will stop only after package verification succeeds.',
+    installingTitle: 'Installing the update…',
+    installingBody:
+      'The OverCrow runtime is stopped. Complete the PolicyKit request to continue.',
+    installedTitle: 'Update installed',
+    installedBody: 'Restart the Control Center when you are ready to use the new version.',
+    restartTitle: 'Update staged — restart required',
+    restartBody:
+      'Bazzite has prepared the next deployment. Reboot when convenient to apply it.',
+    failedTitle: 'The update could not be completed',
+    check: 'Check for updates',
+    updateNow: 'Update now',
+    openRelease: 'Open release page',
+    lastChecked: 'Last checked:',
+    stateErrors: {
+      busy: 'Another update action is already running.',
+      unavailable: 'No compatible update package is currently available.',
+      network: 'The official release service could not be reached.',
+      invalid_response: 'The release information was not valid.',
+      download: 'The official package could not be downloaded.',
+      verification: 'Package verification failed. Nothing was installed.',
+      runtime_stop: 'OverCrow could not stop cleanly, so installation was cancelled.',
+      authorization_cancelled: 'The PolicyKit request was cancelled.',
+      installation: 'The native package manager could not install the update.',
+      timeout: 'The update action exceeded its safe time limit.',
+      open_page: 'The official release page could not be opened.',
+      generic: 'No changes were installed. Try again or use the official release page.',
+    },
+  },
   errors: {
     title: 'OverCrow could not complete that action',
     invalid_app_id: 'The selected game identifier is invalid.',

@@ -35,7 +35,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 control="$work_dir/control"
-dependencies='libc6 (>= 2.38), libgtk-3-0, systemd, xdg-desktop-portal'
+dependencies='libc6 (>= 2.38), libgtk-3-0, systemd, xdg-desktop-portal, xdg-utils'
 "$renderer" 0.1.0-pre-alpha.4 "$dependencies" 4242 "$control"
 
 test "$(stat -c '%a' "$control")" = 644
@@ -163,6 +163,7 @@ for required_text in \
         'libxkbcommon-x11-0' \
         'systemd' \
         'xdg-desktop-portal' \
+        'xdg-utils' \
         'SOURCE_DATE_EPOCH' \
         'Ubuntu 24.04'; do
     grep -Fq "$required_text" "$builder"

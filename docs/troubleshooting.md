@@ -113,6 +113,27 @@ emotes are fetched as bounded static PNGs from Twitch's CDN; a failed,
 unsupported, or malformed emote remains visible as its text (for example,
 `LUL`). Badge images and third-party emote providers are not supported.
 
+## Updates do not complete
+
+- **No automatic action is offered:** the installation is not an exact
+  supported native package layout, or the release has no matching verified
+  asset. Use **Open release page**; source checkouts deliberately stay manual.
+- **PolicyKit was cancelled:** no package was changed. Select **Update now**
+  again when ready.
+- **OverCrow could not stop:** installation was cancelled before the package
+  manager ran. Stop the runtime from Overview, then retry.
+- **Package-manager failure:** use the normal distro command to inspect pending
+  transactions. The Control Center never falls back to a shell command.
+- **Bazzite says restart required:** the new rpm-ostree deployment is staged.
+  Reboot when convenient; OverCrow never reboots automatically.
+- **The release page does not open:** ensure the distro's `xdg-utils` package is
+  installed, then open
+  `https://github.com/Valhallab/PlayerVox-OverCrow/releases` manually.
+
+Update events are recorded in the private rotating `control.log` using stable
+categories only. Package paths, URLs, responses, and PolicyKit output are not
+logged.
+
 ## Report a problem
 
 Open **Diagnostics → Report a problem** in the Control Center:

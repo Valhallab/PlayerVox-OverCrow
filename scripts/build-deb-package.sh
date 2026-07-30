@@ -221,6 +221,7 @@ libxkbcommon0
 libxkbcommon-x11-0
 systemd
 xdg-desktop-portal
+xdg-utils
 '
 dependencies=$shlibdeps
 for requirement in $runtime_dependencies; do

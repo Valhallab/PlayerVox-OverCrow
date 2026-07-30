@@ -17,6 +17,7 @@ BuildRequires:  tar
 BuildRequires:  zstd
 Requires:       systemd
 Requires:       xdg-desktop-portal
+Requires:       xdg-utils
 Suggests:       gnome-shell
 
 %description

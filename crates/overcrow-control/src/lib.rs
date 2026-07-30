@@ -10,6 +10,10 @@ mod settings_diagnostic;
 mod steam;
 mod steam_binary;
 mod support;
+mod update_download;
+mod update_install;
+mod update_release;
+mod updates;
 
 pub use app::{
     APPLICATION_ID, APPLICATION_TITLE, AppTab, ControlController, ControlView, NoticeOperation,
@@ -54,6 +58,10 @@ pub use support::{
     ControlSupportReceipt, ControlSupportReport, MAX_SUPPORT_DESCRIPTION_BYTES,
     SUPPORT_REPORT_SCHEMA_VERSION, SupportReportClient, SupportReportError, prepare_support_report,
 };
+pub use updates::{
+    CONTROL_UPDATE_SCHEMA_VERSION, ControlUpdateState, UpdateController, UpdateError,
+    UpdateErrorCode, UpdateInstallKind, UpdatePhase,
+};
 #[cfg(test)]
 #[path = "steam_tests.rs"]
 mod steam_tests;
@@ -93,3 +101,7 @@ mod compatibility_tests;
 #[cfg(test)]
 #[path = "presentation_tests.rs"]
 mod presentation_tests;
+
+#[cfg(test)]
+#[path = "updates_tests.rs"]
+mod updates_tests;

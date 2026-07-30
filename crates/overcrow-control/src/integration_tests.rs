@@ -109,7 +109,7 @@ fn integration_timeout_is_one_explicit_minute() {
 #[test]
 fn command_timeout_kills_and_reaps_the_child_before_returning() {
     let started = Instant::now();
-    let error = run_bounded_command("/bin/sleep", &["10"], Duration::from_millis(30)).unwrap_err();
+    let error = run_bounded_command("/bin/sleep", ["10"], Duration::from_millis(30)).unwrap_err();
 
     assert!(
         error.contains("timed out"),
