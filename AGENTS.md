@@ -32,21 +32,23 @@ turning it into a large process.
   diagnostics, installation integration, and lifecycle authority.
 - `crates/overcrowctl`: small D-Bus CLI.
 - `integrations/kwin`: Plasma 6 KWin bridge.
+- `integrations/gnome`: GNOME 46–50 Shell/Mutter bridge.
 - `packaging/`, `scripts/`, and `tests/`: native Arch packaging, managed user
   integration, diagnostics, and smoke tests.
 
 ## Supported display backends
 
-- Preserve all three supported paths: X11 through EWMH, Plasma 6 Wayland
-  through the KWin bridge, and Hyprland 0.55+ Wayland through its IPC bridge.
-  XWayland games are supported through the active compositor integration.
+- Preserve all four implemented paths: X11 through EWMH, Plasma 6 Wayland
+  through the KWin bridge, Hyprland 0.55+ Wayland through its IPC bridge, and
+  experimental GNOME 46–50 Wayland through its Shell/Mutter bridge. XWayland
+  games are supported through the active compositor integration.
 - Changes to window detection, placement, stacking, focus, input regions,
   shortcuts, scaling, or geometry must consider every supported path and add
   the relevant automated coverage or real-machine checklist.
-- Generic Wayland is not a supported backend. GNOME Shell/Mutter, Sway/wlroots,
-  and other compositors remain unsupported until they have an explicit,
-  reviewed bridge that provides OverCrow's full placement and input contract.
-  Do not infer support from the ability to create a transparent window alone.
+- Generic Wayland is not a supported backend. Sway/wlroots and other
+  compositors remain unsupported until they have an explicit, reviewed bridge
+  that provides OverCrow's full placement and input contract. Do not infer
+  support from the ability to create a transparent window alone.
 - Windowed and borderless-fullscreen games are in scope. Exclusive fullscreen
   can bypass compositor windows and remains unsupported.
 - Unsupported or unrecognized display environments must fail closed without
@@ -116,9 +118,10 @@ turning it into a large process.
 - Private D-Bus/socket tests may fail inside a restricted sandbox with
   `isolated bus omitted its address`. Re-run the unchanged test with normal
   local permissions before treating that as a code failure.
-- Repository tests cannot prove live Hyprland, Plasma, X11, Proton, or game
-  behavior. Perform bounded automated checks, then give the user a short exact
-  real-machine checklist. Never claim live acceptance before they report it.
+- Repository tests cannot prove live Hyprland, Plasma, GNOME, X11, Proton, or
+  game behavior. Perform bounded automated checks, then give the user a short
+  exact real-machine checklist. Never claim live acceptance before they report
+  it.
 
 ## Coding rules
 

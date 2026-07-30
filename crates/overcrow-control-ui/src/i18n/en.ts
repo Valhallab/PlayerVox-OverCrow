@@ -59,7 +59,7 @@ export const en = {
     generic_x11:
       'The X11 integration is available, but desktop-specific behavior is still experimental.',
     gnome_wayland:
-      'GNOME Wayland does not expose the placement and input contract OverCrow needs yet.',
+      'GNOME 46–50 integration is available while real-world validation continues.',
     sway_wayland:
       'Sway support needs a dedicated, reviewed compositor bridge before it can be enabled.',
     gamescope_session:

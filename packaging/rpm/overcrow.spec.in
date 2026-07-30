@@ -17,6 +17,7 @@ BuildRequires:  tar
 BuildRequires:  zstd
 Requires:       systemd
 Requires:       xdg-desktop-portal
+Suggests:       gnome-shell
 
 %description
 PlayerVox OverCrow is an opt-in external Linux game overlay. It provides
@@ -45,6 +46,7 @@ test -d %{buildroot}%{_prefix}
 %{_prefix}/lib/systemd/user/overcrow-hyprland.service
 %{_prefix}/lib/systemd/user/overcrow-overlay.service
 %{_datadir}/applications/com.playervox.OverCrow.desktop
+%{_datadir}/gnome-shell/extensions/overcrow@playervox.com
 %{_datadir}/icons/hicolor/512x512/apps/com.playervox.OverCrow.png
 %license %{_datadir}/licenses/overcrow/LICENSE
 %license %{_datadir}/licenses/overcrow/NOTICE

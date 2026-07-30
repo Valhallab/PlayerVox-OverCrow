@@ -74,11 +74,13 @@ jobs:
             packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
           bash -n packaging/aur/PKGBUILD
           node --check integrations/kwin/contents/code/main.js
+          node --check integrations/gnome/extension.js
 
       - name: Run automated tests
         run: |
           cargo test --workspace --all-targets --locked
           node --test tests/kwin-bridge.test.js
+          node --test tests/gnome-bridge.test.js
           tests/qjsvalue-variant-smoke.sh
           tests/aur-package-smoke.sh
           tests/deb-package-smoke.sh

@@ -19,6 +19,11 @@ renderer="$project_root/packaging/deb/render-control.sh"
 test -x "$renderer"
 test -f "$project_root/packaging/deb/control.in"
 test -f "$project_root/packaging/deb/copyright"
+for extension_file in extension.js metadata.json; do
+    grep -Fqx \
+        "usr/share/gnome-shell/extensions/overcrow@playervox.com/$extension_file" \
+        "$project_root/packaging/release/manifest.txt"
+done
 
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/overcrow-deb-smoke.XXXXXX")
 cleanup() {
@@ -43,6 +48,7 @@ for expected in \
         'Maintainer: Valhallab <contact@valhallab.com>' \
         'Installed-Size: 4242' \
         "Depends: $dependencies" \
+        'Suggests: gnome-shell' \
         'Homepage: https://overcrow.playervox.com' \
         'Description: Opt-in external Linux game overlay by PlayerVox'; do
     test "$(grep -Fxc "$expected" "$control")" -eq 1

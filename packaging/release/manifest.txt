@@ -9,6 +9,8 @@ usr/lib/systemd/user/overcrow-core.service
 usr/lib/systemd/user/overcrow-hyprland.service
 usr/lib/systemd/user/overcrow-overlay.service
 usr/share/applications/com.playervox.OverCrow.desktop
+usr/share/gnome-shell/extensions/overcrow@playervox.com/extension.js
+usr/share/gnome-shell/extensions/overcrow@playervox.com/metadata.json
 usr/share/icons/hicolor/512x512/apps/com.playervox.OverCrow.png
 usr/share/licenses/overcrow/LICENSE
 usr/share/licenses/overcrow/NOTICE

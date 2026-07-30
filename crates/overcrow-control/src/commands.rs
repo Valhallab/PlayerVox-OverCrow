@@ -215,10 +215,19 @@ mod tests {
 
     #[test]
     fn unsupported_sessions_cannot_request_activation() {
-        let commands = commands("GNOME");
+        let commands = commands("sway");
         assert_eq!(
             commands.set_overcrow_enabled(true).unwrap_err(),
             "unsupported_environment"
+        );
+    }
+
+    #[test]
+    fn gnome_sessions_reach_normal_activation_validation() {
+        let commands = commands("GNOME");
+        assert_eq!(
+            commands.set_overcrow_enabled(true).unwrap_err(),
+            "request_rejected"
         );
     }
 

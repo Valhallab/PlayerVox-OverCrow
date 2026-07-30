@@ -36,6 +36,7 @@ pub enum DesktopSession {
     X11,
     Hyprland,
     PlasmaWayland,
+    GnomeWayland,
     Unsupported,
 }
 
@@ -63,17 +64,30 @@ impl DesktopSession {
             return Self::Unsupported;
         }
 
-        let desktop = match parse_desktop_metadata(current_desktop, true) {
-            DesktopMetadata::Known(kind) => Some(kind),
-            DesktopMetadata::Absent => match parse_desktop_metadata(desktop_session, false) {
-                DesktopMetadata::Known(kind) => Some(kind),
-                DesktopMetadata::Absent | DesktopMetadata::Invalid => None,
-            },
-            DesktopMetadata::Invalid => None,
+        let desktop = match (
+            parse_desktop_metadata(current_desktop, true),
+            parse_desktop_metadata(desktop_session, false),
+        ) {
+            (DesktopMetadata::Known(current), DesktopMetadata::Known(session))
+                if current == session =>
+            {
+                Some(current)
+            }
+            (DesktopMetadata::Known(kind), DesktopMetadata::Absent | DesktopMetadata::Invalid) => {
+                Some(kind)
+            }
+            (DesktopMetadata::Absent, DesktopMetadata::Known(kind)) => Some(kind),
+            (
+                DesktopMetadata::Absent | DesktopMetadata::Invalid,
+                DesktopMetadata::Absent | DesktopMetadata::Invalid,
+            )
+            | (DesktopMetadata::Known(_), DesktopMetadata::Known(_))
+            | (DesktopMetadata::Invalid, DesktopMetadata::Known(_)) => None,
         };
         match desktop {
             Some(DesktopKind::Hyprland) => Self::Hyprland,
             Some(DesktopKind::Plasma) => Self::PlasmaWayland,
+            Some(DesktopKind::Gnome) => Self::GnomeWayland,
             None => Self::Unsupported,
         }
     }
@@ -83,6 +97,7 @@ impl DesktopSession {
 enum DesktopKind {
     Hyprland,
     Plasma,
+    Gnome,
 }
 
 #[derive(Clone, Copy)]
@@ -140,7 +155,7 @@ fn desktop_kind(token: &str) -> Option<DesktopKind> {
     if token.eq_ignore_ascii_case("hyprland") {
         return Some(DesktopKind::Hyprland);
     }
-    [
+    if [
         "kde",
         "plasma",
         "plasmawayland",
@@ -151,7 +166,19 @@ fn desktop_kind(token: &str) -> Option<DesktopKind> {
     ]
     .iter()
     .any(|known| token.eq_ignore_ascii_case(known))
-    .then_some(DesktopKind::Plasma)
+    {
+        return Some(DesktopKind::Plasma);
+    }
+    [
+        "gnome",
+        "gnome-wayland",
+        "ubuntu",
+        "ubuntu-gnome",
+        "ubuntu-wayland",
+    ]
+    .iter()
+    .any(|known| token.eq_ignore_ascii_case(known))
+    .then_some(DesktopKind::Gnome)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -192,9 +219,10 @@ const FULL_STOP_PLAN: [SessionCommand; 2] = [
     SessionCommand::new("stop", OVERLAY_UNIT),
 ];
 
-const STOP_PLAN_LENGTHS: [usize; 4] = [
+const STOP_PLAN_LENGTHS: [usize; 5] = [
     OVERLAY_STOP_PLAN.len(),
     FULL_STOP_PLAN.len(),
+    OVERLAY_STOP_PLAN.len(),
     OVERLAY_STOP_PLAN.len(),
     FULL_STOP_PLAN.len(),
 ];
@@ -235,7 +263,9 @@ pub fn transition_commands(
 fn start_command_plan(desktop: DesktopSession) -> &'static [SessionCommand] {
     match desktop {
         DesktopSession::Hyprland => &HYPRLAND_START_PLAN,
-        DesktopSession::X11 | DesktopSession::PlasmaWayland => &OVERLAY_START_PLAN,
+        DesktopSession::X11 | DesktopSession::PlasmaWayland | DesktopSession::GnomeWayland => {
+            &OVERLAY_START_PLAN
+        }
         DesktopSession::Unsupported => &NO_COMMANDS,
     }
 }
@@ -243,7 +273,9 @@ fn start_command_plan(desktop: DesktopSession) -> &'static [SessionCommand] {
 fn stop_command_plan(desktop: DesktopSession) -> &'static [SessionCommand] {
     match desktop {
         DesktopSession::Hyprland | DesktopSession::Unsupported => &FULL_STOP_PLAN,
-        DesktopSession::X11 | DesktopSession::PlasmaWayland => &OVERLAY_STOP_PLAN,
+        DesktopSession::X11 | DesktopSession::PlasmaWayland | DesktopSession::GnomeWayland => {
+            &OVERLAY_STOP_PLAN
+        }
     }
 }
 

@@ -4,6 +4,8 @@ set -u
 
 dbus_name=io.github.overcrow.Core1
 kwin_id=io.github.overcrow.kwin
+gnome_id=overcrow@playervox.com
+gnome_system_path="/usr/share/gnome-shell/extensions/$gnome_id"
 probe_timeout=3s
 probe_kill_after=1s
 probe_max_bytes=4194304
@@ -932,6 +934,111 @@ report_hyprland() {
     report_hyprland_overlays
 }
 
+gnome_session_active() {
+    case ":${XDG_CURRENT_DESKTOP:-}:" in
+        *:GNOME:*|*:gnome:*) return 0 ;;
+    esac
+    case ${DESKTOP_SESSION:-} in
+        gnome|gnome-wayland|ubuntu|ubuntu-gnome|ubuntu-wayland) return 0 ;;
+    esac
+    return 1
+}
+
+report_gnome_shell_version() {
+    run_probe gnome-shell --version
+    case "$diag_probe_status" in
+        timeout_unavailable)
+            printf '%s\n' 'GNOME Shell version: skipped: timeout unavailable'
+            ;;
+        not_found)
+            printf '%s\n' 'GNOME Shell version: unavailable (gnome-shell not found)'
+            ;;
+        timed_out)
+            printf '%s\n' 'GNOME Shell version: timed out'
+            ;;
+        ok)
+            diag_gnome_first_line=${diag_probe_output%%'
+'*}
+            case $diag_gnome_first_line in
+                'GNOME Shell '*)
+                    diag_gnome_version=${diag_gnome_first_line#GNOME Shell }
+                    ;;
+                *) diag_gnome_version= ;;
+            esac
+            case $diag_gnome_version in
+                ''|*[!0-9.]*|*..*|.*|*.)
+                    printf '%s\n' \
+                        'GNOME Shell version: unavailable (unrecognized response)'
+                    ;;
+                *)
+                    printf '%s\n' "GNOME Shell version: $diag_gnome_version"
+                    ;;
+            esac
+            ;;
+        *)
+            printf '%s\n' 'GNOME Shell version: unavailable (query failed)'
+            ;;
+    esac
+}
+
+report_gnome_extension() {
+    run_probe gnome-extensions info "$gnome_id"
+    case "$diag_probe_status" in
+        timeout_unavailable)
+            printf '%s\n' "GNOME extension $gnome_id: skipped: timeout unavailable"
+            return
+            ;;
+        not_found)
+            printf '%s\n' "GNOME extension $gnome_id: unavailable (tool not found)"
+            return
+            ;;
+        timed_out)
+            printf '%s\n' "GNOME extension $gnome_id: timed out"
+            return
+            ;;
+        oversized)
+            printf '%s\n' "GNOME extension $gnome_id: unavailable (response too large)"
+            return
+            ;;
+        ok) ;;
+        *)
+            printf '%s\n' "GNOME extension $gnome_id: unavailable (not installed)"
+            return
+            ;;
+    esac
+
+    run_probe_with_input "$diag_probe_output" /usr/bin/gawk \
+        -v expected_path="$gnome_system_path" \
+        'length($0) > 1024 { invalid = 1 } { line = $0; sub(/^[[:space:]]*/, "", line); sub(/[[:space:]]*$/, "", line); if (line == "Path: " expected_path) system_path = 1; if (line == "State: ACTIVE") active = 1 } END { if (invalid) print "invalid"; else if (!system_path) print "unexpected-path"; else if (active) print "active"; else print "inactive" }'
+    case "$diag_probe_status:$diag_probe_output" in
+        ok:active)
+            printf '%s\n' \
+                "GNOME extension $gnome_id: active (system package)"
+            ;;
+        ok:inactive)
+            printf '%s\n' \
+                "GNOME extension $gnome_id: inactive (system package)"
+            ;;
+        ok:unexpected-path)
+            printf '%s\n' \
+                "GNOME extension $gnome_id: unavailable (unexpected package path)"
+            ;;
+        *)
+            printf '%s\n' \
+                "GNOME extension $gnome_id: unavailable (malformed response)"
+            ;;
+    esac
+}
+
+report_gnome() {
+    if ! gnome_session_active; then
+        printf '%s\n' 'GNOME: skipped (not a GNOME session)'
+        return
+    fi
+    report_gnome_shell_version
+    report_gnome_extension
+}
+
 diag_current_uid=
 diag_current_uid_status=unchecked
 
@@ -1278,6 +1385,9 @@ report_legacy_artifacts
 printf '\n'
 
 report_hyprland
+printf '\n'
+
+report_gnome
 printf '\n'
 
 report_kwin_package

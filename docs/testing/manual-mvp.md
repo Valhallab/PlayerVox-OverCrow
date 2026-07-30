@@ -1,12 +1,11 @@
 # OverCrow MVP manual acceptance
 
 This checklist validates the MVP in a real desktop session. It is intentionally
-manual: the repository smoke tests do not start X11, Plasma, KWin, a game, or a
-user D-Bus session.
+manual: the repository smoke tests do not start X11, Plasma, GNOME Shell, a
+game, or a user D-Bus session.
 
-No live compositor acceptance was performed as part of the Task 8 source
-stabilization audit. Hyprland, Plasma Wayland, and X11 remain manual acceptance
-work until dated evidence is recorded below this checklist.
+Automated source checks never replace the compositor-specific acceptance below.
+Record the tested build and environment before changing a compatibility claim.
 
 ## Prerequisites and evidence
 
@@ -27,8 +26,8 @@ work until dated evidence is recorded below this checklist.
 - Prepare a safe, visible control in the game or another test window so a click
   received by the underlying window can be distinguished from a click consumed
   by the overlay.
-- Use separate logins for the X11, Plasma Wayland, and Hyprland sections. Do
-  not change `XDG_SESSION_TYPE` manually to simulate a compositor.
+- Use separate logins for the X11, Plasma Wayland, GNOME Wayland, and Hyprland
+  sections. Do not change `XDG_SESSION_TYPE` manually to simulate a compositor.
 - Before changing service or KWin state, record the values needed for
   restoration. In Plasma, keep the following variables in the same shell until
   the KWin lease test is restored. The sentinel distinguishes a missing key
@@ -348,9 +347,55 @@ live Plasma Wayland section can validate compositor-level placement, stacking,
 focus, and D-Bus dispatch. Keep the requested evidence; automated smoke results
 alone are not acceptance of the final Wayland placement fix.
 
+## GNOME 46–50 Wayland acceptance
+
+Run this section in a real GNOME Wayland login. GNOME 46 on Ubuntu 24.04 is the
+minimum live target; metadata for later Shell versions is not evidence that
+their compositor behavior was validated.
+
+1. Confirm `XDG_SESSION_TYPE=wayland`, an unambiguous GNOME desktop identity,
+   and the exact installed extension:
+
+   ```sh
+   gnome-shell --version
+   gnome-extensions info overcrow@playervox.com
+   ./scripts/diagnose.sh
+   ```
+
+   The extension path must be
+   `/usr/share/gnome-shell/extensions/overcrow@playervox.com`. Installation
+   alone must leave it disabled; explicit Control Center setup must enable it.
+
+2. Select one test game, enable OverCrow, then launch the game windowed.
+   Confirm the overlay matches only the game frame, follows move and resize
+   immediately, stays on the same workspace and monitor, and never covers an
+   unrelated application.
+
+3. In Passive mode, click every visible widget area and the surrounding game.
+   Every click must reach the game. Open the widget library with
+   `Meta+Alt+O`, interact with widgets, then close with both `Esc` and the
+   shortcut. Interactive focus must return to the game without trapping input.
+
+4. Move between the game workspace and another workspace in both modes.
+   Unrelated applications must remain focusable. Returning to the game must
+   restore placement without a resize loop or transient full-desktop overlay.
+
+5. Resize the game repeatedly and move it between monitors, including a mixed
+   scale pair when available. Widget positions must remain relative to the
+   game viewport and the top-left anchor must not drift.
+
+6. Exit the game in both modes, stop Core, disable the extension, and log out.
+   Each action must remove owned accelerators, release overlay focus/input,
+   clear compositor state, and leave no persistent global shortcut.
+
+Do not mark GNOME supported if any mandatory placement, Passive click-through,
+Interactive close, focus restoration, shortcut cleanup, or extension teardown
+case fails. Exclusive fullscreen remains outside the supported contract.
+
 ## Cross-backend renderer suspension and sizing
 
-Repeat this bounded check on X11, Plasma 6 Wayland, and Hyprland 0.55+ Wayland:
+Repeat this bounded check on X11, Plasma 6 Wayland, GNOME 46–50 Wayland, and
+Hyprland 0.55+ Wayland:
 
 1. Start a selected game, open OverCrow, and resize a widget with passive
    visibility to a deliberately tall interactive height. Return to Passive and
@@ -786,8 +831,9 @@ Hyprland result.
 
 Use a build compiled with the public `OVERCROW_TWITCH_CLIENT_ID`. Use a test
 account and a public channel where sending test messages is permitted. Repeat
-the visual/input checks on Hyprland, Plasma Wayland, and X11; one successful
-OAuth/network run is sufficient if the exact same package is used.
+the visual/input checks on Hyprland, Plasma Wayland, GNOME Wayland, and X11;
+one successful OAuth/network run is sufficient if the exact same package is
+used.
 
 1. With a selected game active, enable the Twitch widget and configure a
    channel. Stop the game and confirm the connection closes and provider work

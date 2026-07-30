@@ -2,7 +2,8 @@
 
 OverCrow is an opt-in external Linux game overlay built by Valhallab and
 distributed under the PlayerVox brand. It adds movable widgets without
-injection. Hyprland and Plasma Wayland are supported; X11 remains experimental.
+injection. Hyprland and Plasma 6 Wayland are supported; GNOME Wayland and X11
+are available as experimental integrations.
 
 ## Compatibility
 
@@ -12,7 +13,7 @@ injection. Hyprland and Plasma Wayland are supported; X11 remains experimental.
 | Plasma 6 Wayland | **Supported** | Validated on Bazzite KDE/Fedora 42; native Wayland and XWayland games through the KWin bridge. |
 | XFCE X11 on Xubuntu 24.04 | **Experimental — validated in VM** | DEB installation, native-window tracking, geometry, stacking, interactive clicks, shortcuts, and focus restoration passed. Steam/Proton, physical GPU, HiDPI, and multi-monitor validation remain. |
 | Other X11/EWMH desktops | **Experimental — for now** | The shared X11 path is implemented, but Plasma X11 and other window managers still need real-machine validation. |
-| GNOME Wayland | **Not compatible — for now** | Requires a dedicated GNOME Shell/Mutter bridge. |
+| GNOME 46–50 Wayland | **Experimental — for now** | The dedicated Shell/Mutter bridge is implemented; complete real-machine validation remains. |
 | Sway Wayland | **Not compatible — for now** | Requires a dedicated Sway IPC and layer-shell bridge. |
 | Gamescope / Steam Deck Game Mode | **Not compatible — for now** | No nested-compositor integration yet. |
 | Other Wayland compositors | **Not compatible — for now** | A transparent window alone cannot provide safe placement and input control. |
@@ -107,14 +108,21 @@ Plasma Wayland asks once for permission to register these global shortcuts
 when the first selected game becomes active. Review the listed shortcuts, then
 confirm KDE's system dialog to enable them.
 
+GNOME Wayland uses the packaged OverCrow Shell extension to register the same
+shortcuts only while a selected game is active. The Control Center enables this
+extension during explicit setup; package installation alone never enables it.
+After the first package installation, GNOME may require one logout/login before
+the current Shell session discovers the system extension.
+
 The PlayerVox-styled **Widget library** groups general tools separately from
 game-specific widgets. It lets you enable, move, resize, scale, and reset each
 widget without leaving the overlay. Passive widgets are read-only and
 click-through. Interactive mode captures input only over the authorized game
 and always retains a close path.
 
-Useful diagnostics: `overcrowctl status`, `overcrowctl logs`, and
-`./scripts/diagnose.sh`.
+Useful diagnostics are available in the Control Center. The CLI equivalents are
+`overcrowctl status` and `overcrowctl logs`; source checkouts can additionally
+run `./scripts/diagnose.sh`.
 
 Logs stay local under `${XDG_STATE_HOME:-$HOME/.local/state}/overcrow/logs/`.
 They rotate, are bounded, and exclude private content. See
@@ -188,8 +196,9 @@ Security issues should be reported privately as described in
 - Compositor-level placement can briefly lag during geometry changes.
 - Performance telemetry describes host/game resource use, not injected frame
   timing; OverCrow does not currently provide a true FPS counter.
-- Repository tests cannot prove live Hyprland, Plasma, X11, Proton, or game
-  behavior. Those paths require the [manual MVP checklist](docs/testing/manual-mvp.md).
+- Repository tests cannot prove live Hyprland, Plasma, GNOME, X11, Proton, or
+  game behavior. Those paths require the
+  [manual MVP checklist](docs/testing/manual-mvp.md).
 
 ## Architecture
 

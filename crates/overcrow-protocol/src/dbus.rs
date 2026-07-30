@@ -50,6 +50,12 @@ pub trait Core1 {
 
     #[zbus(name = "ShortcutAvailability")]
     fn shortcut_availability(&self) -> zbus::Result<String>;
+
+    #[zbus(name = "GnomeShortcutDefinitions")]
+    fn gnome_shortcut_definitions(&self) -> zbus::Result<String>;
+
+    #[zbus(name = "ReportGnomeShortcutAvailability")]
+    fn report_gnome_shortcut_availability(&self, state: &str) -> zbus::Result<()>;
 }
 
 #[cfg(test)]
@@ -97,6 +103,8 @@ mod tests {
             std::mem::drop(proxy.toggle_manual_stopwatch());
             std::mem::drop(proxy.reset_manual_stopwatch());
             std::mem::drop(proxy.shortcut_availability());
+            std::mem::drop(proxy.gnome_shortcut_definitions());
+            std::mem::drop(proxy.report_gnome_shortcut_availability("available"));
         }
 
         let _ = assert_methods;

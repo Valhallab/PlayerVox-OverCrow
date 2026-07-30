@@ -98,6 +98,18 @@ case "$name" in
             *) exit 64 ;;
         esac
         ;;
+    gnome-shell)
+        [ "$*" = "--version" ]
+        printf '%s\n' 'GNOME Shell 46.2'
+        ;;
+    gnome-extensions)
+        [ "$*" = "info overcrow@playervox.com" ]
+        printf '%s\n' \
+            'overcrow@playervox.com' \
+            '  Name: Private extension name' \
+            '  Path: /usr/share/gnome-shell/extensions/overcrow@playervox.com' \
+            '  State: ACTIVE'
+        ;;
     pgrep)
         case "$*" in
             "-u 1000 -f ^([^[:space:]]*/)?overcrow-core([[:space:]]|$)")

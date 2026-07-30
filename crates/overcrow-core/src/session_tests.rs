@@ -379,6 +379,20 @@ fn desktop_detection_is_exact_case_insensitive_and_x11_takes_precedence() {
         DesktopSession::detect(Some("wayland"), Some(""), Some("plasma")),
         DesktopSession::PlasmaWayland
     );
+    for (current_desktop, desktop_session) in [
+        (Some("GNOME"), Some("ubuntu")),
+        (Some("gnome"), Some("gnome-wayland")),
+        (None, Some("ubuntu-wayland")),
+    ] {
+        assert_eq!(
+            DesktopSession::detect(Some("wayland"), current_desktop, desktop_session),
+            DesktopSession::GnomeWayland
+        );
+    }
+    assert_eq!(
+        DesktopSession::detect(Some("wayland"), Some("GNOME:KDE"), None),
+        DesktopSession::Unsupported
+    );
 }
 
 #[test]
@@ -391,7 +405,11 @@ fn command_plans_cover_supported_desktops_and_idempotence() {
         transition_commands(DesktopSession::Hyprland, true, false),
         vec![STOP_BRIDGE, STOP_OVERLAY]
     );
-    for desktop in [DesktopSession::X11, DesktopSession::PlasmaWayland] {
+    for desktop in [
+        DesktopSession::X11,
+        DesktopSession::PlasmaWayland,
+        DesktopSession::GnomeWayland,
+    ] {
         assert_eq!(transition_commands(desktop, false, true), vec![OVERLAY]);
         assert_eq!(
             transition_commands(desktop, true, false),
@@ -414,6 +432,7 @@ fn forced_cleanup_bound_includes_every_stop_timeout_and_scheduling_margin() {
         DesktopSession::X11,
         DesktopSession::Hyprland,
         DesktopSession::PlasmaWayland,
+        DesktopSession::GnomeWayland,
         DesktopSession::Unsupported,
     ] {
         let stop_plan = transition_commands(desktop, true, false);

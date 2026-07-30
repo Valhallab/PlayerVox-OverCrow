@@ -130,6 +130,15 @@ fn x11_should_request_focus(x11_session: bool, mode_event: Option<OverlayMode>) 
     x11_session && mode_event == Some(OverlayMode::Interactive)
 }
 
+fn schedule_wayland_input_region_commit(context: &egui::Context, x11_session: bool) {
+    if !x11_session {
+        // eframe processes viewport commands after swapping the current frame.
+        // Mutter applies the pending Wayland input region on the next surface
+        // commit, so schedule one bounded follow-up frame.
+        context.request_repaint_after(Duration::from_millis(1));
+    }
+}
+
 fn authoritative_snapshot(snapshot: &CoreSnapshot, core_authority: bool) -> CoreSnapshot {
     if core_authority {
         snapshot.clone()
@@ -418,6 +427,7 @@ impl OverlayApp {
         context.send_viewport_cmd(egui::ViewportCommand::MousePassthrough(
             update.mouse_passthrough,
         ));
+        schedule_wayland_input_region_commit(context, self.x11_session);
         if self.x11_session {
             context.send_viewport_cmd(egui::ViewportCommand::WindowLevel(
                 egui::WindowLevel::AlwaysOnTop,

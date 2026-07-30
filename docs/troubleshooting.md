@@ -25,6 +25,29 @@ commands and does not modify the desktop.
 An unfocused, unselected, unsupported, or ambiguously identified game fails
 closed and cannot authorize an overlay.
 
+### GNOME Wayland
+
+GNOME 46–50 support requires the packaged OverCrow Shell extension. Check its
+normalized state with `./scripts/diagnose.sh`. If the package is installed but
+the extension is inactive, open the Control Center and run setup again, or use
+this recovery command as the logged-in desktop user:
+
+```sh
+gnome-extensions enable overcrow@playervox.com
+```
+
+Then verify:
+
+```sh
+gnome-extensions info overcrow@playervox.com
+```
+
+The reported path must be
+`/usr/share/gnome-shell/extensions/overcrow@playervox.com`. A user extension
+with the same UUID is rejected because it would shadow the reviewed system
+package. Log out and back in if GNOME has not discovered a newly installed
+system extension in the current session.
+
 ## A Windows game added to Steam is missing
 
 1. In Steam, add the Windows game as a non-Steam game.

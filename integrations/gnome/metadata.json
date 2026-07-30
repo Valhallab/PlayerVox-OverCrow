@@ -1,0 +1,8 @@
+{
+  "uuid": "overcrow@playervox.com",
+  "name": "PlayerVox OverCrow",
+  "description": "GNOME Shell bridge for the PlayerVox OverCrow in-game overlay",
+  "shell-version": ["46", "47", "48", "49", "50"],
+  "session-modes": ["user", "ubuntu"],
+  "version": 1
+}

@@ -271,9 +271,15 @@ fn classify_desktop_token(token: &str) -> Option<DesktopEnvironment> {
     {
         return Some(DesktopEnvironment::Plasma);
     }
-    if ["gnome", "ubuntu-gnome"]
-        .iter()
-        .any(|known| token.eq_ignore_ascii_case(known))
+    if [
+        "gnome",
+        "gnome-wayland",
+        "ubuntu",
+        "ubuntu-gnome",
+        "ubuntu-wayland",
+    ]
+    .iter()
+    .any(|known| token.eq_ignore_ascii_case(known))
     {
         return Some(DesktopEnvironment::Gnome);
     }
@@ -315,9 +321,9 @@ fn classify_compatibility(
             true,
         ),
         (DisplaySession::Wayland, DesktopEnvironment::Gnome) => (
-            CompatibilityStatus::NotCompatibleForNow,
+            CompatibilityStatus::ExperimentalForNow,
             CompatibilityReason::GnomeWayland,
-            false,
+            true,
         ),
         (DisplaySession::Wayland, DesktopEnvironment::Sway) => (
             CompatibilityStatus::NotCompatibleForNow,

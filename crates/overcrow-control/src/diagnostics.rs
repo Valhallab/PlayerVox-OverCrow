@@ -9,7 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{ControlModel, LifecycleStatus};
+use crate::{
+    CompatibilityReport, ControlModel, DesktopEnvironment, EnvironmentIdentity, LifecycleStatus,
+};
 
 pub(crate) const MAX_SESSION_TYPE_BYTES: usize = 32;
 pub(crate) const MAX_DESKTOP_METADATA_BYTES: usize = 128;
@@ -298,16 +300,31 @@ fn desktop_session_item(
         .filter(|value| !value.is_empty());
     match session_type {
         Some(value) if value.eq_ignore_ascii_case("wayland") => {
-            match desktop_kind(current_desktop, desktop_session) {
-                Some(DesktopKind::Hyprland) => {
+            match CompatibilityReport::from_environment(EnvironmentIdentity {
+                session_type: Some(value.to_owned()),
+                current_desktop: current_desktop.map(str::to_owned),
+                desktop_session: desktop_session.map(str::to_owned),
+                os_name: None,
+            })
+            .desktop
+            {
+                DesktopEnvironment::Hyprland => {
                     diagnostic("Desktop session", "Wayland — Hyprland detected.", Level::Ok)
                 }
-                Some(DesktopKind::Plasma) => diagnostic(
+                DesktopEnvironment::Plasma => diagnostic(
                     "Desktop session",
                     "Wayland — Plasma/KDE detected.",
                     Level::Ok,
                 ),
-                None => diagnostic(
+                DesktopEnvironment::Gnome => {
+                    diagnostic("Desktop session", "Wayland — GNOME detected.", Level::Ok)
+                }
+                DesktopEnvironment::Ambiguous => diagnostic(
+                    "Desktop session",
+                    "Wayland — conflicting desktop metadata.",
+                    Level::Warning,
+                ),
+                _ => diagnostic(
                     "Desktop session",
                     "Wayland — compositor not identified by desktop metadata.",
                     Level::Info,
@@ -323,42 +340,6 @@ fn desktop_session_item(
             Level::Info,
         ),
     }
-}
-
-#[derive(Clone, Copy)]
-enum DesktopKind {
-    Hyprland,
-    Plasma,
-}
-
-fn desktop_kind(
-    current_desktop: Option<&str>,
-    desktop_session: Option<&str>,
-) -> Option<DesktopKind> {
-    current_desktop
-        .into_iter()
-        .flat_map(|desktop| desktop.split(':'))
-        .find_map(classify_desktop_token)
-        .or_else(|| desktop_session.and_then(classify_desktop_token))
-}
-
-fn classify_desktop_token(token: &str) -> Option<DesktopKind> {
-    let token = token.trim();
-    if token.eq_ignore_ascii_case("hyprland") {
-        return Some(DesktopKind::Hyprland);
-    }
-    [
-        "kde",
-        "plasma",
-        "plasmawayland",
-        "plasma-wayland",
-        "plasma6",
-        "kde-plasma",
-        "kde-plasma-wayland",
-    ]
-    .iter()
-    .any(|known| token.eq_ignore_ascii_case(known))
-    .then_some(DesktopKind::Plasma)
 }
 
 fn settings_path_item(input: &DiagnosticInput, was_truncated: &mut bool) -> DiagnosticItem {

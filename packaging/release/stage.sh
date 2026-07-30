@@ -91,6 +91,7 @@ install -d -m 0755 \
     "$working/usr/lib/overcrow" \
     "$working/usr/lib/systemd/user" \
     "$working/usr/share/applications" \
+    "$working/usr/share/gnome-shell/extensions/overcrow@playervox.com" \
     "$working/usr/share/metainfo" \
     "$working/usr/share/icons/hicolor/512x512/apps" \
     "$working/usr/share/licenses/overcrow" \
@@ -128,6 +129,10 @@ install -m 0644 "$project_root/integrations/hyprland/overcrow.conf.in" \
     "$working/usr/share/overcrow/integrations/hyprland/overcrow.conf.in"
 install -m 0644 "$project_root/integrations/hyprland/overcrow.lua.in" \
     "$working/usr/share/overcrow/integrations/hyprland/overcrow.lua.in"
+install -m 0644 "$project_root/integrations/gnome/metadata.json" \
+    "$working/usr/share/gnome-shell/extensions/overcrow@playervox.com/metadata.json"
+install -m 0644 "$project_root/integrations/gnome/extension.js" \
+    "$working/usr/share/gnome-shell/extensions/overcrow@playervox.com/extension.js"
 install -m 0644 "$project_root/LICENSE" \
     "$working/usr/share/licenses/overcrow/LICENSE"
 install -m 0644 "$project_root/NOTICE" \

@@ -7,6 +7,8 @@ installed_library='/usr/lib/overcrow/hyprland-config.sh'
 installed_share='/usr/share/overcrow/integrations'
 installed_owner=0
 kwin_id='io.github.overcrow.kwin'
+gnome_id='overcrow@playervox.com'
+gnome_package="/usr/share/gnome-shell/extensions/$gnome_id"
 system_program_parent='/usr/bin'
 system_program_owner=0
 id_program='/usr/bin/id'
@@ -33,6 +35,7 @@ kreadconfig_program='/usr/bin/kreadconfig6'
 kwriteconfig_program='/usr/bin/kwriteconfig6'
 qdbus_arch_program='/usr/bin/qdbus6'
 qdbus_fedora_program='/usr/bin/qdbus-qt6'
+gnome_extensions_program='/usr/bin/gnome-extensions'
 qdbus_program=
 # Every supported KWin release has an exact four-entry tree and one reviewed
 # metadata/main fingerprint pair. This history is append-only: new releases
@@ -52,6 +55,8 @@ kwin_legacy_task7_metadata_sha256='4fdee6317eef034d5b23de338e9b2ee6797144ea15de5
 kwin_legacy_task7_main_sha256='9db8a46fcffeffb4f66b8ddcaee7874da5ca22215fe64bc976c634c2b7c81036'
 kwin_legacy_mvp_metadata_sha256='c61c753e3887510a4b1d3659ca84aef281072bfa87a82a85ed84e89af08aa666'
 kwin_legacy_mvp_main_sha256='9db8a46fcffeffb4f66b8ddcaee7874da5ca22215fe64bc976c634c2b7c81036'
+gnome_metadata_sha256='40a6252080537b03a7cf14c17bbdf1482e7503d3019e47d34766260c8786b350'
+gnome_extension_sha256='6d3a1df7b056b4b838b0d21a1242db026ccc264ab5f84d747be768bba5fe1344'
 
 fail() {
     printf '%s\n' "error: $1" >&2
@@ -147,6 +152,10 @@ trusted_plasma_programs_ready() {
     done
 }
 
+trusted_gnome_programs_ready() {
+    trusted_executable "$gnome_extensions_program"
+}
+
 file_sha256() {
     overcrow_digest_file=$1
     trusted_executable "$sha256_program" || return 1
@@ -189,7 +198,7 @@ safe_path() {
         *) return 1 ;;
     esac
     case $1 in
-        *[!A-Za-z0-9_./-]*) return 1 ;;
+        *[!A-Za-z0-9_./@-]*) return 1 ;;
     esac
 }
 
@@ -247,6 +256,23 @@ regular_file() {
     case $overcrow_permissions in
         ?????w????|????????w?) return 1 ;;
     esac
+}
+
+gnome_package_is_exact() {
+    direct_directory "$gnome_package" "$resource_owner" || return 1
+    regular_file "$gnome_package/metadata.json" "$resource_owner" || return 1
+    regular_file "$gnome_package/extension.js" "$resource_owner" || return 1
+    file_matches_sha256 \
+        "$gnome_package/metadata.json" "$gnome_metadata_sha256" || return 1
+    file_matches_sha256 \
+        "$gnome_package/extension.js" "$gnome_extension_sha256" || return 1
+    overcrow_unexpected_entry=$("$find_program" -P "$gnome_package" \
+        -mindepth 1 \
+        ! \( \
+            -path "$gnome_package/metadata.json" -o \
+            -path "$gnome_package/extension.js" \
+        \) -print -quit 2>/dev/null) || return 1
+    [ -z "$overcrow_unexpected_entry" ]
 }
 
 path_device() {
@@ -391,9 +417,11 @@ kwin_package="$integration_root/kwin"
 if [ -z "$resource_error" ]; then
     installed_library_parent=$("$dirname_program" -- "$installed_library")
     installed_share_parent=$("$dirname_program" -- "$installed_share")
+    gnome_extensions_parent=$("$dirname_program" -- "$gnome_package")
     if ! direct_directory "$installed_library_parent" "$resource_owner" || \
         ! direct_directory "$installed_share_parent" "$resource_owner" || \
-        ! direct_directory "$installed_share" "$resource_owner"; then
+        ! direct_directory "$installed_share" "$resource_owner" || \
+        ! direct_directory "$gnome_extensions_parent" "$resource_owner"; then
         resource_error='integration resource parents are missing or unsafe'
     fi
 fi
@@ -408,7 +436,8 @@ if [ -z "$resource_error" ] && { \
     ! direct_directory "$kwin_package/contents" "$resource_owner" || \
     ! direct_directory "$kwin_package/contents/code" "$resource_owner" || \
     ! regular_file "$kwin_package/metadata.json" "$resource_owner" || \
-    ! regular_file "$kwin_package/contents/code/main.js" "$resource_owner"; \
+    ! regular_file "$kwin_package/contents/code/main.js" "$resource_owner" || \
+    ! gnome_package_is_exact; \
 }; then
     resource_error='integration resources are missing or unsafe'
 fi
@@ -438,16 +467,87 @@ normalize_hint() {
         '') printf '%s\n' empty ;;
         hyprland) printf '%s\n' hyprland ;;
         kde|plasma) printf '%s\n' plasma ;;
+        gnome|gnome-wayland|ubuntu|ubuntu-gnome|ubuntu-wayland)
+            printf '%s\n' gnome
+            ;;
         *) printf '%s\n' other ;;
     esac
 }
 
-current_desktop=$(normalize_hint "${XDG_CURRENT_DESKTOP:-}")
+normalize_current_desktop() {
+    overcrow_desktop_value=$1
+    [ "${#overcrow_desktop_value}" -le 64 ] || {
+        printf '%s\n' other
+        return
+    }
+    case $overcrow_desktop_value in
+        *[!A-Za-z0-9_:-]*)
+            printf '%s\n' other
+            return
+            ;;
+        '')
+            printf '%s\n' empty
+            return
+            ;;
+    esac
+
+    overcrow_desktop_result=
+    overcrow_desktop_remaining=$overcrow_desktop_value
+    while :; do
+        overcrow_desktop_token=${overcrow_desktop_remaining%%:*}
+        overcrow_desktop_normalized=$(normalize_hint "$overcrow_desktop_token")
+        case $overcrow_desktop_normalized in
+            hyprland|plasma|gnome|other)
+                case $overcrow_desktop_result in
+                    '') overcrow_desktop_result=$overcrow_desktop_normalized ;;
+                    "$overcrow_desktop_normalized") ;;
+                    *)
+                        printf '%s\n' ambiguous
+                        return
+                        ;;
+                esac
+                ;;
+        esac
+        [ "$overcrow_desktop_remaining" != "$overcrow_desktop_token" ] || break
+        overcrow_desktop_remaining=${overcrow_desktop_remaining#*:}
+    done
+    printf '%s\n' "${overcrow_desktop_result:-empty}"
+}
+
+normalize_session_type() {
+    overcrow_session_type=$1
+    [ "${#overcrow_session_type}" -le 16 ] || {
+        printf '%s\n' other
+        return
+    }
+    case $overcrow_session_type in
+        *[!A-Za-z0-9_-]*)
+            printf '%s\n' other
+            return
+            ;;
+    esac
+    overcrow_session_type=$(printf '%s' "$overcrow_session_type" | \
+        "$tr_program" '[:upper:]' '[:lower:]')
+    case $overcrow_session_type in
+        wayland) printf '%s\n' wayland ;;
+        x11) printf '%s\n' x11 ;;
+        *) printf '%s\n' other ;;
+    esac
+}
+
+current_desktop=$(normalize_current_desktop "${XDG_CURRENT_DESKTOP:-}")
 desktop_session=$(normalize_hint "${DESKTOP_SESSION:-}")
+session_type=$(normalize_session_type "${XDG_SESSION_TYPE:-}")
 desktop=unsupported
 desktop_error='unsupported desktop session'
 case "$current_desktop:$desktop_session" in
-    hyprland:plasma|plasma:hyprland)
+    ambiguous:*)
+        desktop=ambiguous
+        desktop_error='ambiguous desktop session'
+        ;;
+    hyprland:plasma|plasma:hyprland|\
+    hyprland:gnome|gnome:hyprland|\
+    plasma:gnome|gnome:plasma)
         desktop=ambiguous
         desktop_error='ambiguous desktop session'
         ;;
@@ -459,7 +559,15 @@ case "$current_desktop:$desktop_session" in
         desktop=plasma
         desktop_error=
         ;;
+    gnome:gnome|gnome:empty|gnome:other|empty:gnome)
+        desktop=gnome
+        desktop_error=
+        ;;
 esac
+if [ "$desktop" = gnome ] && [ "$session_type" != wayland ]; then
+    desktop=unsupported
+    desktop_error='GNOME integration requires a Wayland session'
+fi
 
 json_escape() {
     printf '%s' "$1" | "$awk_program" '
@@ -614,6 +722,37 @@ kwin_acquire_lock() {
 user_config_safe() {
     safe_path "$config_home" || return 1
     direct_directory "$config_home" "$current_uid"
+}
+
+user_data_safe() {
+    safe_path "$data_home" || return 1
+    direct_directory "$data_home" "$current_uid"
+}
+
+gnome_user_override_absent() {
+    overcrow_user_extension="$data_home/gnome-shell/extensions/$gnome_id"
+    [ ! -e "$overcrow_user_extension" ] && [ ! -L "$overcrow_user_extension" ]
+}
+
+gnome_extension_active() {
+    gnome_package_is_exact || return 1
+    gnome_user_override_absent || return 1
+    trusted_gnome_programs_ready || return 1
+    overcrow_gnome_info=$(LC_ALL=C run_bounded \
+        "$gnome_extensions_program" info "$gnome_id" 2>/dev/null) || return $?
+    [ "${#overcrow_gnome_info}" -le 8192 ] || return 1
+    printf '%s\n' "$overcrow_gnome_info" | "$awk_program" \
+        -v expected_path="$gnome_package" '
+        length($0) > 1024 { invalid = 1 }
+        {
+            line = $0
+            sub(/^[[:space:]]*/, "", line)
+            sub(/[[:space:]]*$/, "", line)
+            if (line == "State: ACTIVE") active = 1
+            if (line == "Path: " expected_path) path = 1
+        }
+        END { exit !(active && path && !invalid) }
+    '
 }
 
 kwinrc_safe() {
@@ -1149,6 +1288,10 @@ hyprland_ready() {
     user_config_safe && hyprland_config_ready "$config_home" "$hyprland_templates"
 }
 
+gnome_ready() {
+    user_data_safe && gnome_extension_active
+}
+
 kwin_ready() {
     user_config_safe || return 1
     kwinrc_safe || return 1
@@ -1175,6 +1318,18 @@ if [ "$action" = status ]; then
         else
             status_result false 'Hyprland integration is missing or unsafe'
         fi
+    elif [ "$desktop" = gnome ]; then
+        if gnome_ready; then
+            status_result true
+        else
+            overcrow_status_code=$?
+            if bounded_status_is_fatal "$overcrow_status_code"; then
+                status_result false 'bounded command could not be started during GNOME status'
+                overcrow_status_exit=125
+            else
+                status_result false 'GNOME extension is missing, inactive, or unsafe'
+            fi
+        fi
     else
         if kwin_ready; then
             status_result true
@@ -1192,9 +1347,9 @@ if [ "$action" = status ]; then
 fi
 
 [ -z "$desktop_error" ] || fail "$desktop_error"
-user_config_safe || fail 'refusing a symlinked or foreign-owned user configuration directory'
 
 if [ "$desktop" = hyprland ]; then
+    user_config_safe || fail 'refusing a symlinked or foreign-owned user configuration directory'
     if install_hyprland_config "$config_home" "$hyprland_templates"; then
         exit 0
     else
@@ -1206,6 +1361,32 @@ if [ "$desktop" = hyprland ]; then
     fail 'failed to install the managed Hyprland fragment'
 fi
 
+if [ "$desktop" = gnome ]; then
+    user_data_safe || fail 'refusing a symlinked or foreign-owned user data directory'
+    gnome_package_is_exact || fail 'GNOME extension package is missing or unsafe'
+    gnome_user_override_absent || fail 'refusing a user extension that shadows OverCrow'
+    trusted_gnome_programs_ready || fail 'required GNOME integration tools are unavailable or unsafe'
+    if run_bounded "$gnome_extensions_program" enable "$gnome_id"; then
+        :
+    else
+        overcrow_gnome_enable_status=$?
+        if bounded_status_is_fatal "$overcrow_gnome_enable_status"; then
+            fail_bounded_status 'GNOME extension enablement'
+        fi
+        fail 'failed to enable the GNOME extension; log out and back in once if OverCrow was just installed'
+    fi
+    if gnome_extension_active; then
+        exit 0
+    else
+        overcrow_gnome_status=$?
+    fi
+    if bounded_status_is_fatal "$overcrow_gnome_status"; then
+        fail_bounded_status 'GNOME extension verification'
+    fi
+    fail 'GNOME extension did not become active; log out and back in once if OverCrow was just installed'
+fi
+
+user_config_safe || fail 'refusing a symlinked or foreign-owned user configuration directory'
 kwin_package_is_exact || fail 'KWin package metadata does not contain the exact OverCrow ID'
 kwinrc_safe || fail 'refusing an unsafe kwinrc destination'
 kwin_destination_parents_safe || fail 'refusing an unsafe KWin package destination'

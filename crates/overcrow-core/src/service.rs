@@ -7,15 +7,20 @@ use overcrow_protocol::{CoreSnapshot, CoreState, Rect, VersionedCoreSnapshot};
 use tokio::sync::RwLock;
 use tokio::time::{MissedTickBehavior, interval};
 
-use crate::{CoreRuntime, OVERLAY_APP_ID, WindowObservation, WindowSource, X11WindowSource};
+use crate::{
+    CoreRuntime, OVERLAY_APP_ID, ShortcutAvailability, WindowObservation, WindowSource,
+    X11WindowSource, shortcut::desired_shortcuts,
+};
 
 pub const WINDOW_POLL_INTERVAL: Duration = Duration::from_millis(250);
 pub const WIDGET_SETTINGS_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
+const MAX_GNOME_SHORTCUTS_JSON_BYTES: usize = 1024;
 
 #[derive(Clone)]
 pub struct CoreService {
     runtime: CoreRuntime,
     bridge_reports_allowed: bool,
+    gnome_shortcuts_allowed: bool,
     settings_loader: Option<Arc<dyn SettingsLoader>>,
     widget_settings_loader: Option<Arc<dyn WidgetSettingsLoader>>,
     reload_transaction: Arc<tokio::sync::Mutex<()>>,
@@ -51,6 +56,7 @@ impl CoreService {
         Self {
             runtime,
             bridge_reports_allowed: true,
+            gnome_shortcuts_allowed: false,
             settings_loader: None,
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -65,6 +71,7 @@ impl CoreService {
         Self {
             runtime,
             bridge_reports_allowed: true,
+            gnome_shortcuts_allowed: false,
             settings_loader: Some(settings_store),
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -79,6 +86,7 @@ impl CoreService {
         Self {
             runtime,
             bridge_reports_allowed: true,
+            gnome_shortcuts_allowed: false,
             settings_loader: None,
             widget_settings_loader: Some(widget_settings_store),
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -94,6 +102,7 @@ impl CoreService {
         Self {
             runtime,
             bridge_reports_allowed: true,
+            gnome_shortcuts_allowed: false,
             settings_loader: Some(settings_store),
             widget_settings_loader: Some(widget_settings_store),
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -109,6 +118,7 @@ impl CoreService {
         Self {
             runtime,
             bridge_reports_allowed: true,
+            gnome_shortcuts_allowed: false,
             settings_loader: Some(settings_loader),
             widget_settings_loader: None,
             reload_transaction: Arc::new(tokio::sync::Mutex::new(())),
@@ -118,6 +128,11 @@ impl CoreService {
 
     pub fn with_bridge_reports_allowed(mut self, allowed: bool) -> Self {
         self.bridge_reports_allowed = allowed;
+        self
+    }
+
+    pub fn with_gnome_shortcuts_allowed(mut self, allowed: bool) -> Self {
+        self.gnome_shortcuts_allowed = allowed;
         self
     }
 
@@ -587,5 +602,55 @@ impl CoreService {
     #[zbus(name = "ShortcutAvailability")]
     pub async fn shortcut_availability(&self) -> zbus::fdo::Result<String> {
         Ok(self.runtime.shortcut_availability_diagnostic())
+    }
+
+    #[zbus(name = "GnomeShortcutDefinitions")]
+    pub async fn gnome_shortcut_definitions(&self) -> zbus::fdo::Result<String> {
+        if !self.gnome_shortcuts_allowed {
+            return Ok("[]".to_owned());
+        }
+
+        let snapshot = self.runtime.snapshot().await;
+        let settings = self.runtime.shortcut_settings().borrow().clone();
+        let profile = self.runtime.widget_profile().borrow().clone();
+        let definitions = desired_shortcuts(&snapshot, &settings, &profile).map_err(|_| {
+            zbus::fdo::Error::InvalidArgs("GNOME shortcut policy is invalid".to_owned())
+        })?;
+        let definitions = definitions
+            .iter()
+            .map(|definition| {
+                serde_json::json!({
+                    "id": definition.id,
+                    "accelerator": definition.accelerator,
+                })
+            })
+            .collect::<Vec<_>>();
+        let json = serde_json::to_string(&definitions)
+            .map_err(|error| zbus::fdo::Error::Failed(error.to_string()))?;
+        if json.len() > MAX_GNOME_SHORTCUTS_JSON_BYTES {
+            return Ok("[]".to_owned());
+        }
+        Ok(json)
+    }
+
+    #[zbus(name = "ReportGnomeShortcutAvailability")]
+    pub async fn report_gnome_shortcut_availability(&self, state: &str) -> zbus::fdo::Result<()> {
+        if !self.gnome_shortcuts_allowed {
+            return Err(zbus::fdo::Error::AccessDenied(
+                "GNOME shortcut reports are unavailable in this session".to_owned(),
+            ));
+        }
+        let availability = match state {
+            "disabled" => ShortcutAvailability::Disabled,
+            "available" => ShortcutAvailability::Available,
+            "conflict" => ShortcutAvailability::Unavailable("GNOME shortcut conflict".to_owned()),
+            _ => {
+                return Err(zbus::fdo::Error::InvalidArgs(
+                    "unsupported GNOME shortcut state".to_owned(),
+                ));
+            }
+        };
+        self.runtime.publish_shortcut_availability(availability);
+        Ok(())
     }
 }

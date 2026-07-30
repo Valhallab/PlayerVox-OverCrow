@@ -10,13 +10,13 @@ physical GPU performance or driver compatibility.
 | --- | --- | --- |
 | Bazzite KDE Desktop | Plasma Wayland | 6 vCPU, 10 GiB RAM, 100 GiB qcow2 |
 | Xubuntu 24.04 LTS | XFCE X11 and DEB build baseline | 4 vCPU, 6 GiB RAM, 80 GiB qcow2 |
+| Ubuntu 24.04 LTS | GNOME 46 Wayland and DEB runtime | 4 vCPU, 8 GiB RAM, 80 GiB qcow2 |
 | Debian 13 KDE | Plasma Wayland | 4 vCPU, 8 GiB RAM, 80 GiB qcow2 |
 | CachyOS KDE | Plasma Wayland and Plasma X11 | 4 vCPU, 8 GiB RAM, 80 GiB qcow2 |
 | CachyOS XFCE | XFCE X11 | 4 vCPU, 6 GiB RAM, 60 GiB qcow2 |
 
-Run one guest at a time. GNOME, Sway, Gamescope, exclusive fullscreen, GPU
-passthrough, physical multi-monitor behavior, and performance benchmarking are
-out of scope.
+Run one guest at a time. Sway, Gamescope, exclusive fullscreen, GPU passthrough,
+physical multi-monitor behavior, and performance benchmarking are out of scope.
 
 ## Host preflight
 
@@ -66,9 +66,10 @@ For CachyOS, use the current official Desktop ISO and checksum from the
 The two CachyOS guests reuse the same verified ISO.
 
 For the DEB build baseline, use the official Xubuntu 24.04 LTS desktop image
-and its published SHA256 checksum. For Plasma 6 validation, use the official
-Debian 13 KDE image and checksum. Kubuntu 24.04 is not suitable because it
-ships Plasma 5, while OverCrow's KWin bridge targets Plasma 6.
+and its published SHA256 checksum. Use the official Ubuntu 24.04 LTS desktop
+image for GNOME 46. For Plasma 6 validation, use the official Debian 13 KDE
+image and checksum. Kubuntu 24.04 is not suitable because it ships Plasma 5,
+while OverCrow's KWin bridge targets Plasma 6.
 
 ```sh
 sudo install -d -m 0755 /var/lib/libvirt/boot/overcrow
@@ -93,13 +94,14 @@ Every domain uses:
 
 The original Bazzite and CachyOS `virt-install` definitions are recorded in
 [the implementation plan](../plans/2026-07-28-virtual-machine-lab-implementation.md).
-The Xubuntu and Debian guests follow the same hardware contract. Inspect every
-resulting domain:
+The Xubuntu, Ubuntu GNOME, and Debian guests follow the same hardware contract.
+Inspect every resulting domain:
 
 ```sh
 for domain in \
   overcrow-bazzite-kde \
   overcrow-xubuntu-x11 \
+  overcrow-ubuntu-gnome46 \
   overcrow-debian-kde \
   overcrow-cachyos-kde \
   overcrow-cachyos-xfce
@@ -173,6 +175,14 @@ tracking, exact geometry, stacking, interactive clicks, shortcuts, and focus
 restoration have passed in this guest. Steam/Proton, reboot persistence,
 HiDPI, multi-monitor, and physical-GPU checks remain before the Ubuntu/XFCE
 path can leave experimental status.
+
+## Ubuntu 24.04 GNOME guest
+
+Install the same Ubuntu-baseline DEB used for release acceptance. Confirm
+`XDG_SESSION_TYPE=wayland` and GNOME Shell 46. After the first package
+installation, log out and back in once so the running Shell discovers the
+system extension, then complete onboarding and run the GNOME section of the
+[manual MVP checklist](manual-mvp.md).
 
 ## Debian 13 KDE guest
 

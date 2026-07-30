@@ -64,6 +64,10 @@ assert_read_only_log() {
             "hyprctl -j binds"|\
             "timeout --signal=TERM --kill-after=1s 3s hyprctl configerrors"|\
             "hyprctl configerrors"|\
+            "timeout --signal=TERM --kill-after=1s 3s gnome-shell --version"|\
+            "gnome-shell --version"|\
+            "timeout --signal=TERM --kill-after=1s 3s gnome-extensions info overcrow@playervox.com"|\
+            "gnome-extensions info overcrow@playervox.com"|\
             "timeout --signal=TERM --kill-after=1s 3s jq "*|\
             "timeout --signal=TERM --kill-after=1s 3s stat "*|\
             "timeout --signal=TERM --kill-after=1s 3s /usr/bin/stat "*|\
@@ -95,7 +99,8 @@ assert_bounded_probe_pairs() {
     while IFS= read -r invocation; do
         case "$invocation" in
             "id "*|"busctl "*|"gdbus "*|"systemctl "*|"pgrep "*|\
-            "kpackagetool6 "*|"kreadconfig6 "*|"hyprctl "*|"wayland-info "*|"xprop "*|\
+            "kpackagetool6 "*|"kreadconfig6 "*|"hyprctl "*|"gnome-shell "*|\
+            "gnome-extensions "*|"wayland-info "*|"xprop "*|\
             "/usr/bin/cmp "*|\
             /*/overcrow-control\ --overcrow-diagnose-settings-v1)
                 probe_invocation=$invocation
@@ -141,6 +146,7 @@ chmod 600 "$config_home/overcrow/settings.json"
 
 for command_name in \
     id busctl systemctl pgrep kpackagetool6 kreadconfig6 timeout wayland-info xprop \
+    gnome-shell gnome-extensions \
     install cp mv rm mkdir touch chmod chown kwriteconfig6 qdbus6 qdbus
 do
     ln -s "$repo_root/tests/fixtures/diagnose-command-stub.sh" "$stub_bin/$command_name"
@@ -198,6 +204,30 @@ if grep -E '(stat|jq).*settings\.json' "$present_log"; then
     printf '%s\n' 'diagnostic inspected settings through a path-based stat/jq race' >&2
     exit 1
 fi
+
+gnome_log="$tmpdir/gnome.log"
+: > "$gnome_log"
+gnome_output=$(
+    HOME="$home" \
+    XDG_DATA_HOME="$data_home" \
+    XDG_CONFIG_HOME="$config_home" \
+    XDG_SESSION_TYPE=wayland \
+    XDG_CURRENT_DESKTOP='ubuntu:GNOME' \
+    DESKTOP_SESSION=ubuntu-wayland \
+    DISPLAY=:99 \
+    OVERCROW_DIAG_STUB_LOG="$gnome_log" \
+    PATH="$stub_bin" \
+        "$repo_root/scripts/diagnose.sh"
+)
+printf '%s\n' "$gnome_output" | grep -Fq 'GNOME Shell version: 46.2'
+printf '%s\n' "$gnome_output" | \
+    grep -Fq 'GNOME extension overcrow@playervox.com: active (system package)'
+if printf '%s\n' "$gnome_output" | grep -Fq 'Private extension name'; then
+    printf '%s\n' 'diagnostic leaked raw GNOME extension metadata' >&2
+    exit 1
+fi
+assert_read_only_log "$gnome_log"
+assert_bounded_probe_pairs "$gnome_log"
 
 invalid_home="$tmpdir/invalid-settings-home"
 invalid_data="$tmpdir/invalid-settings-data"

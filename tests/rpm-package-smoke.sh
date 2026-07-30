@@ -41,6 +41,10 @@ grep -Fq 'PlayerVox OverCrow was installed inertly.' "$spec" ||
     fail 'inert installation copy is missing'
 grep -Fq '%{_bindir}/overcrow-control' "$spec" ||
     fail 'the complete application payload is not listed'
+grep -Fq 'Suggests:       gnome-shell' "$spec" ||
+    fail 'the optional GNOME integration is not advertised'
+grep -Fq '%{_datadir}/gnome-shell/extensions/overcrow@playervox.com' "$spec" ||
+    fail 'the GNOME extension payload is not listed'
 grep -Fq "Source0:        ${bundle##*/}" "$spec" ||
     fail 'source bundle basename is not pinned'
 grep -Fq "Source1:        ${bundle##*/}.sha256" "$spec" ||

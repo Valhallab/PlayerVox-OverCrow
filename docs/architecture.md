@@ -18,7 +18,8 @@ contract rather than an optional visual enhancement.
 - `overcrow-overlay` renders the transparent egui surface and its widgets. It
   does not decide whether a process is an authorized game.
 - `overcrow-hyprland` maps Hyprland IPC events and dynamic shortcuts onto the
-  Core contract. Plasma uses `integrations/kwin`; X11 uses EWMH directly.
+  Core contract. Plasma uses `integrations/kwin`, GNOME uses
+  `integrations/gnome`, and X11 uses EWMH directly.
 - `overcrowctl` is a small diagnostic and control client for the same D-Bus API.
 
 The Control Center starts Core only after a selected game and supported display
@@ -61,6 +62,14 @@ result through bounded channels and never block the egui thread.
   game input during Interactive mode.
 - **Plasma 6 Wayland:** the KWin script reports active-window geometry and keeps
   overlay windows borderless, above the game, and out of desktop switchers.
+- **GNOME 46–50 Wayland:** a system-packaged GNOME Shell extension uses public
+  Mutter window APIs to report the focused game, keep the overlay aligned and
+  above it, transfer focus only in Interactive mode, and own game-scoped
+  accelerators. It remains inert without Core and is enabled only by explicit
+  Control Center setup. The renderer schedules one follow-up frame after an
+  input-region change because Mutter applies the pending Wayland region on the
+  next surface commit. The bridge also re-evaluates focused candidates when
+  Mutter publishes late XWayland identity or mapping metadata.
 - **X11:** Core uses EWMH active-window and geometry information; the overlay
   requests the portable always-on-top hint. The Control Center does not install
   or invoke a compositor bridge, and Core rejects bridge window reports so a
@@ -73,9 +82,11 @@ passthrough.
 
 X11 uses a native passive key grab only while Core reports an authorized active
 game. A conflicting grab fails closed and every shutdown path releases owned
-keys. Wayland continues to use the desktop portal. EWMH geometry remains in
-physical pixels; the renderer converts it with its current native window scale
-and reapplies placement after a scale transition.
+keys. Plasma and Hyprland use their existing compositor shortcut paths; GNOME
+uses its reviewed Shell extension because GNOME 46 predates the Global
+Shortcuts portal. EWMH geometry remains in physical pixels; the renderer
+converts it with its current native window scale and reapplies placement after
+a scale transition.
 
 The Control Center discovers graphics adapters through bounded, read-only PCI
 metadata. It reports only normalized vendor classes in the local compatibility

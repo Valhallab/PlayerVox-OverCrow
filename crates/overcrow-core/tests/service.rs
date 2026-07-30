@@ -8,8 +8,9 @@ use overcrow_config::{
 };
 use overcrow_core::{
     BRIDGE_WATCHDOG_INTERVAL, CoreRuntime, CoreService, OVERLAY_APP_ID, PROCESS_REFRESH_INTERVAL,
-    ProcessInfo, ProcessTiming, WINDOW_POLL_INTERVAL, WindowObservation, WindowSource,
-    apply_window_observation, poll_window_once, run_bridge_watchdog, run_process_refresh,
+    ProcessInfo, ProcessTiming, ShortcutAvailability, WINDOW_POLL_INTERVAL, WindowObservation,
+    WindowSource, apply_window_observation, poll_window_once, run_bridge_watchdog,
+    run_process_refresh,
 };
 use overcrow_protocol::{
     CoreSnapshot, CoreState, GameWindow, OverlayMode, Rect, VersionedCoreSnapshot,
@@ -55,6 +56,110 @@ async fn snapshot_versioned_preserves_the_raw_snapshot_contract() {
         serde_json::from_str::<CoreSnapshot>(&raw_json).expect("raw snapshot JSON"),
         expected.snapshot
     );
+}
+
+#[tokio::test]
+async fn gnome_shortcut_definitions_are_bounded_game_scoped_and_exact() {
+    let runtime = active_runtime().await;
+    let service = CoreService::with_runtime(runtime.clone()).with_gnome_shortcuts_allowed(true);
+
+    let definitions: serde_json::Value = serde_json::from_str(
+        &service
+            .gnome_shortcut_definitions()
+            .await
+            .expect("GNOME definitions serialize"),
+    )
+    .expect("valid definitions JSON");
+    assert_eq!(
+        definitions,
+        serde_json::json!([
+            {"id": "toggle-overlay", "accelerator": "Meta+Alt+O"}
+        ])
+    );
+
+    runtime.clear_game().await;
+    assert_eq!(
+        service
+            .gnome_shortcut_definitions()
+            .await
+            .expect("inactive definitions serialize"),
+        "[]"
+    );
+}
+
+#[tokio::test]
+async fn gnome_shortcut_definitions_reject_conflicting_accelerators() {
+    let mut settings = enabled_settings_with_steam([620]);
+    settings.shortcut.accelerator = "Meta+Alt+P".to_owned();
+    let mut profile = WidgetProfile::default();
+    profile.manual_stopwatch.enabled = true;
+    let runtime = CoreRuntime::with_settings_and_widget_profile(
+        Arc::new(RwLock::new(CoreState::default())),
+        HashMap::from([(42, sample_process())]),
+        settings,
+        profile,
+    )
+    .await;
+    runtime
+        .apply_x11_observation(Some(sample_observation("portal2")))
+        .await;
+    let service = CoreService::with_runtime(runtime).with_gnome_shortcuts_allowed(true);
+
+    assert!(service.gnome_shortcut_definitions().await.is_err());
+}
+
+#[tokio::test]
+async fn gnome_shortcut_contract_fails_closed_outside_gnome() {
+    let runtime = active_runtime().await;
+    let service = CoreService::with_runtime(runtime.clone()).with_gnome_shortcuts_allowed(false);
+
+    assert_eq!(
+        service
+            .gnome_shortcut_definitions()
+            .await
+            .expect("disabled definitions serialize"),
+        "[]"
+    );
+    assert!(
+        service
+            .report_gnome_shortcut_availability("available")
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        runtime.shortcut_availability().borrow().clone(),
+        ShortcutAvailability::Disabled
+    );
+}
+
+#[tokio::test]
+async fn gnome_shortcut_availability_accepts_only_fixed_states() {
+    let runtime = active_runtime().await;
+    let service = CoreService::with_runtime(runtime.clone()).with_gnome_shortcuts_allowed(true);
+
+    for (reported, expected) in [
+        ("disabled", ShortcutAvailability::Disabled),
+        ("available", ShortcutAvailability::Available),
+        (
+            "conflict",
+            ShortcutAvailability::Unavailable("GNOME shortcut conflict".to_owned()),
+        ),
+    ] {
+        service
+            .report_gnome_shortcut_availability(reported)
+            .await
+            .expect("fixed availability is accepted");
+        assert_eq!(runtime.shortcut_availability().borrow().clone(), expected);
+    }
+
+    for invalid in ["", "binding", "raw provider error", "available\n"] {
+        assert!(
+            service
+                .report_gnome_shortcut_availability(invalid)
+                .await
+                .is_err()
+        );
+    }
 }
 
 #[tokio::test]

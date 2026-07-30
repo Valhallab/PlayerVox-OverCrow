@@ -80,7 +80,7 @@ fn wayland_hyprland_session_is_identified_from_injected_metadata() {
 
 #[test]
 fn wayland_plasma_and_kde_sessions_are_identified() {
-    for desktop in ["KDE", "plasma", "GNOME:KDE"] {
+    for desktop in ["KDE", "plasma"] {
         let report = collect_foundation_diagnostics(DiagnosticInput {
             session_type: Some("WAYLAND".into()),
             current_desktop: Some(desktop.into()),
@@ -91,6 +91,40 @@ fn wayland_plasma_and_kde_sessions_are_identified() {
         assert_eq!(session.level, Level::Ok, "desktop metadata: {desktop}");
         assert!(session.detail.contains("Plasma/KDE"));
     }
+}
+
+#[test]
+fn wayland_gnome_sessions_are_identified() {
+    for (current_desktop, desktop_session) in [
+        (Some("GNOME"), None),
+        (Some("ubuntu:GNOME"), Some("ubuntu-wayland")),
+        (None, Some("gnome-wayland")),
+    ] {
+        let report = collect_foundation_diagnostics(DiagnosticInput {
+            session_type: Some("wayland".into()),
+            current_desktop: current_desktop.map(str::to_owned),
+            desktop_session: desktop_session.map(str::to_owned),
+            ..DiagnosticInput::default()
+        });
+
+        let session = item(&report, "Desktop session");
+        assert_eq!(session.level, Level::Ok);
+        assert!(session.detail.contains("GNOME"));
+    }
+}
+
+#[test]
+fn conflicting_wayland_desktop_metadata_is_reported_as_ambiguous() {
+    let report = collect_foundation_diagnostics(DiagnosticInput {
+        session_type: Some("wayland".into()),
+        current_desktop: Some("GNOME:KDE".into()),
+        desktop_session: Some("plasma".into()),
+        ..DiagnosticInput::default()
+    });
+
+    let session = item(&report, "Desktop session");
+    assert_eq!(session.level, Level::Warning);
+    assert!(session.detail.contains("conflicting"));
 }
 
 #[test]

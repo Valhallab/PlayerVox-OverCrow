@@ -38,6 +38,9 @@ done
 
 grep -Fq "options=('!debug' '!strip')" "$repo_root/packaging/arch/PKGBUILD.in" || \
     fail 'PKGBUILD repeats debug extraction or stripping on release binaries'
+grep -Fq "'gnome-shell: GNOME Wayland overlay integration'" \
+    "$repo_root/packaging/arch/PKGBUILD.in" || \
+    fail 'PKGBUILD does not advertise the optional GNOME integration'
 grep -Fqx 'pkgname=overcrow-bin' \
     "$repo_root/packaging/arch/PKGBUILD.in" || \
     fail 'PKGBUILD does not produce the single native package'

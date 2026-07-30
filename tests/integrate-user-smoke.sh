@@ -24,6 +24,17 @@ grep -Fq "qdbus_arch_program='/usr/bin/qdbus6'" "$helper" ||
     fail 'the helper does not retain the fixed Arch qdbus path'
 grep -Fq "qdbus_fedora_program='/usr/bin/qdbus-qt6'" "$helper" ||
     fail 'the helper does not support the fixed Fedora qdbus path'
+grep -Fq "gnome_extensions_program='/usr/bin/gnome-extensions'" "$helper" ||
+    fail 'the helper does not use the fixed GNOME extension tool'
+grep -Fq "gnome_id='overcrow@playervox.com'" "$helper" ||
+    fail 'the helper does not use the exact GNOME extension UUID'
+grep -Fq 'GNOME integration requires a Wayland session' "$helper" ||
+    fail 'GNOME enablement is not restricted to Wayland sessions'
+# shellcheck disable=SC2016 # Verify literal variable expansion in the helper.
+grep -Fq 'current_desktop=$(normalize_current_desktop "${XDG_CURRENT_DESKTOP:-}")' \
+    "$helper" || fail 'colon-separated XDG desktop identities are not normalized'
+grep -Fq 'ambiguous:*' "$helper" ||
+    fail 'ambiguous colon-separated desktop identities do not fail closed'
 grep -Fq 'canonical_default_home' "$helper" ||
     fail 'the helper does not normalize the default immutable-desktop home'
 grep -Fq '/var/home/' "$helper" ||
@@ -53,6 +64,23 @@ grep -Fq "kwin_current_metadata_sha256='$kwin_metadata_sha256'" "$helper" ||
     fail 'the pinned KWin metadata fingerprint is stale'
 grep -Fq "kwin_current_main_sha256='$kwin_main_sha256'" "$helper" ||
     fail 'the pinned KWin script fingerprint is stale'
+gnome_metadata_sha256=$(/usr/bin/sha256sum \
+    "$root/integrations/gnome/metadata.json")
+gnome_metadata_sha256=${gnome_metadata_sha256%% *}
+gnome_extension_sha256=$(/usr/bin/sha256sum \
+    "$root/integrations/gnome/extension.js")
+gnome_extension_sha256=${gnome_extension_sha256%% *}
+grep -Fq "gnome_metadata_sha256='$gnome_metadata_sha256'" "$helper" ||
+    fail 'the pinned GNOME metadata fingerprint is stale'
+grep -Fq "gnome_extension_sha256='$gnome_extension_sha256'" "$helper" ||
+    fail 'the pinned GNOME extension fingerprint is stale'
+# shellcheck disable=SC2016 # Verify literal variables in the helper source.
+grep -Fq '"$gnome_extensions_program" enable "$gnome_id"' "$helper" ||
+    fail 'GNOME enablement is not restricted to the exact extension UUID'
+grep -Fq 'log out and back in once if OverCrow was just installed' "$helper" ||
+    fail 'GNOME setup does not explain the required first-install session restart'
+grep -Fq 'plasma:gnome|gnome:plasma' "$helper" ||
+    fail 'GNOME and Plasma ambiguity does not fail closed'
 grep -Fq \
     "kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'" \
     "$helper" || fail 'the pre-alpha 3 KWin metadata fingerprint was not retained'

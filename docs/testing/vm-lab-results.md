@@ -7,6 +7,7 @@ values are `PASS`, `FAIL`, and `BLOCKED`.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Bazzite KDE | Plasma Wayland | | | | | | | | |
 | Xubuntu 24.04 | XFCE X11 | | | | | | | | |
+| Ubuntu 24.04 | GNOME 46 Wayland | | | | | | | | |
 | Debian 13 KDE | Plasma Wayland | | | | | | | | |
 | CachyOS KDE | Plasma Wayland | | | | | | | | |
 | CachyOS KDE | Plasma X11 | | | | | | | | |

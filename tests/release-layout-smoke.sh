@@ -282,6 +282,9 @@ usr/lib/systemd
 usr/lib/systemd/user
 usr/share
 usr/share/applications
+usr/share/gnome-shell
+usr/share/gnome-shell/extensions
+usr/share/gnome-shell/extensions/overcrow@playervox.com
 usr/share/icons
 usr/share/icons/hicolor
 usr/share/icons/hicolor/512x512

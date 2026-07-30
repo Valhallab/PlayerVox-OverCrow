@@ -4,9 +4,10 @@ use super::{
     about_visible, authoritative_snapshot, catalog_outside_click, confirmed_mode_event,
     controls_visible, dispatch_manual_stopwatch_action, dispatch_notes_action,
     handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
-    paint_control_notices, paint_overlay_version, paint_widget_catalog, settings_failure_target,
-    stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate, viewport_builder,
-    viewport_update_changed, widget_actions_allowed, x11_scale_changed, x11_should_request_focus,
+    paint_control_notices, paint_overlay_version, paint_widget_catalog,
+    schedule_wayland_input_region_commit, settings_failure_target, stopwatch_repaint_after,
+    twitch_emotes_allowed, twitch_gate, viewport_builder, viewport_update_changed,
+    widget_actions_allowed, x11_scale_changed, x11_should_request_focus,
 };
 use crate::{
     branding::{BrandAssets, install_fonts},
@@ -29,6 +30,10 @@ use overcrow_config::WidgetPosition;
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect};
 use std::{
     cell::RefCell,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -1187,6 +1192,25 @@ fn wayland_snapshot_leaves_geometry_to_the_compositor_bridge() {
             size: None,
         }
     );
+}
+
+#[test]
+fn wayland_input_region_change_schedules_a_follow_up_surface_commit() {
+    let context = eframe::egui::Context::default();
+    for _ in 0..3 {
+        let _ = context.run_ui(RawInput::default(), |_| {});
+    }
+    assert!(!context.has_requested_repaint());
+    let repaint_requests = Arc::new(AtomicUsize::new(0));
+    let recorded = Arc::clone(&repaint_requests);
+    context.set_request_repaint_callback(move |_request| {
+        recorded.fetch_add(1, Ordering::Relaxed);
+    });
+
+    schedule_wayland_input_region_commit(&context, false);
+    schedule_wayland_input_region_commit(&context, true);
+
+    assert_eq!(repaint_requests.load(Ordering::Relaxed), 1);
 }
 
 #[test]

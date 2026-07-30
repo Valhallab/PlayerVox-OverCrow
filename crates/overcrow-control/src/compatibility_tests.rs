@@ -62,15 +62,29 @@ fn generic_x11_is_experimental_for_now_but_eligible() {
 }
 
 #[test]
+fn gnome_wayland_is_experimental_for_now_but_eligible() {
+    for (current_desktop, desktop_session) in [
+        ("GNOME", "gnome"),
+        ("gnome", "ubuntu"),
+        ("ubuntu:GNOME", "ubuntu-wayland"),
+        ("", "ubuntu-wayland"),
+    ] {
+        let report = CompatibilityReport::from_environment(identity(
+            "wayland",
+            current_desktop,
+            desktop_session,
+        ));
+
+        assert_eq!(report.desktop, DesktopEnvironment::Gnome);
+        assert_eq!(report.status, CompatibilityStatus::ExperimentalForNow);
+        assert_eq!(report.reason, CompatibilityReason::GnomeWayland);
+        assert!(report.activation_allowed);
+    }
+}
+
+#[test]
 fn known_unsupported_desktops_fail_closed_for_now() {
     let cases = [
-        (
-            "wayland",
-            "GNOME",
-            "gnome",
-            DesktopEnvironment::Gnome,
-            CompatibilityReason::GnomeWayland,
-        ),
         (
             "wayland",
             "sway",

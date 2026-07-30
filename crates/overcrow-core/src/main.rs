@@ -66,7 +66,7 @@ async fn run_core(
     let use_x11 = desktop_session == DesktopSession::X11;
     let bridge_reports_allowed = matches!(
         desktop_session,
-        DesktopSession::Hyprland | DesktopSession::PlasmaWayland
+        DesktopSession::Hyprland | DesktopSession::PlasmaWayland | DesktopSession::GnomeWayland
     );
     let state = Arc::new(RwLock::new(CoreState::default()));
     let processes = initial_processes_with(scan_processes, |message| eprintln!("{message}"));
@@ -81,7 +81,8 @@ async fn run_core(
         settings_store,
         widget_settings_store,
     )
-    .with_bridge_reports_allowed(bridge_reports_allowed);
+    .with_bridge_reports_allowed(bridge_reports_allowed)
+    .with_gnome_shortcuts_allowed(desktop_session == DesktopSession::GnomeWayland);
     let destination = Core1Proxy::DESTINATION
         .as_ref()
         .context("Core1 proxy is missing its default D-Bus destination")?
@@ -132,13 +133,19 @@ async fn run_core(
     let widget_settings_refresh = run_widget_settings_refresh(service);
     let selected_processes = runtime.selected_processes_running();
     let (shortcut_shutdown_tx, shortcut_shutdown_rx) = watch::channel(false);
-    let mut shortcut_task = if use_x11 {
-        let shortcut_broker =
-            PortalShortcutBroker::with_portal(runtime.clone(), X11ShortcutProvider);
-        tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
-    } else {
-        let shortcut_broker = PortalShortcutBroker::new(runtime.clone());
-        tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
+    let mut shortcut_task = match shortcut_backend_kind(desktop_session) {
+        ShortcutBackendKind::X11 => {
+            let shortcut_broker =
+                PortalShortcutBroker::with_portal(runtime.clone(), X11ShortcutProvider);
+            tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
+        }
+        ShortcutBackendKind::GnomeShell => {
+            tokio::spawn(wait_for_shortcut_shutdown(shortcut_shutdown_rx))
+        }
+        ShortcutBackendKind::Portal => {
+            let shortcut_broker = PortalShortcutBroker::new(runtime.clone());
+            tokio::spawn(shortcut_broker.run(shortcut_shutdown_rx))
+        }
     };
     let coordinator = SessionCoordinator::new(
         runtime,
@@ -202,6 +209,34 @@ async fn run_core(
         aggregate_cleanup_results(session, shortcut)
     })
     .await
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ShortcutBackendKind {
+    X11,
+    GnomeShell,
+    Portal,
+}
+
+fn shortcut_backend_kind(desktop: DesktopSession) -> ShortcutBackendKind {
+    match desktop {
+        DesktopSession::X11 => ShortcutBackendKind::X11,
+        DesktopSession::GnomeWayland => ShortcutBackendKind::GnomeShell,
+        DesktopSession::Hyprland | DesktopSession::PlasmaWayland | DesktopSession::Unsupported => {
+            ShortcutBackendKind::Portal
+        }
+    }
+}
+
+async fn wait_for_shortcut_shutdown(
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<(), ShortcutError> {
+    while !*shutdown.borrow() {
+        if shutdown.changed().await.is_err() {
+            break;
+        }
+    }
+    Ok(())
 }
 
 async fn shutdown_signal() -> anyhow::Result<()> {
@@ -370,9 +405,11 @@ mod tests {
     use overcrow_core::ShortcutError;
 
     use super::{
-        CoreTermination, aggregate_cleanup_results, finalize_termination, initial_processes_with,
-        lifecycle_allows_start, run_if_lifecycle_allows, shutdown_shortcut_broker,
+        CoreTermination, ShortcutBackendKind, aggregate_cleanup_results, finalize_termination,
+        initial_processes_with, lifecycle_allows_start, run_if_lifecycle_allows,
+        shortcut_backend_kind, shutdown_shortcut_broker,
     };
+    use overcrow_core::DesktopSession;
 
     fn settings_load(enabled: bool) -> SettingsLoad {
         SettingsLoad {
@@ -537,6 +574,25 @@ mod tests {
     #[test]
     fn lifecycle_guard_accepts_valid_enabled_settings() {
         assert!(lifecycle_allows_start(&settings_load(true)));
+    }
+
+    #[test]
+    fn gnome_delegates_shortcuts_to_the_shell_bridge() {
+        assert_eq!(
+            shortcut_backend_kind(DesktopSession::GnomeWayland),
+            ShortcutBackendKind::GnomeShell
+        );
+        assert_eq!(
+            shortcut_backend_kind(DesktopSession::X11),
+            ShortcutBackendKind::X11
+        );
+        for desktop in [
+            DesktopSession::Hyprland,
+            DesktopSession::PlasmaWayland,
+            DesktopSession::Unsupported,
+        ] {
+            assert_eq!(shortcut_backend_kind(desktop), ShortcutBackendKind::Portal);
+        }
     }
 
     #[tokio::test]
