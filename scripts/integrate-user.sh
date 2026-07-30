@@ -41,8 +41,10 @@ qdbus_program=
 # metadata/main fingerprint pair. This history is append-only: new releases
 # add a current pair and retain every supported reviewed legacy pair. Never add
 # a fingerprint from an untrusted installed package.
-kwin_current_metadata_sha256='ae9fe7a737443fdf6b92994420ee031f12aabf6523a32cb3fdd4e2e78f484690'
+kwin_current_metadata_sha256='6cafbc72609e5d14e73700a95cfebf362a999fbc67415d265463e86cc01db319'
 kwin_current_main_sha256='109f47c4172337b8b479f2afaaaedd1bab7a77756cb7868d60eb8f7f1a24eb27'
+kwin_legacy_pre_alpha_4_metadata_sha256='ae9fe7a737443fdf6b92994420ee031f12aabf6523a32cb3fdd4e2e78f484690'
+kwin_legacy_pre_alpha_4_main_sha256='109f47c4172337b8b479f2afaaaedd1bab7a77756cb7868d60eb8f7f1a24eb27'
 kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'
 kwin_legacy_pre_alpha_3_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'
 kwin_legacy_pre_alpha_2_metadata_sha256='72844f4e860c98974fa240a4fb1620d0ea25db6cd9facfe46dde3dbdb9adeb70'
@@ -372,6 +374,9 @@ kwin_package_version() {
     case "$overcrow_metadata_digest:$overcrow_main_digest" in
         "$kwin_current_metadata_sha256:$kwin_current_main_sha256")
             printf '%s\n' current
+            ;;
+        "$kwin_legacy_pre_alpha_4_metadata_sha256:$kwin_legacy_pre_alpha_4_main_sha256")
+            printf '%s\n' legacy-pre-alpha-4
             ;;
         "$kwin_legacy_pre_alpha_3_metadata_sha256:$kwin_legacy_pre_alpha_3_main_sha256")
             printf '%s\n' legacy-pre-alpha-3
@@ -873,7 +878,7 @@ kwin_transaction_values() {
     overcrow_manifest_values=$("$awk_program" '
         NR == 1 && $0 != "OVERCROW_TRANSACTION_V1" { exit 71 }
         NR == 2 {
-            if ($0 !~ /^previous_package=(absent|current|legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0|legacy-task7|legacy-mvp)$/) exit 72
+            if ($0 !~ /^previous_package=(absent|current|legacy-pre-alpha-4|legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0|legacy-task7|legacy-mvp)$/) exit 72
             package = substr($0, 18)
         }
         NR == 3 {
@@ -1438,7 +1443,8 @@ if [ "$kwin_previous_package" = absent ]; then
         fi
         kwin_transaction_error='failed to install the exact OverCrow KWin package'
     fi
-elif [ "$kwin_previous_package" = legacy-pre-alpha-3 ] || \
+elif [ "$kwin_previous_package" = legacy-pre-alpha-4 ] || \
+    [ "$kwin_previous_package" = legacy-pre-alpha-3 ] || \
     [ "$kwin_previous_package" = legacy-pre-alpha-2 ] || \
     [ "$kwin_previous_package" = legacy-pre-alpha-1 ] || \
     [ "$kwin_previous_package" = legacy-0.1.0 ] || \

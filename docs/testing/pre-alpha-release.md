@@ -1,7 +1,7 @@
 # Pre-alpha release acceptance
 
 Run this checklist on the real Arch, Fedora/Bazzite, and Ubuntu desktop before
-publishing `v0.1.0-pre-alpha.4`. Check only results you personally observe.
+publishing `v0.1.0-pre-alpha.5`. Check only results you personally observe.
 
 ## 1. Candidate integrity
 
@@ -19,7 +19,7 @@ ls -lh
 
 ```sh
 sudo pacman -Rns overcrow-bin 2>/dev/null || true
-sudo pacman -U overcrow-bin-0.1.0prealpha4-1-x86_64.pkg.tar.zst
+sudo pacman -U overcrow-bin-0.1.0prealpha5-1-x86_64.pkg.tar.zst
 overcrow-control
 ```
 
@@ -31,13 +31,13 @@ On Fedora 43 or 44 enable COPR with
 
 Fedora/Bazzite 42 are no longer available as new COPR build targets. The
 standalone Fedora 42 RPM remains the fallback:
-`sudo dnf install ./overcrow-0.1.0.pre_alpha.4-1.fc42.x86_64.rpm`.
+`sudo dnf install ./overcrow-0.1.0.pre_alpha.5-1.fc42.x86_64.rpm`.
 
 On the Xubuntu 24.04 X11 validation guest:
 
 ```sh
 sudo apt remove overcrow 2>/dev/null || true
-sudo apt install ./overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb
 overcrow-control
 ```
 
@@ -86,12 +86,12 @@ Build only inside the clean Ubuntu 24.04 x86_64 guest:
 
 ```sh
 ./scripts/build-deb-package.sh
-dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
-dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
+dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
 ```
 
 - [ ] The builder produces exactly one non-symlinked `amd64.deb`.
-- [ ] Package identity is `overcrow`, version `0.1.0~pre.alpha.4-1`,
+- [ ] Package identity is `overcrow`, version `0.1.0~pre.alpha.5-1`,
   architecture `amd64`.
 - [ ] Installation performs no service activation or compositor mutation.
 - [ ] A fresh Xubuntu 24.04 X11 session completes the installation and overlay
@@ -103,14 +103,14 @@ dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
 ## 5. COPR publication
 
 The Fedora builder also produces
-`dist/overcrow-0.1.0.pre_alpha.4-1.fc42.src.rpm`. Verify that source package
+`dist/overcrow-0.1.0.pre_alpha.5-1.fc42.src.rpm`. Verify that source package
 locally, then submit it explicitly:
 
 ```sh
-rpm -qpi dist/overcrow-0.1.0.pre_alpha.4-1.fc42.src.rpm
-rpm -qpl dist/overcrow-0.1.0.pre_alpha.4-1.fc42.src.rpm
+rpm -qpi dist/overcrow-0.1.0.pre_alpha.5-1.fc42.src.rpm
+rpm -qpl dist/overcrow-0.1.0.pre_alpha.5-1.fc42.src.rpm
 copr-cli build grmpy/playervox-overcrow \
-  dist/overcrow-0.1.0.pre_alpha.4-1.fc42.src.rpm
+  dist/overcrow-0.1.0.pre_alpha.5-1.fc42.src.rpm
 ```
 
 - [ ] COPR reports a successful build.

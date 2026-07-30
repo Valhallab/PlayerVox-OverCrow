@@ -82,6 +82,12 @@ grep -Fq 'log out and back in once if OverCrow was just installed' "$helper" ||
 grep -Fq 'plasma:gnome|gnome:plasma' "$helper" ||
     fail 'GNOME and Plasma ambiguity does not fail closed'
 grep -Fq \
+    "kwin_legacy_pre_alpha_4_metadata_sha256='ae9fe7a737443fdf6b92994420ee031f12aabf6523a32cb3fdd4e2e78f484690'" \
+    "$helper" || fail 'the pre-alpha 4 KWin metadata fingerprint was not retained'
+grep -Fq \
+    "kwin_legacy_pre_alpha_4_main_sha256='109f47c4172337b8b479f2afaaaedd1bab7a77756cb7868d60eb8f7f1a24eb27'" \
+    "$helper" || fail 'the pre-alpha 4 KWin script fingerprint was not retained'
+grep -Fq \
     "kwin_legacy_pre_alpha_3_metadata_sha256='d1a3ad62abe425afde4fd04251fc45de8f4a9855e661f7271449aa339211ec6d'" \
     "$helper" || fail 'the pre-alpha 3 KWin metadata fingerprint was not retained'
 grep -Fq \
@@ -99,7 +105,7 @@ grep -Fq \
 grep -Fq \
     "kwin_legacy_pre_alpha_1_main_sha256='9fc7a92d1f2936e454ac83bc7b187110b7d22fae5f93bd355dd99557e656259d'" \
     "$helper" || fail 'the pre-alpha 1 KWin script fingerprint was not retained'
-grep -Fq 'legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0' \
+grep -Fq 'legacy-pre-alpha-4|legacy-pre-alpha-3|legacy-pre-alpha-2|legacy-pre-alpha-1|legacy-0.1.0' \
     "$helper" || fail 'reviewed legacy KWin packages are not accepted by transaction recovery'
 
 grep -Fq "overcrow_hypr_timeout_program='/usr/bin/timeout'" "$library" ||

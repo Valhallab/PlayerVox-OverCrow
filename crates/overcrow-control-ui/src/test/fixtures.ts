@@ -53,7 +53,7 @@ export function updateState(
   return {
     schema_version: 1,
     phase: 'up_to_date',
-    current_version: '0.1.0-pre-alpha.4',
+    current_version: '0.1.0-pre-alpha.5',
     latest_version: null,
     install_kind: 'arch',
     last_checked_at: '2026-07-30T20:00:00.000Z',

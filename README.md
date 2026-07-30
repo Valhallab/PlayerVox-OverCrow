@@ -13,7 +13,8 @@ are available as experimental integrations.
 | Plasma 6 Wayland | **Supported** | Validated on Bazzite KDE/Fedora 42; native Wayland and XWayland games through the KWin bridge. |
 | XFCE X11 on Xubuntu 24.04 | **Experimental — validated in VM** | DEB installation, native-window tracking, geometry, stacking, interactive clicks, shortcuts, and focus restoration passed. Steam/Proton, physical GPU, HiDPI, and multi-monitor validation remain. |
 | Other X11/EWMH desktops | **Experimental — for now** | The shared X11 path is implemented, but Plasma X11 and other window managers still need real-machine validation. |
-| GNOME 46–50 Wayland | **Experimental — for now** | The dedicated Shell/Mutter bridge is implemented; complete real-machine validation remains. |
+| GNOME 46 Wayland | **Experimental — validated in VM** | Overlay placement, passive click-through, interactive input, and `Meta+Alt+O` passed on Ubuntu 24.04. Steam/Proton, physical GPU, HiDPI, and multi-monitor validation remain. |
+| GNOME 47–50 Wayland | **Experimental — for now** | The packaged Shell/Mutter bridge declares compatibility, but these Shell versions still need real-machine validation. |
 | Sway Wayland | **Not compatible — for now** | Requires a dedicated Sway IPC and layer-shell bridge. |
 | Gamescope / Steam Deck Game Mode | **Not compatible — for now** | No nested-compositor integration yet. |
 | Other Wayland compositors | **Not compatible — for now** | A transparent window alone cannot provide safe placement and input control. |
@@ -33,7 +34,7 @@ yay -S overcrow-bin
 ```
 
 `paru` also works. Without an AUR helper, download the package from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.4)
+[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.5)
 and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
 
 On Fedora 43 or 44, enable the PlayerVox OverCrow COPR repository and install:
@@ -58,7 +59,7 @@ On Ubuntu 24.04 x86_64, download the `amd64.deb` from the latest pre-alpha
 release and install it with:
 
 ```sh
-sudo apt install ./overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb
 ```
 
 The DEB uses Ubuntu 24.04 as its binary compatibility baseline. Linux Mint,
@@ -99,7 +100,7 @@ The Control Center checks official GitHub releases at startup and at most every
 six hours; **About → Check for updates** also checks manually. Nothing is
 downloaded until **Update now** is selected. OverCrow verifies the package's
 GitHub SHA-256 digest, stops its runtime, then asks PolicyKit to run the native
-pacman, dnf, apt, or rpm-ostree transaction. Bazzite requires a reboot.
+pacman, dnf, apt, or rpm-ostree transaction. Native installations offer **Restart now** after a successful update; Bazzite requires a system reboot.
 Source and unrecognized installations open the official release page instead.
 Cancelling or failing a step leaves the current package unchanged.
 

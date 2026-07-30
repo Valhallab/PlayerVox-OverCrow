@@ -32,6 +32,11 @@
   <url type="help">https://github.com/Valhallab/PlayerVox-OverCrow#quick-start</url>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.0-pre-alpha.5" date="2026-07-30">
+      <description>
+        <p>Adds secure native updates, an experimental GNOME bridge, Ubuntu packaging, and Steam shortcut discovery.</p>
+      </description>
+    </release>
     <release version="0.1.0-pre-alpha.4" date="2026-07-29">
       <description>
         <p>Adds validated Bazzite and Fedora packaging, stabilizes Plasma Wayland, and introduces native X11 shortcuts.</p>
