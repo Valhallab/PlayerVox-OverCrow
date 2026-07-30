@@ -166,8 +166,8 @@ Build and inspect the package as the regular desktop user:
 ```sh
 cd "$HOME/OverCrow"
 ./scripts/build-deb-package.sh
-dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
-sudo apt install ./dist/overcrow_0.1.0~pre.alpha.4-1_amd64.deb
+dpkg-deb --info dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
+sudo apt install ./dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
 ```
 
 The package must install without running or enabling OverCrow. Native-window
