@@ -119,6 +119,7 @@ fn main() {
             commands::check_for_updates,
             commands::install_available_update,
             commands::open_update_page,
+            commands::restart_control_center,
         ]);
 
     let mut app = match builder.build(tauri::generate_context!()) {

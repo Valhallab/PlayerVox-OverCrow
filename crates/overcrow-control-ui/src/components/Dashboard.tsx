@@ -36,6 +36,7 @@ interface DashboardProps {
   onCheckForUpdates(): void;
   onInstallUpdate(): void;
   onOpenUpdatePage(): void;
+  onRestartUpdate(): void;
 }
 
 export function Dashboard(props: DashboardProps) {
@@ -121,6 +122,7 @@ export function Dashboard(props: DashboardProps) {
               onCheck={props.onCheckForUpdates}
               onInstall={props.onInstallUpdate}
               onOpenRelease={props.onOpenUpdatePage}
+              onRestart={props.onRestartUpdate}
             />
             <section className={`status-hero ${snapshot.master_switch_checked ? 'status-hero--on' : ''}`}>
               <div className="status-hero__orb"><span /></div>
@@ -208,6 +210,7 @@ export function Dashboard(props: DashboardProps) {
               onCheck={props.onCheckForUpdates}
               onInstall={props.onInstallUpdate}
               onOpenRelease={props.onOpenUpdatePage}
+              onRestart={props.onRestartUpdate}
             />
           </div>
         )}

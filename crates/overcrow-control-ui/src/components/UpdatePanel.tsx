@@ -8,6 +8,7 @@ interface UpdatePanelProps {
   onCheck(): void;
   onInstall(): void;
   onOpenRelease(): void;
+  onRestart(): void;
 }
 
 export function UpdatePanel({
@@ -17,6 +18,7 @@ export function UpdatePanel({
   onCheck,
   onInstall,
   onOpenRelease,
+  onRestart,
 }: UpdatePanelProps) {
   if (
     variant === 'overview' &&
@@ -64,6 +66,11 @@ export function UpdatePanel({
         )}
       </div>
       <div className="update-panel__actions">
+        {state?.phase === 'installed' && (
+          <button className="button button--primary" onClick={onRestart}>
+            {en.updates.restartNow}
+          </button>
+        )}
         {canInstall && (
           <button
             className="button button--primary"

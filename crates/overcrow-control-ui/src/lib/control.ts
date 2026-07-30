@@ -142,6 +142,7 @@ export interface ControlClient {
   checkForUpdates(force: boolean): Promise<ControlUpdateState>;
   installAvailableUpdate(): Promise<ControlUpdateState>;
   openUpdatePage(): Promise<void>;
+  restartControlCenter(): Promise<void>;
   getRecentLogs(): Promise<ControlLogSnapshot>;
   prepareSupportReport(
     description: string,
@@ -167,6 +168,7 @@ export const controlClient: ControlClient = {
   checkForUpdates: (force) => invoke('check_for_updates', { force }),
   installAvailableUpdate: () => invoke('install_available_update'),
   openUpdatePage: () => invoke('open_update_page'),
+  restartControlCenter: () => invoke('restart_control_center'),
   getRecentLogs: () => invoke('get_recent_logs'),
   prepareSupportReport: (description, includeLogs) =>
     invoke('prepare_support_report', { description, includeLogs }),

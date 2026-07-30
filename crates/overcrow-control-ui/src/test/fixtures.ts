@@ -125,6 +125,9 @@ export function memoryClient(
     async openUpdatePage() {
       calls.push('openUpdatePage');
     },
+    async restartControlCenter() {
+      calls.push('restartControlCenter');
+    },
     async getRecentLogs() {
       calls.push('getRecentLogs');
       return structuredClone(logs);

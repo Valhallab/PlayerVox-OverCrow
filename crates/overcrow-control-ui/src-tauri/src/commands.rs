@@ -215,6 +215,11 @@ pub async fn open_update_page(state: State<'_, Arc<UpdateController>>) -> Result
         .map_err(update_error)
 }
 
+#[tauri::command]
+pub fn restart_control_center(app: AppHandle) {
+    app.request_restart();
+}
+
 fn support_error(error: overcrow_control::SupportReportError) -> String {
     error.code().to_owned()
 }

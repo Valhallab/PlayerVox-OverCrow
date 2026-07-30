@@ -127,6 +127,8 @@ describe('Control Center dashboard', () => {
       expect(client.calls).toContain('installAvailableUpdate'),
     );
     expect(await screen.findByText('Update installed')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Restart now' }));
+    expect(client.calls).toContain('restartControlCenter');
   });
 
   it('keeps unknown package layouts manual and checks again from About', async () => {
@@ -174,6 +176,9 @@ describe('Control Center dashboard', () => {
       await screen.findByText('Update staged — restart required'),
     ).toBeVisible();
     expect(screen.getByText(/Bazzite has prepared the next deployment/i)).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Restart now' }),
+    ).not.toBeInTheDocument();
   });
 
   it('subscribes before update reads and schedules one six-hour deadline', async () => {

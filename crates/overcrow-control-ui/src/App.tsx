@@ -219,6 +219,7 @@ export function App({
           onInstallUpdate={() =>
             void runUpdate(() => client.installAvailableUpdate())}
           onOpenUpdatePage={() => void openUpdatePage()}
+          onRestartUpdate={() => void client.restartControlCenter()}
         />
       )}
       {error && <ErrorBanner message={error.message} onRetry={() => void run(() => client.getState())} />}

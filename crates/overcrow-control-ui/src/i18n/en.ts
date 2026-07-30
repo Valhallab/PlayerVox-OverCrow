@@ -210,6 +210,7 @@ export const en = {
     failedTitle: 'The update could not be completed',
     check: 'Check for updates',
     updateNow: 'Update now',
+    restartNow: 'Restart now',
     openRelease: 'Open release page',
     lastChecked: 'Last checked:',
     stateErrors: {
