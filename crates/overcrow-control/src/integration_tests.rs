@@ -1,16 +1,17 @@
 use std::{
-    fs,
-    os::unix::process::CommandExt,
+    fs, io,
+    os::unix::process::{CommandExt, ExitStatusExt},
     path::PathBuf,
-    process::Command,
+    process::{Command, ExitStatus},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use crate::integration::{
-    ExitObservation, INTEGRATION_COMMAND_TIMEOUT, IntegrationCommandRunner, IntegrationController,
-    LinuxNonReapingExitObserver, SystemIntegrationCommandRunner, compositor_integration_required,
-    run_bounded_command, run_bounded_command_observed, trusted_helper_path,
+    ExitCleanupPolicy, ExitObservation, INTEGRATION_COMMAND_TIMEOUT, IntegrationCommandRunner,
+    IntegrationController, LinuxNonReapingExitObserver, SystemIntegrationCommandRunner,
+    compositor_integration_required, resolve_observed_exit, run_bounded_command,
+    run_bounded_command_observed, trusted_helper_path,
 };
 
 #[derive(Default)]
@@ -104,6 +105,42 @@ fn system_runner_executes_the_selected_program_directly() {
 #[test]
 fn integration_timeout_is_one_explicit_minute() {
     assert_eq!(INTEGRATION_COMMAND_TIMEOUT, Duration::from_secs(60));
+}
+
+#[test]
+fn successful_privileged_command_ignores_permission_denied_cleanup() {
+    let status = resolve_observed_exit(
+        ExitStatus::from_raw(0),
+        Some(io::Error::from_raw_os_error(libc::EPERM)),
+        ExitCleanupPolicy::Privileged,
+    )
+    .expect("a successful privileged command must remain successful");
+
+    assert!(status.success());
+}
+
+#[test]
+fn strict_command_rejects_permission_denied_cleanup() {
+    let error = resolve_observed_exit(
+        ExitStatus::from_raw(0),
+        Some(io::Error::from_raw_os_error(libc::EPERM)),
+        ExitCleanupPolicy::Strict,
+    )
+    .unwrap_err();
+
+    assert!(error.contains("process-group cleanup failed"));
+}
+
+#[test]
+fn failed_privileged_command_does_not_hide_permission_denied_cleanup() {
+    let error = resolve_observed_exit(
+        ExitStatus::from_raw(7 << 8),
+        Some(io::Error::from_raw_os_error(libc::EPERM)),
+        ExitCleanupPolicy::Privileged,
+    )
+    .unwrap_err();
+
+    assert!(error.contains("process-group cleanup failed"));
 }
 
 #[test]

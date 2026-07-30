@@ -10,7 +10,9 @@ use std::{
 };
 
 use crate::{
-    integration::{is_normal_absolute_path, run_bounded_command, run_bounded_command_status},
+    integration::{
+        is_normal_absolute_path, run_bounded_command, run_bounded_privileged_command_status,
+    },
     update_download::VerifiedPackage,
     updates::{PackageTarget, UpdateError},
 };
@@ -234,8 +236,8 @@ struct SystemInstallerRunner;
 
 impl InstallerRunner for SystemInstallerRunner {
     fn run(&self, program: &Path, args: &[OsString]) -> Result<InstallerExit, UpdateError> {
-        let status =
-            run_bounded_command_status(program, args, INSTALL_TIMEOUT).map_err(|error| {
+        let status = run_bounded_privileged_command_status(program, args, INSTALL_TIMEOUT)
+            .map_err(|error| {
                 if error.contains("timed out") {
                     UpdateError::Timeout
                 } else {

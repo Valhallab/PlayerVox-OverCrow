@@ -158,7 +158,13 @@ pub(crate) fn run_bounded_command_observed(
     timeout: Duration,
     on_spawn: impl FnOnce(u32),
 ) -> Result<(), String> {
-    let status = run_bounded_command_status_observed(program, args, timeout, on_spawn)?;
+    let status = run_bounded_command_status_observed(
+        program,
+        args,
+        timeout,
+        on_spawn,
+        ExitCleanupPolicy::Strict,
+    )?;
     if status.success() {
         Ok(())
     } else {
@@ -166,12 +172,18 @@ pub(crate) fn run_bounded_command_observed(
     }
 }
 
-pub(crate) fn run_bounded_command_status(
+pub(crate) fn run_bounded_privileged_command_status(
     program: impl AsRef<std::ffi::OsStr>,
     args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
     timeout: Duration,
 ) -> Result<std::process::ExitStatus, String> {
-    run_bounded_command_status_observed(program, args, timeout, |_| {})
+    run_bounded_command_status_observed(
+        program,
+        args,
+        timeout,
+        |_| {},
+        ExitCleanupPolicy::Privileged,
+    )
 }
 
 fn run_bounded_command_status_observed(
@@ -179,6 +191,7 @@ fn run_bounded_command_status_observed(
     args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
     timeout: Duration,
     on_spawn: impl FnOnce(u32),
+    cleanup_policy: ExitCleanupPolicy,
 ) -> Result<std::process::ExitStatus, String> {
     let mut command = Command::new(program);
     command
@@ -207,7 +220,7 @@ fn run_bounded_command_status_observed(
     loop {
         match observer.observe(group.pid()) {
             Ok(ExitObservation::Exited) => {
-                return finish_observed_exit(&mut child, group);
+                return finish_observed_exit(&mut child, group, cleanup_policy);
             }
             Ok(ExitObservation::Running) if started.elapsed() < timeout => {
                 thread::sleep(COMMAND_POLL_INTERVAL);
@@ -291,6 +304,7 @@ impl LinuxNonReapingExitObserver {
 fn finish_observed_exit(
     child: &mut std::process::Child,
     group: ProcessGroup,
+    cleanup_policy: ExitCleanupPolicy,
 ) -> Result<std::process::ExitStatus, String> {
     let cleanup_error = group.kill().err();
     let status = match child.wait() {
@@ -301,7 +315,30 @@ fn finish_observed_exit(
             return Err(message);
         }
     };
+    resolve_observed_exit(status, cleanup_error, cleanup_policy)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ExitCleanupPolicy {
+    Strict,
+    Privileged,
+}
+
+pub(crate) fn resolve_observed_exit(
+    status: std::process::ExitStatus,
+    cleanup_error: Option<io::Error>,
+    cleanup_policy: ExitCleanupPolicy,
+) -> Result<std::process::ExitStatus, String> {
     if let Some(error) = cleanup_error {
+        // A successful PolicyKit helper can leave root-owned processes in its
+        // group until they are reaped. The unprivileged parent cannot signal
+        // those processes, even though the privileged transaction completed.
+        if cleanup_policy == ExitCleanupPolicy::Privileged
+            && status.success()
+            && error.raw_os_error() == Some(libc::EPERM)
+        {
+            return Ok(status);
+        }
         return Err(format!("process-group cleanup failed: {error}"));
     }
     Ok(status)
