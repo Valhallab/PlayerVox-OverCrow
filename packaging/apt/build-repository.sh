@@ -73,7 +73,7 @@ case ${SOURCE_DATE_EPOCH-} in
 esac
 
 for program in ar awk bsdtar cmp date find gpg grep gzip install md5sum \
-        mktemp realpath sha1sum sha256sum sort stat tar; do
+        mktemp realpath sha1sum sha256sum sort stat tail tar; do
     command -v "$program" >/dev/null 2>&1 ||
         fail "required program is unavailable: $program"
 done
@@ -181,6 +181,8 @@ data.tar.xz" || fail 'DEB archive members are invalid'
         bsdtar -xOf - ./control > "$control_output" ||
         fail 'cannot read DEB control metadata'
     test -s "$control_output" || fail 'DEB control metadata is empty'
+    test -z "$(tail -c 1 "$control_output")" ||
+        fail 'DEB control metadata must end with a newline'
 
     package=$(control_field "$control_output" Package) ||
         fail 'DEB package field is missing or ambiguous'
@@ -232,17 +234,22 @@ fi
 
 packages="$binary_dir/Packages"
 : > "$packages"
+first_package=true
 for indexed_deb in "$pool"/*.deb; do
     control="$working/.control-index"
     validate_deb "$indexed_deb" "$control"
+    if test "$first_package" = false; then
+        printf '\n' >> "$packages"
+    fi
     {
         cat "$control"
         printf 'Filename: pool/main/o/overcrow/%s\n' \
             "$(basename -- "$indexed_deb")"
         printf 'Size: %s\n' "$(stat -c '%s' "$indexed_deb")"
-        printf 'SHA256: %s\n\n' \
+        printf 'SHA256: %s\n' \
             "$(sha256sum "$indexed_deb" | awk '{ print $1 }')"
     } >> "$packages"
+    first_package=false
 done
 gzip -n -9 -c "$packages" > "$binary_dir/Packages.gz"
 

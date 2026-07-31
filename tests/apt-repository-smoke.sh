@@ -210,4 +210,75 @@ expect_failure 'an unknown signing fingerprint' \
     "$work_dir/unknown-key-output" \
     '0000000000000000000000000000000000000000'
 
+publisher="$project_root/scripts/publish-apt-repository.sh"
+test -x "$publisher"
+
+old_release="$work_dir/old-release"
+old_repository="$work_dir/old-repository"
+mkdir "$old_release"
+old_deb_name='overcrow_0.1.0~pre.alpha.4-1_amd64.deb'
+create_deb "$old_release/$old_deb_name" overcrow \
+    '0.1.0~pre.alpha.4-1' amd64 old
+write_checksums "$old_release"
+GNUPGHOME="$key_home" SOURCE_DATE_EPOCH=1785448800 \
+    "$builder" 0.1.0-pre-alpha.4 "$old_release" "$empty_base" \
+    "$old_repository" "$fingerprint"
+
+remote="$work_dir/apt-remote.git"
+seed="$work_dir/apt-seed"
+git init --bare "$remote" >/dev/null
+cp -a "$old_repository" "$seed"
+git -C "$seed" init -b gh-pages >/dev/null
+git -C "$seed" config user.name 'Valhallab'
+git -C "$seed" config user.email 'contact@valhallab.com'
+git -C "$seed" add .
+git -C "$seed" commit -m 'Initial APT repository' >/dev/null
+git -C "$seed" remote add origin "$remote"
+git -C "$seed" push origin gh-pages >/dev/null
+original_remote_commit=$(
+    git --git-dir="$remote" rev-parse refs/heads/gh-pages
+)
+
+published_candidate="$work_dir/published-candidate"
+OVERCROW_APT_TEST_MODE=1 \
+OVERCROW_APT_REMOTE_URL="$remote" \
+OVERCROW_APT_RELEASE_DIR="$release_dir" \
+OVERCROW_APT_OUTPUT_DIR="$published_candidate" \
+GNUPGHOME="$key_home" \
+SOURCE_DATE_EPOCH=1785448840 \
+    "$publisher" 0.1.0-pre-alpha.5 "$fingerprint"
+test -d "$published_candidate"
+test -f "$published_candidate/pool/main/o/overcrow/$old_deb_name"
+test -f "$published_candidate/pool/main/o/overcrow/$deb_name"
+test "$(
+    git --git-dir="$remote" rev-parse refs/heads/gh-pages
+)" = "$original_remote_commit"
+
+OVERCROW_APT_TEST_MODE=1 \
+OVERCROW_APT_REMOTE_URL="$remote" \
+OVERCROW_APT_RELEASE_DIR="$release_dir" \
+OVERCROW_APT_OUTPUT_DIR="$published_candidate" \
+GNUPGHOME="$key_home" \
+SOURCE_DATE_EPOCH=1785448840 \
+    "$publisher" 0.1.0-pre-alpha.5 "$fingerprint" --push
+test "$(
+    git --git-dir="$remote" rev-parse refs/heads/gh-pages
+)" != "$original_remote_commit"
+
+published_checkout="$work_dir/published-checkout"
+git clone --branch gh-pages "$remote" "$published_checkout" >/dev/null 2>&1
+test -f "$published_checkout/pool/main/o/overcrow/$old_deb_name"
+test -f "$published_checkout/pool/main/o/overcrow/$deb_name"
+cmp "$published_candidate/dists/stable/InRelease" \
+    "$published_checkout/dists/stable/InRelease"
+
+if grep -Eq \
+        'sudo|apt-key|systemctl|eval|[[:space:]]git[[:space:]]+push' \
+        "$builder"; then
+    printf '%s\n' 'APT repository builder contains forbidden mutations' >&2
+    exit 1
+fi
+grep -Fq -- '--push' "$publisher"
+grep -Fq 'GIT_TERMINAL_PROMPT=0' "$publisher"
+
 printf '%s\n' 'APT repository smoke test passed'
