@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://valhallab.github.io/PlayerVox-OverCrow/
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/playervox-overcrow-archive-keyring.gpg
