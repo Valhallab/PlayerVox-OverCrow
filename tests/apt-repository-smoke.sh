@@ -272,9 +272,8 @@ test -f "$published_checkout/pool/main/o/overcrow/$deb_name"
 cmp "$published_candidate/dists/stable/InRelease" \
     "$published_checkout/dists/stable/InRelease"
 
-if grep -Eq \
-        'sudo|apt-key|systemctl|eval|[[:space:]]git[[:space:]]+push' \
-        "$builder"; then
+if grep -Eq 'sudo|apt-key|systemctl|eval' "$builder" "$publisher" ||
+        grep -Eq '[[:space:]]git[[:space:]]+push' "$builder"; then
     printf '%s\n' 'APT repository builder contains forbidden mutations' >&2
     exit 1
 fi

@@ -72,8 +72,8 @@ case ${SOURCE_DATE_EPOCH-} in
     0) fail 'SOURCE_DATE_EPOCH must be a positive integer' ;;
 esac
 
-for program in ar awk bsdtar cmp date find gpg grep gzip install md5sum \
-        mktemp realpath sha1sum sha256sum sort stat tail tar; do
+for program in ar awk bsdtar cmp date find gpg grep gzip install mktemp \
+        realpath sha256sum stat tail; do
     command -v "$program" >/dev/null 2>&1 ||
         fail "required program is unavailable: $program"
 done

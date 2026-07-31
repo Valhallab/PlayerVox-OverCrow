@@ -21,6 +21,8 @@ version=$1
 signing_fingerprint=$2
 project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 builder="$project_root/packaging/apt/build-repository.sh"
+# shellcheck disable=SC1090,SC1091
+. "$project_root/scripts/lib/release-version.sh"
 branch=gh-pages
 timeout_seconds=60
 
@@ -30,6 +32,13 @@ fail() {
 }
 
 test -x "$builder" || fail 'APT repository builder is unavailable'
+if ! overcrow_version_is_valid "$version"; then
+    fail 'invalid release version'
+fi
+if ! printf '%s\n' "$signing_fingerprint" |
+        LC_ALL=C grep -Eq '^[0-9A-F]{40}$'; then
+    fail 'SIGNING_FINGERPRINT must be one full uppercase OpenPGP fingerprint'
+fi
 for program in cat cp diff find git grep install mktemp mv realpath rm \
         timeout; do
     command -v "$program" >/dev/null 2>&1 ||
@@ -56,6 +65,10 @@ case ${OVERCROW_APT_TEST_MODE-} in
             /*) ;;
             *) fail 'test remote must be an absolute local path' ;;
         esac
+        test -d "$remote_url" && test ! -L "$remote_url" ||
+            fail 'test remote must be a real directory'
+        test "$(realpath -e -- "$remote_url")" = "$remote_url" ||
+            fail 'test remote must already be canonical'
         ;;
     *) fail 'OVERCROW_APT_TEST_MODE must be empty or 1' ;;
 esac
