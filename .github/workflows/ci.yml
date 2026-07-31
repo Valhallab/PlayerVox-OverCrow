@@ -33,7 +33,9 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             dbus-daemon \
             fontconfig \
+            gnupg \
             jq \
+            libarchive-tools \
             libgl1-mesa-dev \
             libwebkit2gtk-4.1-dev \
             libwayland-dev \
@@ -67,11 +69,13 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
             packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-            packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
+            packaging/apt/*.sh packaging/deb/*.sh packaging/release/*.sh \
+            packaging/rpm/*.sh
           shellcheck -s bash packaging/aur/PKGBUILD
           sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
             packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-            packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
+            packaging/apt/*.sh packaging/deb/*.sh packaging/release/*.sh \
+            packaging/rpm/*.sh
           bash -n packaging/aur/PKGBUILD
           node --check integrations/kwin/contents/code/main.js
           node --check integrations/gnome/extension.js
@@ -82,6 +86,7 @@ jobs:
           node --test tests/kwin-bridge.test.js
           node --test tests/gnome-bridge.test.js
           tests/qjsvalue-variant-smoke.sh
+          tests/apt-repository-smoke.sh
           tests/aur-package-smoke.sh
           tests/deb-package-smoke.sh
           tests/public-docs-smoke.sh

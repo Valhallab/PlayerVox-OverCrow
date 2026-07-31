@@ -55,16 +55,26 @@ systemctl reboot
 Fedora/Bazzite 42 users can use the standalone RPM from the latest release as
 a fallback.
 
-On Ubuntu 24.04 x86_64, download the `amd64.deb` from the latest pre-alpha
-release and install it with:
+On Ubuntu 24.04 x86_64, add the signed PlayerVox repository. Archive-key
+fingerprint: `ABB7C5578C3D802FC90F61B8E782A58B22760A15`.
 
 ```sh
-sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb
+base=https://valhallab.github.io/PlayerVox-OverCrow/
+curl -fsSLo /tmp/playervox-overcrow.gpg \
+  "${base}keyrings/playervox-overcrow-archive-keyring.gpg"
+sudo install -m 0644 /tmp/playervox-overcrow.gpg \
+  /usr/share/keyrings/playervox-overcrow-archive-keyring.gpg
+curl -fsSLo /tmp/playervox-overcrow.sources "${base}playervox-overcrow.sources"
+sudo install -m 0644 /tmp/playervox-overcrow.sources \
+  /etc/apt/sources.list.d/playervox-overcrow.sources
+sudo apt update
+sudo apt install overcrow
 ```
 
 The DEB uses Ubuntu 24.04 as its binary compatibility baseline. Linux Mint,
 Debian, newer Ubuntu releases, and other Debian-family desktops are not yet
-validated.
+validated. The direct release fallback remains
+`sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb`.
 
 Nothing starts during installation. Open **PlayerVox OverCrow** from the
 application menu, or run:
@@ -198,9 +208,8 @@ Security issues should be reported privately as described in
 
 ## Limitations
 
-- Distribution is currently through the AUR, Fedora COPR, and direct release
-  packages. The DEB is a direct download while a signed APT repository remains
-  planned.
+- Distribution is currently through the AUR, Fedora COPR, signed Ubuntu APT
+  repository, and direct release packages.
 - Non-Steam Windows games must be launched as Steam shortcuts through Proton;
   direct Wine executable matching is not supported.
 - A selected game must be focused before a passive overlay can appear.

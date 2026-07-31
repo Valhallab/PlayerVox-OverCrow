@@ -100,7 +100,25 @@ dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
   with the identical DEB.
 - [ ] Removal leaves no runtime process while preserving user settings.
 
-## 5. COPR publication
+## 5. APT publication
+
+After hosted CI passes, publish only with the dedicated archive key:
+
+```sh
+./scripts/publish-apt-repository.sh \
+  0.1.0-pre-alpha.5 ABB7C5578C3D802FC90F61B8E782A58B22760A15
+./scripts/publish-apt-repository.sh \
+  0.1.0-pre-alpha.5 ABB7C5578C3D802FC90F61B8E782A58B22760A15 --push
+```
+
+- [ ] The public key fingerprint is
+  `ABB7 C557 8C3D 802F C90F 61B8 E782 A58B 2276 0A15`.
+- [ ] Public `InRelease` and `Release.gpg` signatures verify.
+- [ ] Public `Packages.gz`, by-hash index, and DEB checksums match.
+- [ ] A clean Ubuntu 24.04 guest can run `apt update` and
+  `apt install overcrow` from the public source.
+
+## 6. COPR publication
 
 The Fedora builder also produces
 `dist/overcrow-0.1.0.pre_alpha.5-1.fc42.src.rpm`. Verify that source package

@@ -33,8 +33,8 @@ turning it into a large process.
 - `crates/overcrowctl`: small D-Bus CLI.
 - `integrations/kwin`: Plasma 6 KWin bridge.
 - `integrations/gnome`: GNOME 46–50 Shell/Mutter bridge.
-- `packaging/`, `scripts/`, and `tests/`: native Arch packaging, managed user
-  integration, diagnostics, and smoke tests.
+- `packaging/`, `scripts/`, and `tests/`: native Arch, DEB, RPM, and signed APT
+  packaging; managed integration; diagnostics; and smoke tests.
 
 ## Supported display backends
 
@@ -73,6 +73,9 @@ turning it into a large process.
   part of the request.
 - Keep user configuration private and transactional. Do not weaken symlink,
   ownership, permission, canonical-path, atomic-write, or durability checks.
+- Keep the APT archive private key and passphrase outside the repository,
+  release assets, Actions, logs, and project temporary files. Publishing
+  `gh-pages` always requires the explicit `--push` argument.
 - Prefer semantic events and bounded/coalescing channels. Do not introduce
   steady polling, busy loops, unbounded channels, or repeated derived work when
   an existing event/deadline can drive the update.
@@ -163,11 +166,13 @@ For shell, packaging, or integration changes, run the touched smoke tests plus:
 ```sh
 shellcheck scripts/*.sh scripts/lib/*.sh tests/*.sh \
   packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-  packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
+  packaging/apt/*.sh packaging/deb/*.sh packaging/release/*.sh \
+  packaging/rpm/*.sh
 shellcheck -s bash packaging/aur/PKGBUILD
 sh -n scripts/*.sh scripts/lib/*.sh tests/*.sh \
   packaging/arch/*.install packaging/arch/*.sh packaging/aur/*.install \
-  packaging/deb/*.sh packaging/release/*.sh packaging/rpm/*.sh
+  packaging/apt/*.sh packaging/deb/*.sh packaging/release/*.sh \
+  packaging/rpm/*.sh
 bash -n packaging/aur/PKGBUILD
 ```
 
@@ -197,7 +202,9 @@ artifact. Run `./scripts/build-rpm-package.sh` only inside the supported Fedora
 build environment when validating a distributable RPM. Run
 `./scripts/build-deb-package.sh` only inside the supported Ubuntu 24.04 build
 environment when validating a distributable DEB. Do not run these builders for
-unrelated changes.
+unrelated changes. Run `tests/apt-repository-smoke.sh` for APT publication
+changes; never invoke `scripts/publish-apt-repository.sh --push` without
+explicit authorization.
 
 Always finish with:
 
