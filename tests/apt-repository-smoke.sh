@@ -279,5 +279,7 @@ if grep -Eq 'sudo|apt-key|systemctl|eval' "$builder" "$publisher" ||
 fi
 grep -Fq -- '--push' "$publisher"
 grep -Fq 'GIT_TERMINAL_PROMPT=0' "$publisher"
+tag_expression=\"v\$version^\{commit\}\"
+grep -Fq "$tag_expression" "$publisher"
 
 printf '%s\n' 'APT repository smoke test passed'

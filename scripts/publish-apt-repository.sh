@@ -97,7 +97,8 @@ test "$output_dir" = "$output_parent/$(basename -- "$output_dir")" ||
 
 if test -z "${SOURCE_DATE_EPOCH-}"; then
     source_epoch=$(
-        git -C "$project_root" show -s --format=%ct "v$version" 2>/dev/null
+        git -C "$project_root" show -s --format=%ct \
+            "v$version^{commit}" 2>/dev/null
     ) || fail 'release tag is unavailable for SOURCE_DATE_EPOCH'
     case $source_epoch in
         '' | *[!0-9]*) fail 'release tag has an invalid timestamp' ;;
