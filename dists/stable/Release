@@ -1,0 +1,12 @@
+Origin: PlayerVox
+Label: PlayerVox OverCrow
+Suite: stable
+Codename: stable
+Date: Thu, 30 Jul 2026 22:00:40 UTC
+Architectures: amd64
+Components: main
+Description: PlayerVox OverCrow Linux packages
+Acquire-By-Hash: yes
+SHA256:
+ 9a420e18fe6d6940513d7d42884c43ace34454f82f429ef39ad3ee9b8a5c77b7 1138 main/binary-amd64/Packages
+ 1b3e92a18fefefb94094dbc15c70cc62cf6322c475b7b02aef452fd82d3e80fe 682 main/binary-amd64/Packages.gz
