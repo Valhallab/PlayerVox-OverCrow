@@ -32,8 +32,9 @@ canonical_directory() {
         /*) ;;
         *) fail "$description must be absolute" ;;
     esac
-    test -d "$candidate" && test ! -L "$candidate" ||
+    if ! test -d "$candidate" || test -L "$candidate"; then
         fail "$description is not a real directory"
+    fi
     canonical=$(realpath -e -- "$candidate") ||
         fail "$description cannot be canonicalized"
     test "$canonical" = "$candidate" ||
@@ -81,11 +82,13 @@ done
 artifact="overcrow_${deb_version}_amd64.deb"
 artifact_path="$source_dir/$artifact"
 checksums="$source_dir/SHA256SUMS"
-test -f "$artifact_path" && test ! -L "$artifact_path" &&
-        test -s "$artifact_path" ||
+if ! test -f "$artifact_path" || test -L "$artifact_path" ||
+        ! test -s "$artifact_path"; then
     fail "invalid release artifact: $artifact"
-test -f "$checksums" && test ! -L "$checksums" ||
+fi
+if ! test -f "$checksums" || test -L "$checksums"; then
     fail 'invalid release checksum file'
+fi
 
 checksum_record=$(
     awk -v artifact="$artifact" '
@@ -165,8 +168,9 @@ control_field() {
 validate_deb() {
     deb=$1
     control_output=$2
-    test -f "$deb" && test ! -L "$deb" && test -s "$deb" ||
+    if ! test -f "$deb" || test -L "$deb" || ! test -s "$deb"; then
         fail 'repository contains an invalid DEB'
+    fi
     deb_name=$(basename -- "$deb")
     printf '%s\n' "$deb_name" |
         LC_ALL=C grep -Eq \
@@ -204,8 +208,9 @@ data.tar.xz" || fail 'DEB archive members are invalid'
 
 base_pool="$base_repository/pool/main/o/overcrow"
 if test -e "$base_pool" || test -L "$base_pool"; then
-    test -d "$base_pool" && test ! -L "$base_pool" ||
+    if ! test -d "$base_pool" || test -L "$base_pool"; then
         fail 'base repository pool is invalid'
+    fi
     invalid_entry=$(
         find "$base_pool" -mindepth 1 -maxdepth 1 ! -type f -print -quit
     )

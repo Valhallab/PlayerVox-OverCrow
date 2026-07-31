@@ -65,8 +65,9 @@ case ${OVERCROW_APT_TEST_MODE-} in
             /*) ;;
             *) fail 'test remote must be an absolute local path' ;;
         esac
-        test -d "$remote_url" && test ! -L "$remote_url" ||
+        if ! test -d "$remote_url" || test -L "$remote_url"; then
             fail 'test remote must be a real directory'
+        fi
         test "$(realpath -e -- "$remote_url")" = "$remote_url" ||
             fail 'test remote must already be canonical'
         ;;
@@ -77,16 +78,18 @@ case $release_dir in
     /*) ;;
     *) fail 'release directory must be absolute' ;;
 esac
-test -d "$release_dir" && test ! -L "$release_dir" ||
+if ! test -d "$release_dir" || test -L "$release_dir"; then
     fail 'release directory is unavailable'
+fi
 case $output_dir in
     /*) ;;
     *) fail 'output directory must be absolute' ;;
 esac
 output_parent=$(dirname -- "$output_dir")
 if test -e "$output_parent" || test -L "$output_parent"; then
-    test -d "$output_parent" && test ! -L "$output_parent" ||
+    if ! test -d "$output_parent" || test -L "$output_parent"; then
         fail 'output parent is invalid'
+    fi
 else
     install -d -m 0755 "$output_parent"
 fi
@@ -151,21 +154,21 @@ SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH \
     "$builder" "$version" "$release_dir" "$base_repository" \
     "$generated" "$signing_fingerprint"
 
-test -f "$generated/.overcrow-generated-apt-repository" &&
-        test ! -L "$generated/.overcrow-generated-apt-repository" &&
-        test "$(cat "$generated/.overcrow-generated-apt-repository")" = 1 ||
+generated_marker="$generated/.overcrow-generated-apt-repository"
+if ! test -f "$generated_marker" || test -L "$generated_marker" ||
+        ! test "$(cat "$generated_marker")" = 1; then
     fail 'generated repository ownership marker is invalid'
+fi
 test -z "$(find "$generated" -type l -print -quit)" ||
     fail 'generated repository contains a symlink'
 
 if test -e "$output_dir" || test -L "$output_dir"; then
-    test -d "$output_dir" && test ! -L "$output_dir" &&
-            test -f "$output_dir/.overcrow-generated-apt-repository" &&
-            test ! -L "$output_dir/.overcrow-generated-apt-repository" &&
-            test "$(
-                cat "$output_dir/.overcrow-generated-apt-repository"
-            )" = 1 ||
+    output_marker="$output_dir/.overcrow-generated-apt-repository"
+    if ! test -d "$output_dir" || test -L "$output_dir" ||
+            ! test -f "$output_marker" || test -L "$output_marker" ||
+            ! test "$(cat "$output_marker")" = 1; then
         fail 'refusing to replace an unmanaged local candidate'
+    fi
     rm -rf -- "$output_dir"
 fi
 mv -T -n -- "$generated" "$output_dir" ||
