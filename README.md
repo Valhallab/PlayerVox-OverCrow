@@ -23,28 +23,28 @@ are available as experimental integrations.
 Windowed and borderless-fullscreen games are supported. Exclusive fullscreen
 may bypass compositor windows and is outside the current design.
 
-## Quick start
+## Install
 
-The current pre-alpha provides complete x86_64 packages for Arch Linux,
-Fedora, Bazzite, and an Ubuntu 24.04-baseline DEB. On Arch, install from the
-AUR:
+> **Pre-alpha · x86_64 only.** Installation never starts OverCrow. The runtime
+> stays disabled until you open the Control Center, select a game, and choose
+> **Start**.
+
+### Arch Linux · AUR
 
 ```sh
 yay -S overcrow-bin
 ```
 
-`paru` also works. Without an AUR helper, download the package from the
-[latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.5)
-and install it with `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`.
+`paru -S overcrow-bin` works too.
 
-On Fedora 43 or 44, enable the PlayerVox OverCrow COPR repository and install:
+### Fedora 43–44 · COPR + DNF
 
 ```sh
 sudo dnf copr enable grmpy/playervox-overcrow
 sudo dnf install overcrow
 ```
 
-On Bazzite based on Fedora 43 or 44:
+### Bazzite 43–44 · COPR + rpm-ostree
 
 ```sh
 sudo dnf5 copr enable grmpy/playervox-overcrow
@@ -52,32 +52,30 @@ sudo rpm-ostree install overcrow
 systemctl reboot
 ```
 
-Fedora/Bazzite 42 users can use the standalone RPM from the latest release as
-a fallback.
-
-On Ubuntu 24.04 x86_64, add the signed PlayerVox repository. Archive-key
-fingerprint: `ABB7C5578C3D802FC90F61B8E782A58B22760A15`.
+### Ubuntu 24.04 · Launchpad PPA + APT
 
 ```sh
-base=https://valhallab.github.io/PlayerVox-OverCrow/
-curl -fsSLo /tmp/playervox-overcrow.gpg \
-  "${base}keyrings/playervox-overcrow-archive-keyring.gpg"
-sudo install -m 0644 /tmp/playervox-overcrow.gpg \
-  /usr/share/keyrings/playervox-overcrow-archive-keyring.gpg
-curl -fsSLo /tmp/playervox-overcrow.sources "${base}playervox-overcrow.sources"
-sudo install -m 0644 /tmp/playervox-overcrow.sources \
-  /etc/apt/sources.list.d/playervox-overcrow.sources
-sudo apt update
+sudo add-apt-repository ppa:valhallab/overcrow
 sudo apt install overcrow
 ```
 
-The DEB uses Ubuntu 24.04 as its binary compatibility baseline. Linux Mint,
-Debian, newer Ubuntu releases, and other Debian-family desktops are not yet
-validated. The direct release fallback remains
-`sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb`.
+Linux Mint, Debian, newer Ubuntu releases, and other Debian-family desktops are
+not yet validated.
 
-Nothing starts during installation. Open **PlayerVox OverCrow** from the
-application menu, or run:
+### Direct package fallback
+
+The [latest pre-alpha release](https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.5)
+contains one Arch package, one Fedora 42 RPM, one Ubuntu 24.04-baseline DEB,
+and `SHA256SUMS`:
+
+- **Arch:** `sudo pacman -U ./overcrow-bin-*.pkg.tar.zst`
+- **Fedora 42:** `sudo dnf install ./overcrow-*.rpm`
+- **Bazzite 42:** `sudo rpm-ostree install ./overcrow-*.rpm`, then reboot.
+- **Ubuntu 24.04:** `sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb`
+
+### First launch
+
+Open **PlayerVox OverCrow** from the application menu, or run:
 
 ```sh
 overcrow-control
@@ -95,14 +93,16 @@ with a **Type unverified** label.
 Closing the Control Center keeps OverCrow available from the tray. **Quit**
 disables the runtime before exiting.
 
-To uninstall after choosing tray **Quit**, use `sudo pacman -R overcrow-bin`,
-`sudo dnf remove overcrow`, or `sudo apt remove overcrow`. On Bazzite, use
-`sudo rpm-ostree uninstall overcrow`, then reboot.
+### Uninstall
+
+Choose tray **Quit**, then use the command for your installation:
+
+- **Arch:** `sudo pacman -Rns overcrow-bin`
+- **Fedora:** `sudo dnf remove overcrow`
+- **Ubuntu:** `sudo apt remove overcrow`
+- **Bazzite:** `sudo rpm-ostree uninstall overcrow`, then reboot.
 
 User settings are deliberately left in `${XDG_CONFIG_HOME:-$HOME/.config}/overcrow/`.
-
-Each release contains Arch, Fedora 42 RPM, and one Ubuntu-baseline DEB package,
-plus `SHA256SUMS`.
 
 ## Updates
 
@@ -208,8 +208,8 @@ Security issues should be reported privately as described in
 
 ## Limitations
 
-- Distribution is currently through the AUR, Fedora COPR, signed Ubuntu APT
-  repository, and direct release packages.
+- Distribution is currently through the AUR, Fedora COPR, the Ubuntu PPA, and
+  direct release packages.
 - Non-Steam Windows games must be launched as Steam shortcuts through Proton;
   direct Wine executable matching is not supported.
 - A selected game must be focused before a passive overlay can appear.

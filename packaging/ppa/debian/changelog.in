@@ -1,0 +1,5 @@
+overcrow (@PPA_VERSION@) noble; urgency=medium
+
+  * Publish PlayerVox OverCrow @UPSTREAM_VERSION@ for Ubuntu 24.04.
+
+ -- Valhallab <contact@valhallab.com>  @CHANGELOG_DATE@

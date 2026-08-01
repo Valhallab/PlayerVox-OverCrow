@@ -15,9 +15,11 @@ grep -Fq 'Noto Sans Regular' assets/branding/NotoSans-OFL.txt
 grep -Fq 'Noto Sans Black Italic' assets/branding/NotoSans-OFL.txt
 test -x scripts/check-dependency-licenses.sh
 test -x scripts/generate-third-party-notices.sh
+test -x scripts/generate-npm-notices.mjs
 
 sh -n scripts/check-dependency-licenses.sh
 sh -n scripts/generate-third-party-notices.sh
+node --check scripts/generate-npm-notices.mjs
 grep -Fq -- '--target x86_64-unknown-linux-gnu' \
     scripts/generate-third-party-notices.sh
 
@@ -36,6 +38,11 @@ fi
 grep -Fq '"License" shall mean the terms and conditions' "$notices"
 grep -Fqx '# OverCrow third-party software notices' "$notices"
 grep -Fq 'serde ' "$notices"
+grep -Fqx '## JavaScript packages' "$notices"
+grep -Fq '@tauri-apps/api 2.11.1' "$notices"
+grep -Fq 'Copyright (c) 2017 - Present Tauri Apps Contributors' "$notices"
+grep -Fq 'react 19.2.8' "$notices"
+grep -Fq 'Copyright (c) Meta Platforms, Inc. and affiliates.' "$notices"
 if grep -Fq "$project_root" "$notices"; then
     printf '%s\n' 'third-party notices contain the private workspace path' >&2
     exit 1

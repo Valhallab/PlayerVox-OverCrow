@@ -25,7 +25,9 @@ test "$about_version" = 'cargo-about 0.9.1' || {
 }
 
 tmp=$(mktemp "$output_dir/.overcrow-third-party.XXXXXX")
-trap 'rm -f -- "$tmp"' EXIT HUP INT TERM
+npm_tmp=$(mktemp "$output_dir/.overcrow-npm-third-party.XXXXXX")
+npm_tree=$(mktemp "$output_dir/.overcrow-npm-tree.XXXXXX")
+trap 'rm -f -- "$tmp" "$npm_tmp" "$npm_tree"' EXIT HUP INT TERM
 
 cd "$project_root"
 cargo about generate --locked --offline --fail --workspace \
@@ -34,6 +36,16 @@ cargo about generate --locked --offline --fail --workspace \
     --output-file "$tmp" \
     packaging/licenses/third-party.hbs
 test -s "$tmp"
+(
+    cd crates/overcrow-control-ui
+    NO_COLOR=1 npm ls --omit=dev --all --json --long
+) > "$npm_tree"
+rm -f -- "$npm_tmp"
+node scripts/generate-npm-notices.mjs "$npm_tree" "$npm_tmp"
+test -s "$npm_tmp"
+printf '\n' >> "$tmp"
+cat "$npm_tmp" >> "$tmp"
 chmod 0644 "$tmp"
 mv -f -- "$tmp" "$output"
+rm -f -- "$npm_tmp" "$npm_tree"
 trap - EXIT HUP INT TERM

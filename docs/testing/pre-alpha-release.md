@@ -100,23 +100,25 @@ dpkg-deb --contents dist/overcrow_0.1.0~pre.alpha.5-1_amd64.deb
   with the identical DEB.
 - [ ] Removal leaves no runtime process while preserving user settings.
 
-## 5. APT publication
+## 5. Ubuntu PPA publication
 
-After hosted CI passes, publish only with the dedicated archive key:
+After hosted CI passes, build and upload only the signed source package:
 
 ```sh
-./scripts/publish-apt-repository.sh \
-  0.1.0-pre-alpha.5 ABB7C5578C3D802FC90F61B8E782A58B22760A15
-./scripts/publish-apt-repository.sh \
-  0.1.0-pre-alpha.5 ABB7C5578C3D802FC90F61B8E782A58B22760A15 --push
+./scripts/build-ppa-source.sh 2
+dput ppa:valhallab/overcrow \
+  dist/ppa/0.1.0~pre.alpha.5+ppa2-1~noble1/*_source.changes
 ```
 
-- [ ] The public key fingerprint is
-  `ABB7 C557 8C3D 802F C90F 61B8 E782 A58B 2276 0A15`.
-- [ ] Public `InRelease` and `Release.gpg` signatures verify.
-- [ ] Public `Packages.gz`, by-hash index, and DEB checksums match.
-- [ ] A clean Ubuntu 24.04 guest can run `apt update` and
-  `apt install overcrow` from the public source.
+- [ ] The PPA build dependency is `ppa:rust-toolchain/staging` for Noble.
+- [ ] Launchpad accepts the source signed by
+  `6425 BB0D BE79 33E0 86EE 420B 2789 BF4B F0C1 9541`.
+- [ ] Launchpad builds and publishes the AMD64 binary successfully.
+- [ ] The generated binary package has no maintainer hook that enables or
+  starts an OverCrow user service.
+- [ ] A clean Ubuntu 24.04 guest can run
+  `sudo add-apt-repository ppa:valhallab/overcrow` followed by
+  `sudo apt install overcrow`.
 
 ## 6. COPR publication
 

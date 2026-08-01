@@ -65,6 +65,25 @@ jq -e '
     and .app.windows[0].title == "PlayerVox OverCrow"
 ' crates/overcrow-control-ui/src-tauri/tauri.conf.json >/dev/null
 
+npm_notice_dir=$(mktemp -d "${TMPDIR:-/tmp}/overcrow-npm-notices.XXXXXX")
+trap 'rm -rf -- "$npm_notice_dir"' EXIT HUP INT TERM
+(
+    cd crates/overcrow-control-ui
+    NO_COLOR=1 npm ls --omit=dev --all --json --long
+) > "$npm_notice_dir/tree.json"
+scripts/generate-npm-notices.mjs \
+    "$npm_notice_dir/tree.json" "$npm_notice_dir/notices.md"
+grep -Fq '@tauri-apps/api 2.11.1' "$npm_notice_dir/notices.md"
+grep -Fq 'Copyright (c) 2017 - Present Tauri Apps Contributors' \
+    "$npm_notice_dir/notices.md"
+grep -Fq 'react 19.2.8' "$npm_notice_dir/notices.md"
+grep -Fq 'Copyright (c) Meta Platforms, Inc. and affiliates.' \
+    "$npm_notice_dir/notices.md"
+if grep -Fq "$project_root" "$npm_notice_dir/notices.md"; then
+    printf '%s\n' 'npm notices contain the private workspace path' >&2
+    exit 1
+fi
+
 if grep -Fq 'OverCrow by PlayerVox' \
         README.md \
         docs/testing/manual-mvp.md \

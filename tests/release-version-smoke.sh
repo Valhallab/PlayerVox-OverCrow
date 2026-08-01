@@ -37,6 +37,12 @@ test "$(overcrow_deb_upstream_version 0.1.0)" = 0.1.0
 test "$(overcrow_deb_upstream_version "$version")" = '0.1.0~pre.alpha.5'
 test "$(overcrow_deb_package_version 0.1.0)" = '0.1.0-1'
 test "$(overcrow_deb_package_version "$version")" = '0.1.0~pre.alpha.5-1'
+test "$(overcrow_ppa_upstream_version "$version" 12)" = \
+    '0.1.0~pre.alpha.5+ppa12'
+test "$(overcrow_ppa_package_version 0.1.0 1)" = \
+    '0.1.0+ppa1-1~noble1'
+test "$(overcrow_ppa_package_version "$version" 12)" = \
+    '0.1.0~pre.alpha.5+ppa12-1~noble1'
 
 if overcrow_rpm_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
     printf '%s\n' 'RPM normalization accepted an invalid release version' >&2
@@ -50,6 +56,13 @@ if overcrow_deb_package_version '0.1.0-invalid+metadata' >/dev/null 2>&1; then
     printf '%s\n' 'DEB normalization accepted an invalid release version' >&2
     exit 1
 fi
+for invalid_revision in '' 0 01 -1 one '1;touch injected'; do
+    if overcrow_ppa_package_version "$version" "$invalid_revision" \
+            >/dev/null 2>&1; then
+        printf '%s\n' "accepted invalid PPA revision: $invalid_revision" >&2
+        exit 1
+    fi
+done
 test "$(vercmp 0.1.0prealpha5 0.1.0)" -lt 0
 
 grep -Fqx "version = \"$version\"" "$project_root/Cargo.toml"

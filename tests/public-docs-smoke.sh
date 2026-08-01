@@ -17,7 +17,7 @@ test "$readme_lines" -le 265
 
 for heading in \
     '## Compatibility' \
-    '## Quick start' \
+    '## Install' \
     '## Using OverCrow' \
     '## Built-in widgets' \
     '## Safety' \
@@ -30,18 +30,16 @@ done
 
 grep -Fq 'https://github.com/Valhallab/PlayerVox-OverCrow' README.md
 grep -Fq 'yay -S overcrow-bin' README.md
-grep -Fq 'On Fedora 43 or 44' README.md
+grep -Fq '### Fedora 43–44 · COPR + DNF' README.md
 grep -Fq 'dnf copr enable grmpy/playervox-overcrow' README.md
 grep -Fq 'dnf5 copr enable grmpy/playervox-overcrow' README.md
 grep -Fq 'Ubuntu 24.04' README.md
-grep -Fq 'https://valhallab.github.io/PlayerVox-OverCrow/' README.md
-grep -Fq 'playervox-overcrow-archive-keyring.gpg' README.md
-grep -Fq 'ABB7C5578C3D802FC90F61B8E782A58B22760A15' README.md
+grep -Fq 'sudo add-apt-repository ppa:valhallab/overcrow' README.md
 grep -Fq 'sudo apt install overcrow' README.md
 grep -Fq \
     'sudo apt install ./overcrow_0.1.0~pre.alpha.5-1_amd64.deb' \
     README.md
-grep -Fq 'one Ubuntu-baseline DEB' README.md
+grep -Fq 'one Ubuntu 24.04-baseline DEB' README.md
 grep -Fq \
     'https://github.com/Valhallab/PlayerVox-OverCrow/releases/tag/v0.1.0-pre-alpha.5' \
     README.md

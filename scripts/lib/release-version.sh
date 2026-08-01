@@ -71,3 +71,22 @@ overcrow_deb_package_version() {
     deb_upstream_version=$(overcrow_deb_upstream_version "$1") || return 1
     printf '%s-1\n' "$deb_upstream_version"
 }
+
+overcrow_ppa_upstream_version() {
+    test "$#" -eq 2 || return 1
+    deb_upstream_version=$(overcrow_deb_upstream_version "$1") || return 1
+
+    case $2 in
+        0|0[0-9]*|''|*[!0-9]*) return 1 ;;
+    esac
+
+    printf '%s+ppa%s\n' "$deb_upstream_version" "$2"
+}
+
+overcrow_ppa_package_version() {
+    test "$#" -eq 2 || return 1
+    ppa_upstream_version=$(overcrow_ppa_upstream_version "$1" "$2") ||
+        return 1
+
+    printf '%s-1~noble1\n' "$ppa_upstream_version"
+}

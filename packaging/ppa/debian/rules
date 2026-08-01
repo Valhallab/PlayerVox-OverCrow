@@ -1,0 +1,48 @@
+#!/usr/bin/make -f
+
+export LC_ALL = C.UTF-8
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+export CARGO_NET_OFFLINE = true
+export CARGO_TARGET_DIR = $(CURDIR)/target
+export RUSTC = /usr/bin/rustc-1.92
+export RUSTFLAGS = --remap-path-prefix=$(CURDIR)=/usr/src/overcrow
+
+CARGO = /usr/bin/cargo-1.92
+STAGE = $(CURDIR)/debian/overcrow-stage
+NOTICES = $(CURDIR)/debian/THIRD_PARTY_LICENSES.md
+
+%:
+	dh $@ --buildsystem=none
+
+override_dh_auto_build:
+	test -s crates/overcrow-control-ui/dist/index.html
+	test -s $(NOTICES)
+	$(CARGO) build --workspace --release --locked --offline
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	rm -rf $(STAGE) $(CURDIR)/debian/overcrow
+	$(CURDIR)/packaging/release/stage.sh $(STAGE) $(NOTICES)
+	cd $(STAGE) && find usr -type f -print | LC_ALL=C sort > $(CURDIR)/debian/staged-manifest.txt
+	cmp $(CURDIR)/packaging/release/manifest.txt $(CURDIR)/debian/staged-manifest.txt
+	install -d -m 0755 $(CURDIR)/debian/overcrow
+	mv $(STAGE)/usr $(CURDIR)/debian/overcrow/usr
+	install -d -m 0755 $(CURDIR)/debian/overcrow/usr/share/doc/overcrow
+	install -m 0644 $(CURDIR)/debian/copyright $(CURDIR)/debian/overcrow/usr/share/doc/overcrow/copyright
+	rm -rf $(STAGE) $(CURDIR)/debian/staged-manifest.txt
+
+override_dh_strip:
+
+override_dh_dwz:
+
+# Runtime lifecycle remains owned by the Control Center.
+override_dh_installsystemduser:
+	:
+
+override_dh_auto_clean:
+	rm -rf $(CURDIR)/target $(STAGE) $(CURDIR)/debian/overcrow \
+		$(CURDIR)/debian/cargo-home $(CURDIR)/debian/staged-manifest.txt
+
+override_dh_clean:
+	dh_clean -Xvendor/

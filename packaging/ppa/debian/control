@@ -1,0 +1,54 @@
+Source: overcrow
+Section: games
+Priority: optional
+Maintainer: Valhallab <contact@valhallab.com>
+Rules-Requires-Root: no
+Standards-Version: 4.7.4
+Homepage: https://overcrow.playervox.com
+Vcs-Git: https://github.com/Valhallab/PlayerVox-OverCrow.git
+Vcs-Browser: https://github.com/Valhallab/PlayerVox-OverCrow
+Build-Depends:
+ debhelper-compat (= 13),
+ binutils,
+ cargo-1.92,
+ fontconfig,
+ libayatana-appindicator3-dev,
+ libdbus-1-dev,
+ libgl1-mesa-dev,
+ librsvg2-dev,
+ libssl-dev,
+ libwayland-dev,
+ libwebkit2gtk-4.1-dev,
+ libx11-dev,
+ libx11-xcb-dev,
+ libxcb1-dev,
+ libxkbcommon-dev,
+ pkg-config,
+ rustc-1.92
+
+Package: overcrow
+Architecture: amd64
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ dbus-user-session,
+ libayatana-appindicator3-1,
+ libegl1,
+ libgl1,
+ libwayland-client0,
+ libwayland-egl1,
+ libx11-6,
+ libx11-xcb1,
+ libxcb1,
+ libxcursor1,
+ libxi6,
+ libxkbcommon0,
+ libxkbcommon-x11-0,
+ systemd,
+ xdg-desktop-portal,
+ xdg-utils
+Suggests: gnome-shell
+Description: Opt-in external Linux game overlay by PlayerVox
+ PlayerVox OverCrow provides movable widgets without injecting code into
+ game processes. It remains disabled until the user selects a game and starts
+ the runtime from the Control Center.

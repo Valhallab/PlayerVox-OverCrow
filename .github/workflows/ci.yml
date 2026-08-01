@@ -87,6 +87,7 @@ jobs:
           node --test tests/gnome-bridge.test.js
           tests/qjsvalue-variant-smoke.sh
           tests/apt-repository-smoke.sh
+          tests/ppa-source-package-smoke.sh
           tests/aur-package-smoke.sh
           tests/deb-package-smoke.sh
           tests/public-docs-smoke.sh
