@@ -27,7 +27,7 @@ impl WidgetManager {
     }
 
     pub fn clear_runtime_geometry(&mut self) {
-        self.measured_sizes = [[egui::Vec2::ZERO; 12]; 2];
+        self.measured_sizes = [[egui::Vec2::ZERO; WidgetId::COUNT]; 2];
         self.runtime_anchors.fill(None);
         self.resize = None;
     }

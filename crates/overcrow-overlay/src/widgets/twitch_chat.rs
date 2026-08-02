@@ -16,6 +16,7 @@ use overcrow_protocol::OverlayMode;
 
 use crate::{
     branding::{UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY},
+    icons::{AppIcon, paint_icon_at},
     twitch::{
         emotes::TwitchEmotes,
         model::{
@@ -39,8 +40,6 @@ use super::{
 const PASSIVE_VISIBLE_MAX: usize = 12;
 const INLINE_REPLY_CONTROL_SIZE: f32 = 18.0;
 const INLINE_EMOTE_BASE_HEIGHT: f32 = 20.0;
-/// Favorite star (filled). Use a plain glyph; avoid exotic icons that render as tofu.
-const FAVORITE_STAR_ON: &str = "★";
 const FAVORITE_STAR_YELLOW: Color32 = Color32::from_rgb(255, 200, 60);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -433,7 +432,7 @@ pub(super) fn paint_favorite_indicator(ui: &mut egui::Ui, prefs: &TwitchPrefs) {
     };
     if prefs.favorites.iter().any(|item| item == channel) {
         let response = ui.label(
-            egui::RichText::new(FAVORITE_STAR_ON)
+            egui::RichText::new(AppIcon::Star.glyph())
                 .size(super::chrome::scaled_content_font_size(ui, 14.0))
                 .color(FAVORITE_STAR_YELLOW),
         );
@@ -560,7 +559,7 @@ fn paint_current_channel_favorite_control(
     let is_favorite = prefs.favorites.iter().any(|item| item == channel);
     let can_toggle = is_favorite || prefs.favorites.len() < TWITCH_FAVORITES_MAX;
     let label = if is_favorite {
-        format!("★ #{channel}")
+        format!("{} #{channel}", AppIcon::Star.glyph())
     } else {
         format!("Favorite #{channel}")
     };
@@ -895,43 +894,11 @@ fn paint_reply_action(ui: &egui::Ui, response: &egui::Response, alpha: f32) {
     } else {
         TEXT_MUTED.gamma_multiply(0.68 * alpha)
     };
-    paint_reply_icon(ui.painter(), response.rect.shrink(3.0), color);
-}
-
-fn paint_reply_icon(painter: &egui::Painter, rect: egui::Rect, color: Color32) {
-    let stroke = egui::Stroke::new(1.35, color);
-    let center = rect.center();
-    let tip = egui::pos2(rect.left(), center.y);
-    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
-        [
-            egui::pos2(rect.right(), rect.bottom()),
-            egui::pos2(rect.right(), center.y),
-            egui::pos2(rect.right() - rect.width() * 0.2, center.y),
-            tip,
-        ],
-        false,
-        Color32::TRANSPARENT,
-        stroke,
-    ));
-    painter.line_segment(
-        [
-            tip,
-            egui::pos2(
-                rect.left() + rect.width() * 0.34,
-                rect.top() + rect.height() * 0.18,
-            ),
-        ],
-        stroke,
-    );
-    painter.line_segment(
-        [
-            tip,
-            egui::pos2(
-                rect.left() + rect.width() * 0.34,
-                rect.bottom() - rect.height() * 0.18,
-            ),
-        ],
-        stroke,
+    paint_icon_at(
+        ui.painter(),
+        response.rect.shrink(1.5),
+        AppIcon::Reply,
+        color,
     );
 }
 

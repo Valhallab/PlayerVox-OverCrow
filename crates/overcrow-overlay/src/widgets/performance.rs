@@ -5,16 +5,14 @@ use overcrow_config::PerformanceLayout;
 use overcrow_protocol::GameTelemetry;
 
 use super::chrome::{
-    MetricContentLayout, ResizeGripOutcome, apply_scale, metric_tile_layout_sized_scaled,
-    resize_grip,
+    BODY_SIZE, ResizeGripOutcome, apply_scale, eyebrow_text, resize_grip, value_text,
 };
 
 const GIBIBYTE: f64 = (1024_u64 * 1024 * 1024) as f64;
 const PANEL_HORIZONTAL_MARGIN: f32 = 36.0;
-const TILE_HORIZONTAL_MARGIN: f32 = 24.0;
-const FOUR_COLUMN_MIN_SAFE_WIDTH: f32 = 560.0;
 const PERFORMANCE_WIDTH_DEFAULT: f32 = 580.0;
-const PERFORMANCE_WIDTH_MIN: f32 = 300.0;
+const PERFORMANCE_HORIZONTAL_WIDTH_MIN: f32 = 300.0;
+const PERFORMANCE_VERTICAL_WIDTH_MIN: f32 = 180.0;
 const PERFORMANCE_WIDTH_MAX: f32 = 900.0;
 static LOGICAL_PROCESSORS: LazyLock<NonZeroUsize> =
     LazyLock::new(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN));
@@ -109,54 +107,47 @@ pub fn paint_performance(
             let frame = super::chrome::compact_panel_frame(transparent_background).show(ui, |ui| {
                 let inner_width =
                     (panel_width - frame_width_budget(transparent_background)).max(1.0);
-                let tile_horizontal_budget =
-                    frame_budget(TILE_HORIZONTAL_MARGIN, transparent_background);
                 ui.set_width(inner_width);
-                let paint_metric =
-                    |ui: &mut egui::Ui, label: &str, value: &str, content_width: f32| {
-                        metric_tile_layout_sized_scaled(
-                            ui,
-                            label,
-                            value,
-                            transparent_background,
-                            match layout {
-                                PerformanceLayout::Horizontal => MetricContentLayout::Stacked,
-                                PerformanceLayout::Vertical => MetricContentLayout::Inline,
-                            },
-                            Some(content_width),
-                            scale,
-                        );
-                    };
                 match layout {
                     PerformanceLayout::Horizontal => {
-                        let columns = performance_columns(panel_width);
-                        let gaps = ui.spacing().item_spacing.x * (columns - 1) as f32;
-                        let tile_width = ((inner_width - gaps) / columns as f32).max(1.0);
-                        let content_width = (tile_width - tile_horizontal_budget).max(1.0);
-                        for row in metrics.chunks(columns) {
-                            ui.horizontal(|ui| {
-                                for (label, value) in row {
-                                    paint_metric(ui, label, value, content_width);
-                                }
-                            });
-                        }
+                        ui.columns(metrics.len(), |columns| {
+                            for (column, (label, value)) in columns.iter_mut().zip(metrics) {
+                                performance_metric_frame().show(column, |ui| {
+                                    ui.vertical_centered(|ui| {
+                                        ui.spacing_mut().item_spacing.y = 2.0 * scale;
+                                        ui.label(eyebrow_text(label).size(10.0 * scale));
+                                        ui.label(value_text(value, (BODY_SIZE + 1.0) * scale));
+                                    });
+                                });
+                            }
+                        });
                     }
                     PerformanceLayout::Vertical => {
                         ui.vertical(|ui| {
-                            let content_width =
-                                (inner_width - tile_horizontal_budget).clamp(1.0, 220.0);
-                            for (label, value) in metrics {
-                                paint_metric(ui, label, value, content_width);
+                            for (index, (label, value)) in metrics.into_iter().enumerate() {
+                                if index > 0 {
+                                    ui.separator();
+                                }
+                                performance_metric_frame().show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(eyebrow_text(label).size(10.0 * scale));
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                ui.label(value_text(
+                                                    value,
+                                                    (BODY_SIZE + 1.0) * scale,
+                                                ));
+                                            },
+                                        );
+                                    });
+                                });
                             }
                         });
                     }
                 }
             });
-            resize = resize_grip(
-                ui,
-                frame.response.rect,
-                interactive && layout == PerformanceLayout::Horizontal,
-            );
+            resize = resize_grip(ui, frame.response.rect, interactive);
         });
 
     PerformanceResponse {
@@ -172,6 +163,10 @@ fn frame_width_budget(transparent_background: bool) -> f32 {
     frame_budget(PANEL_HORIZONTAL_MARGIN, transparent_background)
 }
 
+pub(super) fn performance_metric_frame() -> egui::Frame {
+    egui::Frame::new()
+}
+
 fn frame_budget(margin: f32, transparent_background: bool) -> f32 {
     margin + if transparent_background { 0.0 } else { 2.0 }
 }
@@ -181,19 +176,21 @@ fn performance_panel_width(
     preferred_width: f32,
     safe_width: f32,
 ) -> f32 {
-    let requested = match layout {
-        PerformanceLayout::Horizontal if preferred_width > 0.0 => preferred_width,
-        PerformanceLayout::Horizontal => PERFORMANCE_WIDTH_DEFAULT,
-        PerformanceLayout::Vertical => PERFORMANCE_WIDTH_MIN,
+    let requested = if preferred_width > 0.0 {
+        preferred_width
+    } else {
+        match layout {
+            PerformanceLayout::Horizontal => PERFORMANCE_WIDTH_DEFAULT,
+            PerformanceLayout::Vertical => PERFORMANCE_VERTICAL_WIDTH_MIN,
+        }
     };
     let maximum = PERFORMANCE_WIDTH_MAX.min(safe_width).max(1.0);
-    requested.clamp(PERFORMANCE_WIDTH_MIN.min(maximum), maximum)
+    requested.clamp(performance_panel_min_width(layout).min(maximum), maximum)
 }
 
-pub(super) fn performance_columns(panel_width: f32) -> usize {
-    if panel_width >= FOUR_COLUMN_MIN_SAFE_WIDTH {
-        4
-    } else {
-        2
+pub(super) const fn performance_panel_min_width(layout: PerformanceLayout) -> f32 {
+    match layout {
+        PerformanceLayout::Horizontal => PERFORMANCE_HORIZONTAL_WIDTH_MIN,
+        PerformanceLayout::Vertical => PERFORMANCE_VERTICAL_WIDTH_MIN,
     }
 }

@@ -116,14 +116,22 @@ remain usable after resizing. Stable IDs and stored keys are treated as public
 compatibility contracts.
 
 The renderer maintains separate transient size measurements for Interactive
-and Passive modes. Interactive resize changes the persisted panel size;
-Passive content-fit measurements affect placement only and never overwrite
-saved geometry.
+and Passive modes. Interactive resize changes the persisted panel size for
+widgets that expose a resize grip; Passive content-fit measurements affect
+placement only and never overwrite saved geometry. Discord voice is always
+content-sized and uses the same compact dimensions in both modes so alignment
+changes and mode transitions preserve its visible top-left anchor.
 
 Twitch OAuth credentials are not stored in these files. They use one versioned
 desktop Secret Service entry. If Secret Service is unavailable, the active
 credentials stay only in zeroizing process memory and the user must reconnect
 after restart. Twitch messages, drafts, and replies are never persisted.
+
+Discord OAuth credentials use an independent versioned Secret Service entry
+with the same fail-safe memory-only fallback. The provider does not access that
+entry until lifecycle, authorized-game, and enabled-widget gates are all open.
+Authorization codes, tokens, voice channels, participants, speaking state, and
+avatars never enter the widget profile or another user file.
 
 ## External providers
 
@@ -160,6 +168,43 @@ Losing active-game authority closes the chat connection; disabling the widget,
 switching channel, signing out, or stopping the renderer also clears the
 relevant transient private state. Passive presentation remains read-only and
 click-through.
+
+The Discord voice worker remains inert until lifecycle, active-game, and
+widget gates are all open. It uses Discord's native Linux Unix-socket RPC
+transport and checks only the documented `discord-ipc-0` through
+`discord-ipc-9` names under bounded absolute runtime roots. Candidate endpoints
+must be same-user Unix sockets; framed payloads and opcodes are validated before
+JSON parsing. OverCrow asks for only `identify` and `rpc`. RPC payloads, fields,
+participants, commands, queues, operations, reconnects, and shutdown paths are
+bounded. Snapshots coalesce to the newest state, and malformed provider events
+never reach egui.
+
+A focus-only suspension and a transient reconnect close the live RPC session
+but may retain the last bounded channel snapshot in memory. The widget labels
+that stale presentation **Resynchronizing…** until a fresh snapshot arrives.
+Repeated connection attempts remain event-driven and bounded; disabling the
+widget, losing lifecycle authority, signing out, or stopping the renderer
+clears the retained channel and avatar references.
+
+The five voice/speaking subscriptions have exactly one channel owner. A channel
+switch unsubscribes the previous channel and consumes the matching
+acknowledgements before subscribing to the replacement, so queued old-channel
+events cannot mutate the new snapshot.
+
+The native binary contains only the public Discord Client ID. The local RPC
+authorization code is exchanged through three fixed PlayerVox HTTPS broker
+routes. The broker owns the Client Secret, follows no redirects, stores no
+account or token, normalizes errors, and limits request/response sizes and
+callers. Access and refresh tokens are zeroized in process memory and persisted
+only through Secret Service. One refresh is attempted after an authentication
+rejection; a second invalid-token response clears credentials rather than
+rotating forever. Sign-out remains visibly retryable if Secret Service cannot
+confirm deletion.
+
+Participant avatar URLs use only the exact Discord CDN host and validated
+Discord IDs/hashes. Redirects and credentials are disabled; encoded bytes,
+decoded dimensions, queues, pending work, and the memory-only LRU texture cache
+have fixed limits. Missing or rejected images fall back to initials.
 
 The native Control Center reads recent diagnostics through the hardened
 private log reader. It returns at most the newest 500 sanitized lines and

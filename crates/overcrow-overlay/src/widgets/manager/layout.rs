@@ -170,13 +170,14 @@ impl WidgetManager {
             return false;
         }
 
+        let min_w = panel_min_width(id, profile);
         if self.resize.is_none() {
             let configured = self.panel_size(id, mode, profile);
             let size = eframe::egui::vec2(
                 if configured.x > 1.0 {
-                    configured.x
+                    configured.x.max(min_w)
                 } else {
-                    rendered_size.x
+                    rendered_size.x.max(min_w)
                 },
                 if configured.y > 1.0 {
                     configured.y
@@ -192,7 +193,6 @@ impl WidgetManager {
             });
         }
         if let Some(session) = self.resize.as_mut().filter(|session| session.id == id) {
-            let min_w = panel_min_width(id);
             let mut delta = clamp_delta_at_limits(session.size, grip.drag_delta, min_w);
             if matches!(axis, ResizeAxis::Horizontal) {
                 delta.y = 0.0;
@@ -385,9 +385,11 @@ fn pointer_near_resize_grip(ui: &egui::Ui, top_left: Pos2, panel_size: Vec2) -> 
     Rect::from_min_max(grip.min - Vec2::splat(8.0), grip.max + Vec2::splat(6.0)).contains(pointer)
 }
 
-fn panel_min_width(id: WidgetId) -> f32 {
+fn panel_min_width(id: WidgetId, profile: &WidgetProfile) -> f32 {
     match id {
-        WidgetId::Performance => 300.0,
+        WidgetId::Performance => crate::widgets::performance::performance_panel_min_width(
+            profile.performance_display.layout,
+        ),
         WidgetId::WarframeFissures => crate::widgets::chrome::FISSURE_PANEL_MIN_WIDTH,
         _ => WIDGET_PANEL_MIN,
     }
@@ -442,5 +444,6 @@ pub(super) fn widget_index(id: WidgetId) -> usize {
         WidgetId::WarframeSortie => 9,
         WidgetId::WarframeInvasions => 10,
         WidgetId::TwitchChat => 11,
+        WidgetId::DiscordVoice => 12,
     }
 }

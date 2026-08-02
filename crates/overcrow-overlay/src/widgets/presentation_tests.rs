@@ -6,17 +6,17 @@ use overcrow_config::PerformanceLayout;
 use overcrow_protocol::{GameTelemetry, OverlayMode};
 
 use crate::branding::install_fonts;
+use crate::icons::AppIcon;
 use crate::media::MediaSnapshot;
 
 use super::{
-    ClockPresentation, PerformancePresentation,
+    ClockPresentation, PerformancePresentation, WidgetGlyph,
     chrome::{
         ACCENT, BACKGROUND, CONTROL_HEIGHT, ControlIcon, PANEL_FILL, PANEL_FILL_COMPACT,
         PANEL_STROKE, ResizeGripOutcome, SURFACE_RAISED, TEXT_MUTED, TEXT_PRIMARY, ToolbarIcon,
         compact_panel_frame, content_font_size, elevated_frame, icon_button, install_theme,
         panel_frame, primary_button, resize_grip, singleline_text_edit, standard_button,
-        status_pill, tab_button, toolbar_icon_button, widget_toolbar_hover_rect,
-        widget_toolbar_rect,
+        status_pill, tab_button, widget_toolbar_hover_rect, widget_toolbar_rect,
     },
 };
 
@@ -306,25 +306,30 @@ fn widget_toolbar_hover_region_bridges_the_floating_gap() {
 }
 
 #[test]
-fn passive_toolbar_control_uses_a_curved_eye_outline() {
-    let context = egui::Context::default();
-    let output = context.run_ui(RawInput::default(), |ui| {
-        toolbar_icon_button(ui, ToolbarIcon::PassiveVisible, "Hide in passive mode");
-    });
-    let longest_path = output
-        .shapes
-        .iter()
-        .filter_map(|shape| match &shape.shape {
-            egui::Shape::Path(path) => Some(path.points.len()),
-            _ => None,
-        })
-        .max()
-        .unwrap_or_default();
-
-    assert!(
-        longest_path >= 10,
-        "eye outline is still a polygonal placeholder: {longest_path} points"
+fn generic_icon_enums_map_to_the_shared_phosphor_set() {
+    assert_eq!(
+        ToolbarIcon::PassiveVisible.app_icon(),
+        AppIcon::PassiveVisible
     );
+    assert_eq!(
+        ToolbarIcon::PassiveHidden.app_icon(),
+        AppIcon::PassiveHidden
+    );
+    assert_eq!(ToolbarIcon::Options.app_icon(), AppIcon::Options);
+    assert_eq!(ToolbarIcon::Disable.app_icon(), AppIcon::Close);
+    assert_eq!(ControlIcon::Add.app_icon(), AppIcon::Add);
+    assert_eq!(ControlIcon::Previous.app_icon(), AppIcon::MediaPrevious);
+    assert_eq!(ControlIcon::Play.app_icon(), AppIcon::MediaPlay);
+    assert_eq!(ControlIcon::Pause.app_icon(), AppIcon::MediaPause);
+    assert_eq!(ControlIcon::Next.app_icon(), AppIcon::MediaNext);
+    assert_eq!(ControlIcon::Remove.app_icon(), AppIcon::Close);
+    assert_eq!(WidgetGlyph::Discord.app_icon(), AppIcon::Discord);
+    assert_eq!(WidgetGlyph::Twitch.app_icon(), AppIcon::Twitch);
+    assert_eq!(WidgetGlyph::Warframe.app_icon(), AppIcon::WarframeStatus);
+    assert_eq!(WidgetGlyph::Fissures.app_icon(), AppIcon::Fissures);
+    assert_eq!(WidgetGlyph::Market.app_icon(), AppIcon::Market);
+    assert_eq!(WidgetGlyph::Missions.app_icon(), AppIcon::Missions);
+    assert_eq!(WidgetGlyph::Invasions.app_icon(), AppIcon::Invasions);
 }
 
 #[test]
@@ -555,6 +560,54 @@ fn transparent_performance_widget_omits_dark_panel_surfaces() {
     assert!(!fills.contains(&SURFACE_RAISED));
 }
 
+#[test]
+fn performance_metrics_use_unboxed_chrome() {
+    let frame = super::performance::performance_metric_frame();
+
+    assert_eq!(frame.fill, egui::Color32::TRANSPARENT);
+    assert_eq!(frame.stroke, egui::Stroke::NONE);
+    assert_eq!(frame.inner_margin, egui::Margin::ZERO);
+}
+
+#[test]
+fn both_performance_layouts_expose_the_resize_grip() {
+    for layout in [PerformanceLayout::Horizontal, PerformanceLayout::Vertical] {
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        install_fonts(&context);
+        install_theme(&context);
+        let output = context.run_ui(
+            RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+                ..RawInput::default()
+            },
+            |ui| {
+                super::performance::paint_performance(
+                    ui,
+                    pos2(24.0, 24.0),
+                    Some(telemetry(12_345, 3 * 1024 * 1024 * 1024)),
+                    layout,
+                    1.0,
+                    580.0,
+                    false,
+                    false,
+                    true,
+                    24.0,
+                );
+            },
+        );
+        let has_resize_grip = output
+            .platform_output
+            .accesskit_update
+            .expect("accessibility tree")
+            .nodes
+            .iter()
+            .any(|(_, node)| node.label() == Some("Resize widget"));
+
+        assert!(has_resize_grip, "missing resize grip for {layout:?}");
+    }
+}
+
 fn telemetry(cpu_percent_hundredths: u32, resident_bytes: u64) -> GameTelemetry {
     GameTelemetry {
         cpu_percent_hundredths: Some(cpu_percent_hundredths),
@@ -702,14 +755,6 @@ fn performance_layout_is_one_full_row_or_one_full_column() {
 }
 
 #[test]
-fn horizontal_performance_uses_two_columns_only_below_the_safe_width() {
-    assert_eq!(super::performance::performance_columns(300.0), 2);
-    assert_eq!(super::performance::performance_columns(559.0), 2);
-    assert_eq!(super::performance::performance_columns(560.0), 4);
-    assert_eq!(super::performance::performance_columns(900.0), 4);
-}
-
-#[test]
 fn performance_layouts_fit_narrow_and_medium_viewports() {
     const MARGIN: f32 = 24.0;
 
@@ -752,38 +797,71 @@ fn performance_layouts_fit_narrow_and_medium_viewports() {
 
 #[test]
 fn resizable_performance_width_matches_the_requested_outer_width() {
-    for transparent_background in [true, false] {
-        let context = egui::Context::default();
-        install_fonts(&context);
-        install_theme(&context);
-        let mut size = egui::Vec2::ZERO;
-        let _ = context.run_ui(
-            RawInput {
-                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0))),
-                ..RawInput::default()
-            },
-            |ui| {
-                size = super::performance::paint_performance(
-                    ui,
-                    pos2(24.0, 24.0),
-                    Some(telemetry(12_345, 3 * 1024 * 1024 * 1024)),
-                    PerformanceLayout::Horizontal,
-                    1.0,
-                    600.0,
-                    transparent_background,
-                    false,
-                    true,
-                    24.0,
-                )
-                .size;
-            },
-        );
+    for layout in [PerformanceLayout::Horizontal, PerformanceLayout::Vertical] {
+        for transparent_background in [true, false] {
+            let context = egui::Context::default();
+            install_fonts(&context);
+            install_theme(&context);
+            let mut size = egui::Vec2::ZERO;
+            let _ = context.run_ui(
+                RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0))),
+                    ..RawInput::default()
+                },
+                |ui| {
+                    size = super::performance::paint_performance(
+                        ui,
+                        pos2(24.0, 24.0),
+                        Some(telemetry(12_345, 3 * 1024 * 1024 * 1024)),
+                        layout,
+                        1.0,
+                        600.0,
+                        transparent_background,
+                        false,
+                        true,
+                        24.0,
+                    )
+                    .size;
+                },
+            );
 
-        assert_eq!(
-            size.x, 600.0,
-            "transparent={transparent_background}: {size:?}"
-        );
+            assert_eq!(
+                size.x, 600.0,
+                "{layout:?} transparent={transparent_background}: {size:?}"
+            );
+        }
     }
+}
+
+#[test]
+fn vertical_performance_accepts_a_compact_requested_width() {
+    let context = egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    let mut size = egui::Vec2::ZERO;
+    let _ = context.run_ui(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+            ..RawInput::default()
+        },
+        |ui| {
+            size = super::performance::paint_performance(
+                ui,
+                pos2(24.0, 24.0),
+                Some(telemetry(12_345, 3 * 1024 * 1024 * 1024)),
+                PerformanceLayout::Vertical,
+                1.0,
+                180.0,
+                false,
+                false,
+                true,
+                24.0,
+            )
+            .size;
+        },
+    );
+
+    assert_eq!(size.x, 180.0, "{size:?}");
 }
 
 #[test]

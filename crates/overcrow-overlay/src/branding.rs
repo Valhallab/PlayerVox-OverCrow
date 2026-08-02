@@ -219,6 +219,7 @@ pub fn install_fonts(ctx: &egui::Context) {
     if let Some(proportional) = fonts.families.get_mut(&FontFamily::Proportional) {
         proportional.insert(0, UI_REGULAR_FAMILY.to_owned());
     }
+    crate::icons::add_to_fonts(&mut fonts);
     ctx.set_fonts(fonts);
 }
 

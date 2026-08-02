@@ -1,3 +1,5 @@
+import { Download } from 'lucide-react';
+
 import { en } from '../i18n/en';
 import type { ControlUpdateState } from '../lib/control';
 
@@ -48,10 +50,7 @@ export function UpdatePanel({
       aria-live="polite"
     >
       <div className="update-panel__mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
-          <path d="M5 19h14" />
-        </svg>
+        <Download />
       </div>
       <div className="update-panel__copy">
         <div className="eyebrow">{en.updates.eyebrow}</div>

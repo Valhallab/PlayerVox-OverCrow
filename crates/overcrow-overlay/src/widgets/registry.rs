@@ -1,5 +1,7 @@
 use overcrow_config::WidgetId;
 
+use crate::icons::AppIcon;
+
 #[cfg(test)]
 mod tests {
     use overcrow_config::WidgetId;
@@ -28,6 +30,7 @@ mod tests {
                 WidgetId::Media,
                 WidgetId::Notes,
                 WidgetId::TwitchChat,
+                WidgetId::DiscordVoice,
             ]
         );
 
@@ -115,6 +118,7 @@ pub enum WidgetGlyph {
     Media,
     Notes,
     Twitch,
+    Discord,
     Warframe,
     Fissures,
     Market,
@@ -122,7 +126,27 @@ pub enum WidgetGlyph {
     Invasions,
 }
 
-pub const BUILTIN_WIDGETS: [WidgetDescriptor; 12] = [
+impl WidgetGlyph {
+    pub(super) const fn app_icon(self) -> AppIcon {
+        match self {
+            Self::Session => AppIcon::Session,
+            Self::Clock => AppIcon::Clock,
+            Self::Performance => AppIcon::Performance,
+            Self::Stopwatch => AppIcon::Stopwatch,
+            Self::Media => AppIcon::MediaPlay,
+            Self::Notes => AppIcon::Notes,
+            Self::Twitch => AppIcon::Twitch,
+            Self::Discord => AppIcon::Discord,
+            Self::Warframe => AppIcon::WarframeStatus,
+            Self::Fissures => AppIcon::Fissures,
+            Self::Market => AppIcon::Market,
+            Self::Missions => AppIcon::Missions,
+            Self::Invasions => AppIcon::Invasions,
+        }
+    }
+}
+
+pub const BUILTIN_WIDGETS: [WidgetDescriptor; WidgetId::COUNT] = [
     WidgetDescriptor {
         id: WidgetId::Session,
         name: "Session",
@@ -171,6 +195,13 @@ pub const BUILTIN_WIDGETS: [WidgetDescriptor; 12] = [
         description: "Read and send messages in a selected public Twitch chat.",
         category: WidgetCategory::General,
         glyph: WidgetGlyph::Twitch,
+    },
+    WidgetDescriptor {
+        id: WidgetId::DiscordVoice,
+        name: "Discord voice",
+        description: "See who is present and speaking in Discord voice.",
+        category: WidgetCategory::General,
+        glyph: WidgetGlyph::Discord,
     },
     WidgetDescriptor {
         id: WidgetId::WarframeStatus,

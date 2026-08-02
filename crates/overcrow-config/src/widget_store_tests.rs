@@ -20,8 +20,9 @@ use tempfile::NamedTempFile;
 
 use super::{AtomicWriter, FileAtomicWriter, WIDGET_MAX_BYTES, WidgetSettingsStore, widget_paths};
 use crate::{
-    ClockDisplaySettings, NotesDisplaySettings, PerformanceDisplaySettings, PerformanceLayout,
-    WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile, WidgetProfileError,
+    ClockDisplaySettings, DiscordVoiceAlignment, DiscordVoiceDisplaySettings, NotesDisplaySettings,
+    PerformanceDisplaySettings, PerformanceLayout, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition,
+    WidgetProfile, WidgetProfileError,
 };
 
 fn profile_json() -> Value {
@@ -45,6 +46,7 @@ fn widget_ids_are_the_exact_stable_catalog() {
             WidgetId::WarframeSortie,
             WidgetId::WarframeInvasions,
             WidgetId::TwitchChat,
+            WidgetId::DiscordVoice,
         ]
     );
 }
@@ -73,6 +75,16 @@ fn defaults_keep_only_the_existing_session_widget_enabled() {
     assert!(profile.warframe_sortie.show_in_passive);
     assert!(profile.warframe_invasions.show_in_passive);
     assert!(!profile.twitch_chat.show_in_passive);
+    assert!(profile.discord_voice.show_in_passive);
+    assert_eq!(
+        profile.discord_voice_display,
+        DiscordVoiceDisplaySettings::default()
+    );
+    assert_eq!(
+        profile.discord_voice_display.alignment,
+        DiscordVoiceAlignment::Left
+    );
+    assert_eq!(WidgetId::DiscordVoice.default_panel_size(), (280.0, 160.0));
     assert_eq!(profile.notes_display, NotesDisplaySettings::default());
     assert_eq!(
         profile.clock_display,
@@ -94,6 +106,10 @@ fn missing_common_display_settings_load_with_backward_compatible_defaults() {
         .as_object_mut()
         .unwrap()
         .remove("performance_display");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("discord_voice_display");
 
     let profile: WidgetProfile = serde_json::from_value(legacy).unwrap();
 
@@ -101,6 +117,10 @@ fn missing_common_display_settings_load_with_backward_compatible_defaults() {
     assert_eq!(
         profile.performance_display,
         PerformanceDisplaySettings::default()
+    );
+    assert_eq!(
+        profile.discord_voice_display,
+        DiscordVoiceDisplaySettings::default()
     );
 }
 
@@ -110,6 +130,10 @@ fn common_display_settings_round_trip() {
         clock_display: ClockDisplaySettings { show_date: false },
         performance_display: PerformanceDisplaySettings {
             layout: PerformanceLayout::Vertical,
+        },
+        discord_voice_display: DiscordVoiceDisplaySettings {
+            participant_limit: 12,
+            alignment: DiscordVoiceAlignment::Right,
         },
         ..WidgetProfile::default()
     };
@@ -170,6 +194,25 @@ fn schema_v2_profile_loads_with_disabled_twitch_defaults() {
 }
 
 #[test]
+fn profile_without_discord_fields_loads_with_disabled_safe_defaults() {
+    let mut legacy = profile_json();
+    legacy.as_object_mut().unwrap().remove("discord_voice");
+    legacy
+        .as_object_mut()
+        .unwrap()
+        .remove("discord_voice_display");
+
+    let profile: WidgetProfile = serde_json::from_value(legacy).unwrap();
+
+    assert!(!profile.discord_voice.enabled);
+    assert!(profile.discord_voice.show_in_passive);
+    assert_eq!(
+        profile.discord_voice_display,
+        DiscordVoiceDisplaySettings::default()
+    );
+}
+
+#[test]
 fn widget_defaults_are_stable_and_pairwise_distinct() {
     let profile = WidgetProfile::default();
     let expected = [
@@ -191,6 +234,7 @@ fn widget_defaults_are_stable_and_pairwise_distinct() {
             WidgetPosition { x: 1.0, y: 0.72 },
         ),
         (WidgetId::TwitchChat, WidgetPosition { x: 1.0, y: 0.28 }),
+        (WidgetId::DiscordVoice, WidgetPosition { x: 0.0, y: 0.28 }),
     ];
 
     for (index, (id, position)) in expected.into_iter().enumerate() {
@@ -359,6 +403,42 @@ fn inclusive_normalized_position_bounds_are_valid() {
     profile.session.position = WidgetPosition { x: 0.0, y: 1.0 };
 
     assert_eq!(profile.clone().validate(), Ok(profile));
+}
+
+#[test]
+fn discord_display_settings_reject_out_of_range_values() {
+    for participant_limit in [0, 1, 17, u8::MAX] {
+        let profile = WidgetProfile {
+            discord_voice_display: DiscordVoiceDisplaySettings {
+                participant_limit,
+                ..DiscordVoiceDisplaySettings::default()
+            },
+            ..WidgetProfile::default()
+        };
+        assert_eq!(
+            profile.validate(),
+            Err(WidgetProfileError::InvalidDiscordParticipantLimit)
+        );
+    }
+}
+
+#[test]
+fn legacy_discord_avatar_size_is_read_but_not_written_again() {
+    let mut encoded = serde_json::to_value(WidgetProfile::default()).unwrap();
+    let display = encoded
+        .get_mut("discord_voice_display")
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap();
+    display.insert("avatar_size".to_owned(), serde_json::json!(48));
+
+    let profile: WidgetProfile = serde_json::from_value(encoded).unwrap();
+    assert_eq!(
+        profile.discord_voice_display.alignment,
+        DiscordVoiceAlignment::Left
+    );
+
+    let saved = serde_json::to_value(profile).unwrap();
+    assert!(saved["discord_voice_display"].get("avatar_size").is_none());
 }
 
 #[test]

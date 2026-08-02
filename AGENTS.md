@@ -88,6 +88,10 @@ turning it into a large process.
   failure category. Never log OAuth/device codes, account or channel names,
   chat messages, replies, EventSub messages, Helix bodies, badge/emote
   identifiers, favorites, or credential-store payloads.
+- Discord diagnostics use only `widget=discord_voice provider=discord` and a
+  fixed failure category. Never log authorization codes, tokens, account,
+  channel, participant or avatar identifiers, RPC messages, CDN URLs, or
+  credential-store payloads.
 
 ## Efficient workflow
 

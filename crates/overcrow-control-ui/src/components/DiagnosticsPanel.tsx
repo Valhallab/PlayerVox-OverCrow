@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 import { en } from '../i18n/en';
 import type {
@@ -331,7 +332,7 @@ export function DiagnosticsPanel({
                 disabled={reportBusy}
                 onClick={closeReport}
               >
-                ×
+                <X aria-hidden="true" />
               </button>
             </header>
 

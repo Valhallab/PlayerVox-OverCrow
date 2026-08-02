@@ -2,7 +2,10 @@ use eframe::egui::{self, Sense, Vec2, WidgetInfo, WidgetType, vec2};
 use overcrow_config::NotesDisplaySettings;
 use overcrow_protocol::OverlayMode;
 
-use crate::notes::{NOTES_PAGE_MAX_COUNT, NotePage, NotesCommand};
+use crate::{
+    icons::{AppIcon, paint_icon_at},
+    notes::{NOTES_PAGE_MAX_COUNT, NotePage, NotesCommand},
+};
 
 use super::chrome::{
     ACCENT, BODY_SIZE, ControlIcon, META_SIZE, ResizeGripOutcome, TEXT_MUTED, TEXT_PRIMARY,
@@ -403,19 +406,12 @@ fn paint_check_control(ui: &mut egui::Ui, checked: bool, interactive: bool, labe
         },
     );
     let color = if checked { ACCENT } else { TEXT_MUTED };
-    ui.painter()
-        .circle_stroke(rect.center(), 6.0, egui::Stroke::new(1.5, color));
-    if checked {
-        let center = rect.center();
-        ui.painter().line_segment(
-            [center + vec2(-3.0, 0.0), center + vec2(-0.8, 2.4)],
-            egui::Stroke::new(1.7, color),
-        );
-        ui.painter().line_segment(
-            [center + vec2(-0.8, 2.4), center + vec2(3.8, -3.0)],
-            egui::Stroke::new(1.7, color),
-        );
-    }
+    let icon = if checked {
+        AppIcon::CheckCircle
+    } else {
+        AppIcon::Circle
+    };
+    paint_icon_at(ui.painter(), rect.shrink(1.0), icon, color);
     response
         .widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, interactive, checked, label));
     if interactive {

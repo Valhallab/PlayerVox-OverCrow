@@ -1,6 +1,7 @@
 mod catalog;
 mod chrome;
 mod clock;
+mod discord_voice;
 mod manager;
 mod manual_stopwatch;
 mod media;
@@ -26,6 +27,7 @@ pub use chrome::{
     ACCENT, ControlIcon, PANEL_FILL, PANEL_STROKE_STRONG, TEXT_MUTED, install_theme, status_pill,
 };
 pub use clock::ClockPresentation;
+pub use discord_voice::{DiscordVoiceAction, DiscordVoicePresentation, DiscordWidgetState};
 pub use manager::{WidgetManager, placement_save_requested, widget_draggable, widget_visible};
 pub use manual_stopwatch::{
     ManualStopwatchAction, ManualStopwatchClock, ManualStopwatchPresentation,
@@ -48,6 +50,7 @@ pub use warframe_market::MarketUiAction;
 pub use warframe_sortie::{SortiePrefsAction, apply_sortie_prefs_action};
 pub use warframe_status::{StatusPrefsAction, apply_status_prefs_action};
 
+pub(crate) use discord_voice::paint_discord_options;
 pub(crate) use twitch_chat::paint_twitch_options;
 pub(crate) use warframe_fissures::paint_fissure_options;
 pub(crate) use warframe_invasions::paint_invasion_options;
@@ -73,3 +76,7 @@ mod notes_tests;
 #[cfg(test)]
 #[path = "twitch_chat_tests.rs"]
 mod twitch_chat_tests;
+
+#[cfg(test)]
+#[path = "discord_voice_tests.rs"]
+mod discord_voice_tests;

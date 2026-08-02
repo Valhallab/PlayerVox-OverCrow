@@ -136,10 +136,11 @@ After the first package installation, GNOME may require one logout/login before
 the current Shell session discovers the system extension.
 
 The PlayerVox-styled **Widget library** groups general tools separately from
-game-specific widgets. It lets you enable, move, resize, scale, and reset each
-widget without leaving the overlay. Passive widgets are read-only and
-click-through. Interactive mode captures input only over the authorized game
-and always retains a close path.
+game-specific widgets. It lets you enable, move, scale, and reset widgets
+without leaving the overlay; layouts that benefit from a fixed panel also
+provide a resize grip. Passive widgets are read-only and click-through.
+Interactive mode captures input only over the authorized game and always
+retains a close path.
 
 Useful diagnostics are available in the Control Center. The CLI equivalents are
 `overcrowctl status` and `overcrowctl logs`; source checkouts can additionally
@@ -166,6 +167,8 @@ PlayerVox support. Nothing is uploaded automatically. No GitHub account is requi
   horizontally scrollable tabs, and per-note checklists.
 - **Twitch chat** — read and send messages in any selected public channel,
   with ordered favorites, replies, native emotes, and colorized usernames.
+- **Discord voice (experimental)** — voice participants, speaking state,
+  mute/deafen status, and bounded avatars from the Discord desktop client.
 
 ### Warframe
 
@@ -175,17 +178,19 @@ PlayerVox support. Nothing is uploaded automatically. No GitHub account is requi
 - **Sortie & Archon** — the current three Sortie and Archon Hunt missions.
 - **Invasions** — current invasion missions, progress, and rewards.
 
-Warframe widgets appear only for Steam App ID `230410`. They use bounded,
-unauthenticated requests to the official Warframe world-state endpoint and
-warframe.market; they never access a game account or game memory.
+Warframe widgets appear only for Steam App ID `230410`. Their bounded public
+requests never access a game account or game memory.
 
-Resizable widgets keep their configured editing size in Interactive mode. In
-Passive mode their height follows visible content, up to the game viewport, so
-hidden sections and short content do not leave an empty panel.
+Resizable widgets keep their configured editing size in Interactive mode; in
+Passive mode their height follows visible content up to the game viewport.
 
-Twitch chat is disabled by default and connects only for an active selected
-game. Messages stay in memory, credentials use Secret Service when available,
-and the release contains a public Client ID—never a Client Secret.
+Twitch chat connects only for an active selected game. Messages stay in memory;
+credentials use Secret Service and the release contains no Client Secret.
+
+Discord voice requests only `identify` and `rpc` after **Connect Discord**. It
+uses the desktop client's native RPC socket and a stateless PlayerVox OAuth
+broker, so no Client Secret ships in OverCrow. Tokens use Secret Service with a
+memory-only fallback; voice state and avatars are never persisted.
 
 ## Safety
 
@@ -196,12 +201,10 @@ OverCrow stays outside the game process. It does **not**:
 - hook graphics APIs, use `ptrace`, or read game memory;
 - inspect packets, synthesize input, or modify game files.
 
-It reads ordinary same-user process metadata and uses compositor APIs plus the
-user-session D-Bus. Unsupported or ambiguous environments fail closed.
+It uses same-user metadata, compositor APIs, and D-Bus; ambiguity fails closed.
 
-This design is intended to be anti-cheat-friendly, but it cannot guarantee
-compatibility with every game or future anti-cheat policy. Follow each game's
-current rules.
+This design is anti-cheat-friendly but cannot guarantee future compatibility;
+follow each game's current rules.
 
 Security issues should be reported privately as described in
 [SECURITY.md](SECURITY.md), not in a public issue.
@@ -222,9 +225,8 @@ Security issues should be reported privately as described in
 
 ## Architecture
 
-Small Rust processes separate lifecycle, game authority, rendering, and
-compositor integration. See [docs/architecture.md](docs/architecture.md) for
-the D-Bus event flow, display contracts, persistence, providers, and security.
+Small Rust processes separate lifecycle, game authority, rendering, and display
+integration. See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Development
 
@@ -246,6 +248,9 @@ cargo test --workspace --all-targets --locked
 
 Forks can override the compiled public Twitch application ID with the
 `OVERCROW_TWITCH_CLIENT_ID` build variable.
+
+Official builds embed a public Discord application ID. Forks can override it
+through `OVERCROW_DISCORD_CLIENT_ID` and must use their own broker credentials.
 
 Shell, KWin, packaging, and release checks are documented in
 [AGENTS.md](AGENTS.md). Contributions should stay focused and preserve the

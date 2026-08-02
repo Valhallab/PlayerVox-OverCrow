@@ -7,6 +7,7 @@ pub(crate) enum Provider {
     WarframeWorldstate,
     WarframeMarket,
     Twitch,
+    Discord,
 }
 
 impl Provider {
@@ -19,6 +20,7 @@ impl Provider {
             }
             Self::WarframeMarket => "widget=warframe_market provider=warframe_market",
             Self::Twitch => "widget=twitch_chat provider=twitch",
+            Self::Discord => "widget=discord_voice provider=discord",
         }
     }
 }
@@ -164,6 +166,10 @@ mod tests {
         assert_eq!(
             Provider::Twitch.fields(),
             "widget=twitch_chat provider=twitch"
+        );
+        assert_eq!(
+            Provider::Discord.fields(),
+            "widget=discord_voice provider=discord"
         );
     }
 

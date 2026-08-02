@@ -9,6 +9,7 @@ use crate::{
     session_clock::SessionClock,
     widgets::{
         clock::paint_clock,
+        discord_voice::{DiscordWidgetState, paint_discord_voice},
         manual_stopwatch::{ManualStopwatchClock, paint_manual_stopwatch},
         media::paint_media,
         notes::{NotesWidgetState, paint_notes},
@@ -19,8 +20,8 @@ use crate::{
 };
 
 use super::{
-    ManualStopwatchRenderOutcome, MediaRenderOutcome, NotesRenderOutcome, TwitchRenderOutcome,
-    WidgetManager, widget_draggable, widget_visible,
+    DiscordVoiceRenderOutcome, ManualStopwatchRenderOutcome, MediaRenderOutcome,
+    NotesRenderOutcome, TwitchRenderOutcome, WidgetManager, widget_draggable, widget_visible,
 };
 
 impl WidgetManager {
@@ -143,11 +144,19 @@ impl WidgetManager {
         let viewport = ui.max_rect();
         let id = WidgetId::Performance;
         let position = self.screen_position(id, snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, snapshot.overlay_mode, profile);
         let measured = self.measured_size(id, snapshot.overlay_mode);
         let expected_size = if measured.x > 1.0 && measured.y > 1.0 {
             measured
         } else {
-            egui::vec2(profile.settings(id).width.max(580.0), 160.0)
+            egui::vec2(
+                if panel_size.x > 1.0 {
+                    panel_size.x
+                } else {
+                    580.0
+                },
+                160.0,
+            )
         };
         let can_move = self.can_move_panel(
             ui,
@@ -165,7 +174,7 @@ impl WidgetManager {
             snapshot.telemetry,
             profile.performance_display.layout,
             profile.settings(id).scale,
-            profile.settings(id).width,
+            panel_size.x,
             profile.settings(id).transparent_background,
             can_move,
             interactive,
@@ -441,6 +450,69 @@ impl WidgetManager {
                 response.dragged,
                 response.drag_stopped,
                 response.resize,
+            ),
+            actions: response.actions,
+        }
+    }
+
+    pub fn render_discord_voice(
+        &mut self,
+        ui: &mut egui::Ui,
+        core_snapshot: &CoreSnapshot,
+        state: &mut DiscordWidgetState,
+        profile: &mut WidgetProfile,
+        margin: f32,
+    ) -> DiscordVoiceRenderOutcome {
+        let id = WidgetId::DiscordVoice;
+        if !widget_visible(
+            id,
+            core_snapshot.overlay_mode,
+            core_snapshot.active_game.is_some(),
+            profile,
+        ) || (core_snapshot.overlay_mode == overcrow_protocol::OverlayMode::Passive
+            && !state.visible_in_passive(profile.discord_voice_display.participant_limit))
+        {
+            return DiscordVoiceRenderOutcome {
+                save_requested: false,
+                actions: Vec::new(),
+            };
+        }
+
+        let viewport = ui.max_rect();
+        let position =
+            self.screen_position(id, core_snapshot.overlay_mode, viewport, margin, profile);
+        let panel_size = self.panel_size(id, core_snapshot.overlay_mode, profile);
+        let can_move = self.interaction_enabled
+            && widget_draggable(
+                core_snapshot.overlay_mode,
+                core_snapshot.active_game.is_some(),
+            );
+        let response = paint_discord_voice(
+            ui,
+            position,
+            panel_size,
+            state,
+            profile.discord_voice_display.participant_limit,
+            profile.discord_voice_display.alignment,
+            profile.settings(id).scale,
+            core_snapshot.overlay_mode,
+            profile.settings(id).transparent_background,
+            can_move,
+            self.interaction_enabled,
+            margin,
+        );
+        self.request_repaint_if_size_changed(ui, id, core_snapshot.overlay_mode, response.size);
+        DiscordVoiceRenderOutcome {
+            save_requested: self.finish_drag_only(
+                id,
+                core_snapshot.overlay_mode,
+                viewport,
+                margin,
+                profile,
+                response.size,
+                response.position,
+                response.dragged,
+                response.drag_stopped,
             ),
             actions: response.actions,
         }

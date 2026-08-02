@@ -1,16 +1,19 @@
 use super::{
     APP_VERSION, LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT,
-    NotesCommandClient, OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_content_size,
-    about_visible, authoritative_snapshot, catalog_outside_click, confirmed_mode_event,
-    controls_visible, dispatch_manual_stopwatch_action, dispatch_notes_action,
-    handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
-    paint_control_notices, paint_overlay_version, paint_widget_catalog,
-    schedule_wayland_input_region_commit, settings_failure_target, stopwatch_repaint_after,
-    twitch_emotes_allowed, twitch_gate, viewport_builder, viewport_update_changed,
-    widget_actions_allowed, x11_scale_changed, x11_should_request_focus,
+    NotesCommandClient, OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_close_button,
+    about_content_size, about_visible, authoritative_snapshot, catalog_outside_click,
+    confirmed_mode_event, controls_visible, discord_avatars_allowed, discord_gate,
+    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
+    interactive_scrim, log_catalog_settings_outcome, paint_about_window, paint_control_notices,
+    paint_overlay_version, paint_widget_catalog, schedule_wayland_input_region_commit,
+    settings_failure_target, stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate,
+    viewport_builder, viewport_update_changed, widget_actions_allowed, x11_scale_changed,
+    x11_should_request_focus,
 };
 use crate::{
     branding::{BrandAssets, install_fonts},
+    discord::client::{DiscordConnectionState, DiscordGate, DiscordSnapshot},
+    icons::AppIcon,
     notes::{NotesCommand, NotesDocument, NotesError, NotesUpdate},
     placement::screen_position,
     preferences::OverlayPreferences,
@@ -25,7 +28,7 @@ use crate::{
         session_draggable as stopwatch_draggable, session_visible as stopwatch_visible,
     },
 };
-use eframe::egui::{RawInput, Rect as EguiRect, WindowLevel, pos2, vec2};
+use eframe::egui::{FontFamily, RawInput, Rect as EguiRect, Shape, WindowLevel, pos2, vec2};
 use overcrow_config::WidgetPosition;
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect};
 use std::{
@@ -170,6 +173,42 @@ fn about_window_has_no_native_title_bar_and_ends_with_the_version() {
         labels.iter().any(|label| label.contains(APP_VERSION)),
         "{labels:?}"
     );
+}
+
+#[test]
+fn about_close_uses_the_shared_icon_painter() {
+    let context = eframe::egui::Context::default();
+    install_fonts(&context);
+    install_theme(&context);
+    let output = context.run_ui(RawInput::default(), |ui| {
+        let _ = about_close_button(ui);
+    });
+    let close_glyph = AppIcon::Close.glyph();
+    let family = output
+        .shapes
+        .iter()
+        .find_map(|shape| icon_font_family(&shape.shape, close_glyph));
+
+    assert_eq!(
+        family,
+        Some(FontFamily::Proportional),
+        "close glyph must not use the UI text font"
+    );
+}
+
+fn icon_font_family(shape: &Shape, glyph: &str) -> Option<FontFamily> {
+    match shape {
+        Shape::Text(text) if text.galley.job.text == glyph => text
+            .galley
+            .job
+            .sections
+            .first()
+            .map(|section| section.format.font_id.family.clone()),
+        Shape::Vec(shapes) => shapes
+            .iter()
+            .find_map(|shape| icon_font_family(shape, glyph)),
+        _ => None,
+    }
 }
 
 fn accessible_labels(output: &eframe::egui::FullOutput) -> Vec<String> {
@@ -793,6 +832,28 @@ mod catalog {
         assert_eq!(
             profile.performance_display.layout,
             overcrow_config::PerformanceLayout::Vertical
+        );
+
+        let participant_limit = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetDiscordParticipantLimit(12),
+            |_| Ok(()),
+        );
+        assert!(matches!(
+            participant_limit,
+            CatalogActionOutcome::Durable(_)
+        ));
+        assert_eq!(profile.discord_voice_display.participant_limit, 12);
+
+        let alignment = apply_catalog_action(
+            &mut profile,
+            CatalogAction::SetDiscordAlignment(overcrow_config::DiscordVoiceAlignment::Right),
+            |_| Ok(()),
+        );
+        assert!(matches!(alignment, CatalogActionOutcome::Durable(_)));
+        assert_eq!(
+            profile.discord_voice_display.alignment,
+            overcrow_config::DiscordVoiceAlignment::Right
         );
     }
 
@@ -1528,6 +1589,43 @@ fn twitch_emotes_require_the_exact_open_authorized_chat_gate() {
         &TwitchSnapshot {
             connection: TwitchConnectionState::Reconnecting,
             ..joined
+        }
+    ));
+}
+
+#[test]
+fn discord_gate_and_avatars_fail_closed_without_exact_runtime_authority() {
+    let gate = discord_gate(true, true, true);
+    let ready = DiscordSnapshot {
+        connection: DiscordConnectionState::Ready,
+        channel: Some(crate::discord::model::VoiceChannel {
+            id: "9".to_owned(),
+            name: "Squad".to_owned(),
+            participants: Vec::new(),
+        }),
+        ..DiscordSnapshot::default()
+    };
+
+    assert!(discord_avatars_allowed(&gate, &ready));
+    assert!(!discord_avatars_allowed(
+        &DiscordGate {
+            lifecycle_enabled: false,
+            ..gate.clone()
+        },
+        &ready
+    ));
+    assert!(!discord_avatars_allowed(
+        &gate,
+        &DiscordSnapshot {
+            channel: None,
+            ..ready.clone()
+        }
+    ));
+    assert!(discord_avatars_allowed(
+        &gate,
+        &DiscordSnapshot {
+            connection: DiscordConnectionState::Connecting,
+            ..ready
         }
     ));
 }

@@ -11,6 +11,11 @@ use std::{
 
 use crate::{
     branding::{BrandAssets, BrandSize, install_fonts, paint_brand},
+    discord::{
+        avatars::DiscordAvatars,
+        client::{DiscordClient, DiscordCommand, DiscordGate, DiscordSnapshot},
+    },
+    icons::{AppIcon, paint_icon_at},
     media::{MediaClient, MediaSnapshot},
     notes::{LocalNotesRepository, NotesCommand, NotesService},
     preferences::{OverlayPreferences, PreferenceStore},
@@ -25,14 +30,15 @@ use crate::{
     },
     warframe::{WarframeActionBatch, WarframeController, is_warframe_active},
     widgets::{
-        ACCENT, CatalogAction, CatalogActionOutcome, CatalogLayout, ManualStopwatchClock,
-        NotesWidgetState, PANEL_FILL, PANEL_STROKE_STRONG, TEXT_MUTED, TwitchChatAction,
-        TwitchWidgetState, WidgetManager, apply_catalog_action, catalog_visible, install_theme,
-        manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog, paint_fissure_options,
-        paint_gated_options, paint_invasion_options, paint_profile_options, paint_sortie_options,
-        paint_status_options, paint_twitch_options, persist_profile_change,
-        route_manual_stopwatch_action, session_repaint_after as stopwatch_repaint_after,
-        status_pill, twitch_passive_repaint_after,
+        ACCENT, CatalogAction, CatalogActionOutcome, CatalogLayout, DiscordWidgetState,
+        ManualStopwatchClock, NotesWidgetState, PANEL_FILL, PANEL_STROKE_STRONG, TEXT_MUTED,
+        TwitchChatAction, TwitchWidgetState, WidgetManager, apply_catalog_action, catalog_visible,
+        install_theme, manual_stopwatch_repaint_after, notes_action_allowed, paint_catalog,
+        paint_discord_options, paint_fissure_options, paint_gated_options, paint_invasion_options,
+        paint_profile_options, paint_sortie_options, paint_status_options, paint_twitch_options,
+        persist_profile_change, route_manual_stopwatch_action,
+        session_repaint_after as stopwatch_repaint_after, status_pill,
+        twitch_passive_repaint_after,
     },
 };
 use eframe::egui;
@@ -245,6 +251,8 @@ pub struct OverlayApp {
     twitch_prefs: TwitchPrefs,
     twitch_prefs_saver: TwitchPrefsSaver,
     twitch_verification: VerificationLauncher,
+    discord_client: DiscordClient,
+    discord_state: DiscordWidgetState,
     warframe: WarframeController,
     preferences: OverlayPreferences,
     preference_store: PreferenceStore,
@@ -271,6 +279,8 @@ impl OverlayApp {
         let twitch_repaint_context = repaint_context.clone();
         let twitch_emote_repaint_context = repaint_context.clone();
         let twitch_settings_repaint_context = repaint_context.clone();
+        let discord_repaint_context = repaint_context.clone();
+        let discord_avatar_repaint_context = repaint_context.clone();
         let media_readiness = ProviderReadiness::default();
         let media_callback_readiness = media_readiness.clone();
         let client = SnapshotClient::spawn(logger.clone(), move || {
@@ -292,6 +302,12 @@ impl OverlayApp {
         });
         let twitch_emotes = TwitchEmotes::spawn(logger.clone(), move || {
             twitch_emote_repaint_context.request_repaint();
+        });
+        let discord_client = DiscordClient::spawn(logger.clone(), move || {
+            discord_repaint_context.request_repaint();
+        });
+        let discord_avatars = DiscordAvatars::spawn(logger.clone(), move || {
+            discord_avatar_repaint_context.request_repaint();
         });
         creation_context
             .egui_ctx
@@ -334,6 +350,8 @@ impl OverlayApp {
             twitch_prefs: twitch_prefs_load.prefs,
             twitch_prefs_saver,
             twitch_verification: VerificationLauncher::default(),
+            discord_client,
+            discord_state: DiscordWidgetState::with_avatars(discord_avatars),
             warframe: WarframeController::new(&creation_context.egui_ctx, logger.clone()),
             preferences: preference_load.profile,
             preference_store,
@@ -487,6 +505,7 @@ impl OverlayApp {
             client.reload_widget_settings();
         });
         self.sync_twitch_gate();
+        self.sync_discord_gate();
         context.request_repaint();
     }
 
@@ -512,6 +531,27 @@ impl OverlayApp {
         let emotes_enabled = twitch_emotes_allowed(&gate, self.twitch_state.snapshot());
         self.twitch_client.set_gate(gate);
         self.twitch_state.set_emotes_enabled(emotes_enabled);
+    }
+
+    fn sync_discord_gate(&mut self) {
+        let gate = discord_gate(
+            self.client.has_authority(),
+            self.state.snapshot().active_game.is_some(),
+            self.preferences.settings(WidgetId::DiscordVoice).enabled,
+        );
+        let avatars_enabled = discord_avatars_allowed(&gate, self.discord_state.snapshot());
+        self.discord_client.set_gate(gate);
+        self.discord_state.set_avatars_enabled(avatars_enabled);
+    }
+
+    fn dispatch_discord_action(&mut self, command: DiscordCommand) {
+        if self.state.snapshot().overlay_mode != OverlayMode::Interactive
+            || self.state.snapshot().active_game.is_none()
+            || !self.client.has_authority()
+        {
+            return;
+        }
+        let _ = self.discord_client.try_send(command);
     }
 
     fn commit_twitch_prefs(&mut self, candidate: TwitchPrefs) -> bool {
@@ -662,6 +702,25 @@ fn twitch_emotes_allowed(gate: &TwitchGate, snapshot: &TwitchSnapshot) -> bool {
         && snapshot.connection == TwitchConnectionState::Joined
 }
 
+fn discord_gate(
+    core_authority: bool,
+    active_game_authorized: bool,
+    widget_enabled: bool,
+) -> DiscordGate {
+    DiscordGate {
+        lifecycle_enabled: core_authority,
+        active_game_authorized,
+        widget_enabled,
+    }
+}
+
+fn discord_avatars_allowed(gate: &DiscordGate, snapshot: &DiscordSnapshot) -> bool {
+    gate.lifecycle_enabled
+        && gate.active_game_authorized
+        && gate.widget_enabled
+        && snapshot.channel.is_some()
+}
+
 #[derive(Clone, Default)]
 struct LaunchGate(Arc<AtomicBool>);
 
@@ -771,6 +830,7 @@ fn settings_failure_target(widget_id: Option<WidgetId>) -> &'static str {
         Some(WidgetId::WarframeSortie) => "widget=warframe_sortie",
         Some(WidgetId::WarframeInvasions) => "widget=warframe_invasions",
         Some(WidgetId::TwitchChat) => "widget=twitch_chat",
+        Some(WidgetId::DiscordVoice) => "widget=discord_voice",
         None => "affected_widgets=layout",
     }
 }
@@ -930,6 +990,11 @@ impl eframe::App for OverlayApp {
                 .apply_snapshot(snapshot.revision, snapshot.value);
         }
         self.twitch_state.poll_emotes(context, now);
+        if let Some(snapshot) = self.discord_client.take_latest() {
+            self.discord_state
+                .apply_snapshot(snapshot.revision, snapshot.value);
+        }
+        self.discord_state.poll_avatars(context, now);
         if let Some(result) = self.twitch_prefs_saver.take_latest() {
             self.apply_twitch_prefs_save(result.value.as_ref());
         }
@@ -940,6 +1005,7 @@ impl eframe::App for OverlayApp {
         self.twitch_state
             .set_verification_opening(self.twitch_verification.active());
         self.sync_twitch_gate();
+        self.sync_discord_gate();
         self.warframe
             .sync(context, &authoritative, &self.preferences, now, wall_secs);
         if self.core_authority && context.input(|input| input.key_pressed(egui::Key::Escape)) {
@@ -1100,6 +1166,20 @@ impl eframe::App for OverlayApp {
             }
         }
 
+        let discord = self.widgets.render_discord_voice(
+            ui,
+            self.state.snapshot(),
+            &mut self.discord_state,
+            &mut self.preferences,
+            WIDGET_MARGIN,
+        );
+        save_requested |= discord.save_requested;
+        if widget_input_allowed {
+            for action in discord.actions {
+                self.dispatch_discord_action(action);
+            }
+        }
+
         save_requested |= self.warframe.render(
             ui,
             &mut self.widgets,
@@ -1120,6 +1200,7 @@ impl eframe::App for OverlayApp {
             let warframe_options_allowed = is_warframe_active(self.state.snapshot());
             let mut profile_actions = Vec::new();
             let mut twitch_actions = Vec::new();
+            let mut discord_actions = Vec::new();
             let mut warframe_actions = WarframeActionBatch::default();
             let mut actions = {
                 let profile = &self.preferences;
@@ -1134,6 +1215,7 @@ impl eframe::App for OverlayApp {
                                 | WidgetId::Performance
                                 | WidgetId::Notes
                                 | WidgetId::TwitchChat
+                                | WidgetId::DiscordVoice
                                 | WidgetId::WarframeStatus
                                 | WidgetId::WarframeFissures
                                 | WidgetId::WarframeSortie
@@ -1150,6 +1232,9 @@ impl eframe::App for OverlayApp {
                                 twitch_prefs,
                                 &mut twitch_actions,
                             ),
+                            WidgetId::DiscordVoice => {
+                                paint_discord_options(ui, &self.discord_state, &mut discord_actions)
+                            }
                             WidgetId::WarframeStatus => paint_gated_options(
                                 ui,
                                 warframe_options_allowed,
@@ -1209,6 +1294,9 @@ impl eframe::App for OverlayApp {
             }
             for action in twitch_actions {
                 self.dispatch_twitch_action(action);
+            }
+            for action in discord_actions {
+                self.dispatch_discord_action(action);
             }
             self.warframe
                 .apply_catalog_actions(self.state.snapshot(), warframe_actions);
@@ -1467,11 +1555,17 @@ fn paint_about_window(
 }
 
 fn about_close_button(ui: &mut egui::Ui) -> egui::Response {
-    let response = ui
-        .add(egui::Button::new(egui::RichText::new("×").size(20.0).color(TEXT_MUTED)).frame(false));
+    let (rect, response) = ui.allocate_exact_size(egui::Vec2::splat(28.0), egui::Sense::click());
     response.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), "Close")
     });
+    let visuals = ui.style().interact(&response);
+    paint_icon_at(
+        ui.painter(),
+        rect.shrink(5.0),
+        AppIcon::Close,
+        visuals.fg_stroke.color,
+    );
     response.on_hover_text("Close")
 }
 

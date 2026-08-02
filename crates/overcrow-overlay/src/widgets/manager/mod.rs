@@ -3,7 +3,7 @@ use overcrow_config::{WidgetId, WidgetProfile};
 use overcrow_protocol::OverlayMode;
 
 use super::{
-    TwitchChatAction, manual_stopwatch::ManualStopwatchAction,
+    DiscordVoiceAction, TwitchChatAction, manual_stopwatch::ManualStopwatchAction,
     warframe_fissures::FissurePrefsAction, warframe_invasions::InvasionPrefsAction,
     warframe_market::MarketUiAction, warframe_sortie::SortiePrefsAction,
     warframe_status::StatusPrefsAction,
@@ -36,6 +36,11 @@ pub struct NotesRenderOutcome {
 pub struct TwitchRenderOutcome {
     pub save_requested: bool,
     pub actions: Vec<TwitchChatAction>,
+}
+
+pub struct DiscordVoiceRenderOutcome {
+    pub save_requested: bool,
+    pub actions: Vec<DiscordVoiceAction>,
 }
 
 pub struct WarframeStatusRenderOutcome {
@@ -77,11 +82,11 @@ struct ResizeSession {
 
 #[derive(Debug)]
 pub struct WidgetManager {
-    measured_sizes: [[Vec2; 12]; 2],
-    runtime_anchors: [Option<Pos2>; 12],
-    visible_rects: [Option<Rect>; 12],
+    measured_sizes: [[Vec2; WidgetId::COUNT]; 2],
+    runtime_anchors: [Option<Pos2>; WidgetId::COUNT],
+    visible_rects: [Option<Rect>; WidgetId::COUNT],
     visible_order: Vec<WidgetId>,
-    pending_scales: [Option<f32>; 12],
+    pending_scales: [Option<f32>; WidgetId::COUNT],
     toolbar_open: Option<WidgetId>,
     toolbar_popup_id: Option<eframe::egui::Id>,
     catalog_open: bool,
@@ -94,11 +99,11 @@ pub struct WidgetManager {
 impl Default for WidgetManager {
     fn default() -> Self {
         Self {
-            measured_sizes: [[Vec2::ZERO; 12]; 2],
-            runtime_anchors: [None; 12],
-            visible_rects: [None; 12],
+            measured_sizes: [[Vec2::ZERO; WidgetId::COUNT]; 2],
+            runtime_anchors: [None; WidgetId::COUNT],
+            visible_rects: [None; WidgetId::COUNT],
             visible_order: Vec::with_capacity(WidgetId::ALL.len()),
-            pending_scales: [None; 12],
+            pending_scales: [None; WidgetId::COUNT],
             toolbar_open: None,
             toolbar_popup_id: None,
             catalog_open: false,

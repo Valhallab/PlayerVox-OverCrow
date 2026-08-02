@@ -18,6 +18,7 @@ use super::twitch_chat::{
     username_text,
 };
 use crate::branding::{UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY, install_fonts};
+use crate::icons::AppIcon;
 use crate::twitch::model::{
     TwitchConnectionState, TwitchMessage, TwitchMessageFragment, TwitchReplyContext,
     TwitchSendReceipt, TwitchSendReceiptState, TwitchSendState, TwitchSnapshot,
@@ -315,7 +316,7 @@ fn twitch_native_emote_texture_replaces_its_text_fallback() {
 }
 
 #[test]
-fn twitch_reply_action_icon_is_hidden_until_the_message_is_hovered() {
+fn twitch_reply_action_uses_the_shared_icon_only_while_hovered() {
     let context = eframe::egui::Context::default();
     install_fonts(&context);
     install_theme(&context);
@@ -329,7 +330,11 @@ fn twitch_reply_action_icon_is_hidden_until_the_message_is_hovered() {
         },
         |ui| paint_message(ui, &mut state, &message, 1.0, true),
     );
-    assert!(!has_reply_curve(&first));
+    assert!(
+        !painted_text(&first)
+            .iter()
+            .any(|text| text == AppIcon::Reply.glyph())
+    );
     let body = painted_bounds(&first, "message hover");
 
     let hovered = context.run_ui(
@@ -340,14 +345,11 @@ fn twitch_reply_action_icon_is_hidden_until_the_message_is_hovered() {
         },
         |ui| paint_message(ui, &mut state, &message, 1.0, true),
     );
-    assert!(has_reply_curve(&hovered));
-}
-
-fn has_reply_curve(output: &eframe::egui::FullOutput) -> bool {
-    output
-        .shapes
-        .iter()
-        .any(|shape| matches!(shape.shape, eframe::egui::Shape::CubicBezier(_)))
+    assert!(
+        painted_text(&hovered)
+            .iter()
+            .any(|text| text == AppIcon::Reply.glyph())
+    );
 }
 
 #[test]
@@ -826,7 +828,12 @@ fn twitch_favorite_header_indicator_is_static() {
     });
     let text = painted_text(&output);
 
-    assert_eq!(text.iter().filter(|value| value.as_str() == "★").count(), 1);
+    assert_eq!(
+        text.iter()
+            .filter(|value| value.as_str() == AppIcon::Star.glyph())
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -859,7 +866,7 @@ fn twitch_favorite_star_precedes_the_channel_on_the_same_line() {
             paint_header(ui, &mut state, &prefs);
         },
     );
-    let star = painted_bounds(&output, "★");
+    let star = painted_bounds(&output, AppIcon::Star.glyph());
     let channel = painted_bounds(&output, "#playervox");
 
     assert!(star.right() <= channel.left(), "{star:?} {channel:?}");

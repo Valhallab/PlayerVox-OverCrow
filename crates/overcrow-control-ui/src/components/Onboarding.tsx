@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowRight, Check, Plus } from 'lucide-react';
 
 import { en } from '../i18n/en';
 import type { ControlSnapshot } from '../lib/control';
@@ -66,7 +67,7 @@ export function Onboarding({
             </article>
           </div>
           <button className="button button--primary button--large" onClick={begin}>
-            {en.onboarding.start}<span aria-hidden="true">→</span>
+            {en.onboarding.start}<ArrowRight aria-hidden="true" />
           </button>
         </section>
       )}
@@ -92,7 +93,7 @@ export function Onboarding({
               onClick={() => setStep('games')}
               disabled={!snapshot.compatibility.activation_allowed || busy}
             >
-              {en.common.continue}<span aria-hidden="true">→</span>
+              {en.common.continue}<ArrowRight aria-hidden="true" />
             </button>
           </div>
         </section>
@@ -124,7 +125,7 @@ export function Onboarding({
               onClick={() => setStep('ready')}
               disabled={selectedCount === 0 || busy}
             >
-              {en.common.continue}<span aria-hidden="true">→</span>
+              {en.common.continue}<ArrowRight aria-hidden="true" />
             </button>
           </div>
         </section>
@@ -132,7 +133,7 @@ export function Onboarding({
 
       {step === 'ready' && (
         <section className="onboarding__panel onboarding__panel--ready">
-          <div className="ready-mark" aria-hidden="true">✓</div>
+          <div className="ready-mark" aria-hidden="true"><Check /></div>
           <div className="eyebrow">{en.onboarding.readyEyebrow}</div>
           <h1>{en.onboarding.readyTitle}</h1>
           <p className="lead">{en.onboarding.readyBody}</p>
@@ -200,7 +201,7 @@ export function GameSelector({
         </div>
       ))}
       <button className="add-game" onClick={onPickManualGame} disabled={busy || !snapshot.selection_editing_enabled}>
-        <span aria-hidden="true">+</span>{en.common.addNative}
+        <Plus aria-hidden="true" />{en.common.addNative}
       </button>
     </div>
   );

@@ -1,13 +1,16 @@
 //! Shared PlayerVox overlay presentation primitives.
 
 use eframe::egui::{
-    self, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind,
+    self, Color32, CornerRadius, FontFamily, FontId, Pos2, Rect, Sense, Stroke, StrokeKind,
     TextStyle, Vec2, epaint::Shadow, pos2, vec2,
 };
 use overcrow_config::{WIDGET_PANEL_MAX, WIDGET_PANEL_MIN, WIDGET_PANEL_MIN_HEIGHT};
 use overcrow_protocol::OverlayMode;
 
-use crate::branding::{UI_BOLD_FAMILY, UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY};
+use crate::{
+    branding::{UI_BOLD_FAMILY, UI_REGULAR_FAMILY, UI_SEMIBOLD_FAMILY},
+    icons::{AppIcon, paint_icon_at},
+};
 
 use super::WidgetGlyph;
 
@@ -245,77 +248,13 @@ pub fn status_pill(ui: &mut egui::Ui, label: &str, color: Color32) -> egui::Inne
     .inner
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MetricContentLayout {
-    Stacked,
-    Inline,
-}
-
 pub fn metric_tile(ui: &mut egui::Ui, label: &str, value: &str, transparent_background: bool) {
-    metric_tile_layout_sized(
-        ui,
-        label,
-        value,
-        transparent_background,
-        MetricContentLayout::Stacked,
-        None,
-    );
-}
-
-pub fn metric_tile_layout_sized(
-    ui: &mut egui::Ui,
-    label: &str,
-    value: &str,
-    transparent_background: bool,
-    layout: MetricContentLayout,
-    content_width: Option<f32>,
-) {
     let scale = current_content_scale(ui);
-    metric_tile_layout_sized_scaled(
-        ui,
-        label,
-        value,
-        transparent_background,
-        layout,
-        content_width,
-        scale,
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn metric_tile_layout_sized_scaled(
-    ui: &mut egui::Ui,
-    label: &str,
-    value: &str,
-    transparent_background: bool,
-    layout: MetricContentLayout,
-    content_width: Option<f32>,
-    scale: f32,
-) {
     elevated_frame(transparent_background).show(ui, |ui| {
-        ui.vertical(|ui| match layout {
-            MetricContentLayout::Stacked => {
-                if let Some(width) = content_width {
-                    ui.set_width(width.max(1.0));
-                } else {
-                    ui.set_min_width(104.0);
-                }
-                ui.label(eyebrow_text(label).size(10.0 * scale));
-                ui.label(value_text(value, (BODY_SIZE + 1.0) * scale));
-            }
-            MetricContentLayout::Inline => {
-                if let Some(width) = content_width {
-                    ui.set_width(width.max(1.0));
-                } else {
-                    ui.set_min_width(220.0);
-                }
-                ui.horizontal(|ui| {
-                    ui.label(eyebrow_text(label).size(10.0 * scale));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(value_text(value, (BODY_SIZE + 1.0) * scale));
-                    });
-                });
-            }
+        ui.vertical(|ui| {
+            ui.set_min_width(104.0);
+            ui.label(eyebrow_text(label).size(10.0 * scale));
+            ui.label(value_text(value, (BODY_SIZE + 1.0) * scale));
         });
     });
 }
@@ -378,12 +317,36 @@ pub enum ControlIcon {
     Remove,
 }
 
+impl ControlIcon {
+    pub(super) const fn app_icon(self) -> AppIcon {
+        match self {
+            Self::Add => AppIcon::Add,
+            Self::Previous => AppIcon::MediaPrevious,
+            Self::Play => AppIcon::MediaPlay,
+            Self::Pause => AppIcon::MediaPause,
+            Self::Next => AppIcon::MediaNext,
+            Self::Remove => AppIcon::Close,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ToolbarIcon {
     PassiveVisible,
     PassiveHidden,
     Options,
     Disable,
+}
+
+impl ToolbarIcon {
+    pub(super) const fn app_icon(self) -> AppIcon {
+        match self {
+            Self::PassiveVisible => AppIcon::PassiveVisible,
+            Self::PassiveHidden => AppIcon::PassiveHidden,
+            Self::Options => AppIcon::Options,
+            Self::Disable => AppIcon::Close,
+        }
+    }
 }
 
 pub fn widget_toolbar_rect(widget: Rect, viewport: Rect) -> Rect {
@@ -433,46 +396,7 @@ pub fn toolbar_icon_button(
 }
 
 fn paint_toolbar_icon(painter: &egui::Painter, rect: Rect, icon: ToolbarIcon, color: Color32) {
-    let stroke = Stroke::new(1.7, color);
-    let center = rect.center();
-    match icon {
-        ToolbarIcon::PassiveVisible | ToolbarIcon::PassiveHidden => {
-            let arch = rect.height() * 0.32;
-            let steps = 6;
-            let mut outline = Vec::with_capacity((steps + 1) * 2);
-            for step in 0..=steps {
-                let t = step as f32 / steps as f32;
-                outline.push(pos2(
-                    egui::lerp(rect.x_range(), t),
-                    center.y - (std::f32::consts::PI * t).sin() * arch,
-                ));
-            }
-            for step in (0..=steps).rev() {
-                let t = step as f32 / steps as f32;
-                outline.push(pos2(
-                    egui::lerp(rect.x_range(), t),
-                    center.y + (std::f32::consts::PI * t).sin() * arch,
-                ));
-            }
-            painter.add(Shape::closed_line(outline, stroke));
-            painter.circle_filled(center, 2.2, color);
-            if icon == ToolbarIcon::PassiveHidden {
-                painter.line_segment(
-                    [rect.left_top(), rect.right_bottom()],
-                    Stroke::new(2.1, color),
-                );
-            }
-        }
-        ToolbarIcon::Options => {
-            for offset in [-5.0_f32, 0.0, 5.0] {
-                painter.circle_filled(center + vec2(0.0, offset), 1.8, color);
-            }
-        }
-        ToolbarIcon::Disable => {
-            painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-            painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
-        }
-    }
+    paint_icon_at(painter, rect, icon.app_icon(), color);
 }
 
 pub fn icon_button(ui: &mut egui::Ui, icon: ControlIcon, accessible_label: &str) -> egui::Response {
@@ -533,81 +457,7 @@ fn paint_control_icon_shape(
     icon: ControlIcon,
     color: Color32,
 ) {
-    let stroke = Stroke::new(1.7, color);
-    let center = rect.center();
-    let triangle = |points| {
-        painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
-    };
-    match icon {
-        ControlIcon::Add => {
-            painter.line_segment(
-                [pos2(center.x, rect.top()), pos2(center.x, rect.bottom())],
-                stroke,
-            );
-            painter.line_segment(
-                [pos2(rect.left(), center.y), pos2(rect.right(), center.y)],
-                stroke,
-            );
-        }
-        ControlIcon::Previous => {
-            painter.line_segment(
-                [
-                    pos2(rect.left(), rect.top()),
-                    pos2(rect.left(), rect.bottom()),
-                ],
-                stroke,
-            );
-            triangle(vec![
-                pos2(rect.left() + 2.0, center.y),
-                pos2(rect.right(), rect.top()),
-                pos2(rect.right(), rect.bottom()),
-            ]);
-        }
-        ControlIcon::Play => {
-            triangle(vec![
-                rect.left_top(),
-                pos2(rect.right(), center.y),
-                rect.left_bottom(),
-            ]);
-        }
-        ControlIcon::Pause => {
-            let bar_width = (rect.width() * 0.28).max(2.0);
-            painter.rect_filled(
-                Rect::from_min_max(
-                    rect.left_top(),
-                    pos2(rect.left() + bar_width, rect.bottom()),
-                ),
-                1.0,
-                color,
-            );
-            painter.rect_filled(
-                Rect::from_min_max(
-                    pos2(rect.right() - bar_width, rect.top()),
-                    rect.right_bottom(),
-                ),
-                1.0,
-                color,
-            );
-        }
-        ControlIcon::Next => {
-            triangle(vec![
-                pos2(rect.left(), rect.top()),
-                pos2(rect.right() - 2.0, center.y),
-                pos2(rect.left(), rect.bottom()),
-            ]);
-            painter.line_segment(
-                [
-                    pos2(rect.right(), rect.top()),
-                    pos2(rect.right(), rect.bottom()),
-                ],
-                stroke,
-            );
-        }
-        ControlIcon::Remove => {
-            painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-            painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
-        }
-    }
+    paint_icon_at(painter, rect, icon.app_icon(), color);
 }
 
 pub fn singleline_text_edit<'a>(text: &'a mut dyn egui::TextBuffer) -> egui::TextEdit<'a> {
@@ -639,154 +489,7 @@ pub fn paint_widget_glyph(
 }
 
 fn paint_glyph_shape(painter: &egui::Painter, rect: Rect, glyph: WidgetGlyph, color: Color32) {
-    let stroke = Stroke::new((rect.width() * 0.1).clamp(1.2, 2.0), color);
-    let center = rect.center();
-    let radius = rect.width().min(rect.height()) * 0.42;
-    match glyph {
-        WidgetGlyph::Session => {
-            painter.line_segment([rect.left_top(), rect.right_top()], stroke);
-            painter.line_segment([rect.left_bottom(), rect.right_bottom()], stroke);
-            painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-            painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
-        }
-        WidgetGlyph::Clock => {
-            painter.circle_stroke(center, radius, stroke);
-            painter.line_segment([center, pos2(center.x, center.y - radius * 0.62)], stroke);
-            painter.line_segment([center, pos2(center.x + radius * 0.5, center.y)], stroke);
-        }
-        WidgetGlyph::Performance => {
-            for (index, factor) in [0.42_f32, 0.68, 1.0].into_iter().enumerate() {
-                let x = rect.left() + rect.width() * (0.17 + index as f32 * 0.33);
-                painter.line_segment(
-                    [
-                        pos2(x, rect.bottom()),
-                        pos2(x, rect.bottom() - rect.height() * factor),
-                    ],
-                    stroke,
-                );
-            }
-        }
-        WidgetGlyph::Stopwatch => {
-            painter.circle_stroke(center + vec2(0.0, 1.0), radius * 0.88, stroke);
-            painter.line_segment(
-                [
-                    pos2(center.x, rect.top()),
-                    pos2(center.x, rect.top() + radius * 0.35),
-                ],
-                stroke,
-            );
-            painter.line_segment(
-                [
-                    center + vec2(0.0, 1.0),
-                    center + vec2(radius * 0.45, radius * 0.35),
-                ],
-                stroke,
-            );
-        }
-        WidgetGlyph::Media => {
-            painter.add(Shape::convex_polygon(
-                vec![
-                    pos2(rect.left() + rect.width() * 0.28, rect.top()),
-                    pos2(rect.right(), center.y),
-                    pos2(rect.left() + rect.width() * 0.28, rect.bottom()),
-                ],
-                color,
-                Stroke::NONE,
-            ));
-        }
-        WidgetGlyph::Notes => {
-            painter.rect_stroke(rect, 2.0, stroke, StrokeKind::Inside);
-            for y in [0.32_f32, 0.54, 0.76] {
-                painter.line_segment(
-                    [
-                        pos2(rect.left() + 3.0, rect.top() + rect.height() * y),
-                        pos2(rect.right() - 3.0, rect.top() + rect.height() * y),
-                    ],
-                    stroke,
-                );
-            }
-        }
-        WidgetGlyph::Twitch => {
-            let bubble = Rect::from_min_max(
-                rect.left_top(),
-                pos2(rect.right(), rect.bottom() - rect.height() * 0.2),
-            );
-            painter.rect_stroke(bubble, 2.0, stroke, StrokeKind::Inside);
-            painter.line_segment(
-                [
-                    pos2(bubble.left() + rect.width() * 0.2, bubble.bottom()),
-                    pos2(bubble.left() + rect.width() * 0.2, rect.bottom()),
-                ],
-                stroke,
-            );
-            for x in [0.38_f32, 0.65] {
-                painter.line_segment(
-                    [
-                        pos2(rect.left() + rect.width() * x, rect.top() + 4.0),
-                        pos2(rect.left() + rect.width() * x, rect.bottom() - 7.0),
-                    ],
-                    stroke,
-                );
-            }
-        }
-        WidgetGlyph::Warframe => {
-            painter.add(Shape::closed_line(
-                vec![
-                    pos2(center.x, rect.top()),
-                    pos2(rect.right(), center.y),
-                    pos2(center.x, rect.bottom()),
-                    pos2(rect.left(), center.y),
-                ],
-                stroke,
-            ));
-            painter.circle_filled(center, radius * 0.25, color);
-        }
-        WidgetGlyph::Fissures => {
-            painter.circle_stroke(center, radius, stroke);
-            painter.circle_stroke(center, radius * 0.52, stroke);
-            painter.line_segment(
-                [
-                    pos2(center.x - radius * 0.25, rect.top()),
-                    pos2(center.x + radius * 0.1, center.y),
-                ],
-                stroke,
-            );
-        }
-        WidgetGlyph::Market => {
-            painter.circle_stroke(
-                center - vec2(radius * 0.16, radius * 0.16),
-                radius * 0.72,
-                stroke,
-            );
-            painter.circle_stroke(
-                center + vec2(radius * 0.2, radius * 0.2),
-                radius * 0.72,
-                stroke,
-            );
-        }
-        WidgetGlyph::Missions => {
-            painter.circle_stroke(center, radius, stroke);
-            painter.line_segment(
-                [
-                    pos2(rect.left() + rect.width() * 0.2, center.y),
-                    pos2(center.x - 1.0, rect.bottom() - rect.height() * 0.2),
-                ],
-                stroke,
-            );
-            painter.line_segment(
-                [
-                    pos2(center.x - 1.0, rect.bottom() - rect.height() * 0.2),
-                    pos2(rect.right(), rect.top() + rect.height() * 0.18),
-                ],
-                stroke,
-            );
-        }
-        WidgetGlyph::Invasions => {
-            painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-            painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
-            painter.circle_stroke(center, radius * 0.38, stroke);
-        }
-    }
+    paint_icon_at(painter, rect, glyph.app_icon(), color);
 }
 
 pub fn cycle_state_color(state: &str) -> Color32 {

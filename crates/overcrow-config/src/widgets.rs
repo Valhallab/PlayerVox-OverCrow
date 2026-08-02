@@ -1,8 +1,12 @@
 use std::{error::Error, fmt};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 pub const WIDGET_SCHEMA_VERSION: u32 = 3;
+pub const DISCORD_PARTICIPANT_LIMIT_MIN: u8 = 2;
+pub const DISCORD_PARTICIPANT_LIMIT_MAX: u8 = 16;
+const LEGACY_DISCORD_AVATAR_SIZE_MIN: u16 = 24;
+const LEGACY_DISCORD_AVATAR_SIZE_MAX: u16 = 64;
 pub const WIDGET_SCALE_MIN: f32 = 0.75;
 pub const WIDGET_SCALE_MAX: f32 = 1.75;
 /// Minimum panel width (comfortable for Warframe panels without crushing text).
@@ -24,10 +28,12 @@ pub enum WidgetId {
     WarframeSortie,
     WarframeInvasions,
     TwitchChat,
+    DiscordVoice,
 }
 
 impl WidgetId {
-    pub const ALL: [Self; 12] = [
+    pub const COUNT: usize = 13;
+    pub const ALL: [Self; Self::COUNT] = [
         Self::Session,
         Self::Clock,
         Self::Performance,
@@ -40,6 +46,7 @@ impl WidgetId {
         Self::WarframeSortie,
         Self::WarframeInvasions,
         Self::TwitchChat,
+        Self::DiscordVoice,
     ];
 
     pub const fn default_position(self) -> WidgetPosition {
@@ -56,6 +63,7 @@ impl WidgetId {
             Self::WarframeSortie => WidgetPosition { x: 0.0, y: 0.18 },
             Self::WarframeInvasions => WidgetPosition { x: 1.0, y: 0.72 },
             Self::TwitchChat => WidgetPosition { x: 1.0, y: 0.28 },
+            Self::DiscordVoice => WidgetPosition { x: 0.0, y: 0.28 },
         }
     }
 
@@ -68,6 +76,7 @@ impl WidgetId {
             Self::WarframeSortie => (400.0, 300.0),
             Self::WarframeInvasions => (440.0, 360.0),
             Self::TwitchChat => (420.0, 360.0),
+            Self::DiscordVoice => (280.0, 160.0),
             Self::Notes => (360.0, 280.0),
             Self::Media => (320.0, 160.0),
             _ => (0.0, 0.0),
@@ -179,6 +188,59 @@ pub struct NotesDisplaySettings {
     pub show_checklist: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiscordVoiceAlignment {
+    #[default]
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct DiscordVoiceDisplaySettings {
+    pub participant_limit: u8,
+    pub alignment: DiscordVoiceAlignment,
+}
+
+impl Default for DiscordVoiceDisplaySettings {
+    fn default() -> Self {
+        Self {
+            participant_limit: 8,
+            alignment: DiscordVoiceAlignment::Left,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DiscordVoiceDisplayWire {
+    participant_limit: u8,
+    #[serde(default)]
+    alignment: DiscordVoiceAlignment,
+    #[serde(default)]
+    avatar_size: Option<u16>,
+}
+
+impl<'de> Deserialize<'de> for DiscordVoiceDisplaySettings {
+    fn deserialize<DeserializerType>(
+        deserializer: DeserializerType,
+    ) -> Result<Self, DeserializerType::Error>
+    where
+        DeserializerType: Deserializer<'de>,
+    {
+        let wire = DiscordVoiceDisplayWire::deserialize(deserializer)?;
+        if wire.avatar_size.is_some_and(|size| {
+            !(LEGACY_DISCORD_AVATAR_SIZE_MIN..=LEGACY_DISCORD_AVATAR_SIZE_MAX).contains(&size)
+        }) {
+            return Err(de::Error::custom("invalid legacy Discord avatar size"));
+        }
+        Ok(Self {
+            participant_limit: wire.participant_limit,
+            alignment: wire.alignment,
+        })
+    }
+}
+
 impl Default for NotesDisplaySettings {
     fn default() -> Self {
         Self {
@@ -216,6 +278,10 @@ pub struct WidgetProfile {
     pub warframe_invasions: WidgetSettings,
     #[serde(default = "default_twitch_chat")]
     pub twitch_chat: WidgetSettings,
+    #[serde(default = "default_discord_voice")]
+    pub discord_voice: WidgetSettings,
+    #[serde(default)]
+    pub discord_voice_display: DiscordVoiceDisplaySettings,
     /// Legacy field kept so older `widgets.json` files still load.
     #[serde(default = "default_legacy_warframe_nightwave", skip_serializing)]
     pub warframe_nightwave: WidgetSettings,
@@ -245,6 +311,10 @@ fn default_twitch_chat() -> WidgetSettings {
     WidgetSettings::with_passive(WidgetId::TwitchChat, false, false)
 }
 
+fn default_discord_voice() -> WidgetSettings {
+    WidgetSettings::with_passive(WidgetId::DiscordVoice, false, true)
+}
+
 fn default_legacy_warframe_nightwave() -> WidgetSettings {
     // Nightwave widget removed; keep a passive-disabled stub for old configs.
     WidgetSettings::with_passive(WidgetId::WarframeStatus, false, true)
@@ -269,6 +339,8 @@ impl Default for WidgetProfile {
             warframe_sortie: default_warframe_sortie(),
             warframe_invasions: default_warframe_invasions(),
             twitch_chat: default_twitch_chat(),
+            discord_voice: default_discord_voice(),
+            discord_voice_display: DiscordVoiceDisplaySettings::default(),
             warframe_nightwave: default_legacy_warframe_nightwave(),
         }
     }
@@ -289,6 +361,7 @@ impl WidgetProfile {
             WidgetId::WarframeSortie => &self.warframe_sortie,
             WidgetId::WarframeInvasions => &self.warframe_invasions,
             WidgetId::TwitchChat => &self.twitch_chat,
+            WidgetId::DiscordVoice => &self.discord_voice,
         }
     }
 
@@ -306,6 +379,7 @@ impl WidgetProfile {
             WidgetId::WarframeSortie => &mut self.warframe_sortie,
             WidgetId::WarframeInvasions => &mut self.warframe_invasions,
             WidgetId::TwitchChat => &mut self.twitch_chat,
+            WidgetId::DiscordVoice => &mut self.discord_voice,
         }
     }
 
@@ -328,6 +402,11 @@ impl WidgetProfile {
         if !self.notes_display.show_note && !self.notes_display.show_checklist {
             return Err(WidgetProfileError::EmptyNotesDisplay);
         }
+        if !(DISCORD_PARTICIPANT_LIMIT_MIN..=DISCORD_PARTICIPANT_LIMIT_MAX)
+            .contains(&self.discord_voice_display.participant_limit)
+        {
+            return Err(WidgetProfileError::InvalidDiscordParticipantLimit);
+        }
         Ok(self)
     }
 }
@@ -339,6 +418,7 @@ pub enum WidgetProfileError {
     InvalidScale(WidgetId),
     InvalidSize(WidgetId),
     EmptyNotesDisplay,
+    InvalidDiscordParticipantLimit,
 }
 
 impl fmt::Display for WidgetProfileError {
@@ -358,6 +438,9 @@ impl fmt::Display for WidgetProfileError {
             }
             Self::EmptyNotesDisplay => {
                 formatter.write_str("notes widget must show a note or checklist")
+            }
+            Self::InvalidDiscordParticipantLimit => {
+                formatter.write_str("invalid Discord participant limit")
             }
         }
     }

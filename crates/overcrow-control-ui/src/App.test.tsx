@@ -71,10 +71,19 @@ describe('Control Center onboarding', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /check my system/i }));
     fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(
+      screen.getByRole('button', { name: 'Add a native game' })
+        .querySelector('.lucide-plus'),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Continue' })
+        .querySelector('.lucide-arrow-right'),
+    ).not.toBeNull();
     const checkbox = await screen.findByRole('checkbox');
     fireEvent.click(checkbox);
     await waitFor(() => expect(client.calls).toContain('setGameSelected:4242:true'));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(document.querySelector('.ready-mark .lucide-check')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /finish with overcrow off/i }));
 
     expect(await screen.findByText('Stopped')).toBeVisible();
@@ -121,6 +130,12 @@ describe('Control Center dashboard', () => {
     expect(
       await screen.findByText('PlayerVox OverCrow 0.1.0-pre-alpha.5 is available'),
     ).toBeVisible();
+    expect(
+      screen
+        .getByText('PlayerVox OverCrow 0.1.0-pre-alpha.5 is available')
+        .closest('.update-panel')
+        ?.querySelector('.lucide-download'),
+    ).not.toBeNull();
     expect(client.calls).not.toContain('installAvailableUpdate');
     fireEvent.click(screen.getByRole('button', { name: 'Update now' }));
     await waitFor(() =>
@@ -236,8 +251,17 @@ describe('Control Center dashboard', () => {
     render(<App client={client} storage={storage} />);
 
     expect(await screen.findByText('Stopped')).toBeVisible();
-    for (const label of ['Overview', 'Games', 'Diagnostics', 'About']) {
-      expect(screen.getByRole('button', { name: label }).querySelector('svg')).not.toBeNull();
+    for (const [label, icon] of [
+      ['Overview', 'layout-grid'],
+      ['Games', 'gamepad-2'],
+      ['Diagnostics', 'activity'],
+      ['About', 'info'],
+    ]) {
+      expect(
+        screen
+          .getByRole('button', { name: label })
+          .querySelector(`.lucide-${icon}`),
+      ).not.toBeNull();
     }
     await waitFor(() => expect(client.calls).toContain('refreshGames'));
     expect(
@@ -254,6 +278,10 @@ describe('Control Center dashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Games' }));
     expect(screen.getByRole('checkbox', { name: /Example Game.*Steam · App 4242/ })).toBeChecked();
+    expect(
+      screen.getByRole('button', { name: /Add a native game/ })
+        .querySelector('.lucide-plus'),
+    ).not.toBeNull();
   });
 
   it('labels Steam shortcuts and unverified application types', async () => {
@@ -436,6 +464,9 @@ describe('Control Center dashboard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Diagnostics' }));
     fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }));
     const dialog = screen.getByRole('dialog', { name: 'Report a problem' });
+    expect(
+      dialog.querySelector('.report-dialog__close .lucide-x'),
+    ).not.toBeNull();
     const prepare = within(dialog).getByRole('button', { name: 'Prepare report' });
     expect(prepare).toBeDisabled();
     expect(

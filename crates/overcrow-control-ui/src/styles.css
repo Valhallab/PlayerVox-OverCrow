@@ -208,6 +208,14 @@ p {
   opacity: 0.38;
 }
 
+.button > svg,
+.add-game > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 2;
+}
+
 .button--large {
   min-height: 52px;
   padding: 0 26px;
@@ -606,6 +614,12 @@ input:disabled + .switch {
   box-shadow: 0 0 48px rgb(163 230 53 / 18%);
   font-size: 1.5rem;
   font-weight: 900;
+}
+
+.ready-mark svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.5;
 }
 
 .ready-summary {
@@ -1200,6 +1214,11 @@ input:disabled + .switch {
   background: var(--card);
   cursor: pointer;
   font-size: 1.2rem;
+}
+
+.report-dialog__close svg {
+  width: 18px;
+  height: 18px;
 }
 
 .report-dialog__intro {

@@ -113,6 +113,30 @@ emotes are fetched as bounded static PNGs from Twitch's CDN; a failed,
 unsupported, or malformed emote remains visible as its text (for example,
 `LUL`). Badge images and third-party emote providers are not supported.
 
+## Discord voice does not connect
+
+1. Confirm that the official Discord desktop client is running, the selected
+   game is active, and **Discord voice** is enabled. Browser Discord does not
+   expose the local RPC service.
+2. Open Interactive mode and select **Connect Discord**. Discord should show
+   its own authorization prompt for only `identify` and `rpc`.
+3. If the widget reports **Not configured**, a custom build supplied a missing
+   or malformed Discord application ID. Official builds include the public ID;
+   no OAuth request is made when validation fails.
+4. During pre-alpha testing, the Discord account must be allowed by the
+   dedicated application's tester/approval policy. A rejected account fails
+   closed and does not fall back to another Discord application.
+5. If Secret Service is unavailable, the current session can remain in memory
+   but must be authorized again after restarting OverCrow.
+6. Use **Sign out of Discord** to revoke and delete local credentials, then
+   reconnect once. Do not include codes, tokens, account names, channel names,
+   participant names, avatar identifiers, or provider payloads in reports.
+
+Logs for this widget contain only `widget=discord_voice provider=discord` and
+fixed categories. Repeated **Discord unavailable** normally means no supported
+local same-user `discord-ipc-0..9` Unix socket answered under the documented
+runtime roots; it is not permission to scan unrelated sockets or processes.
+
 ## Updates do not complete
 
 - **No automatic action is offered:** the installation is not an exact

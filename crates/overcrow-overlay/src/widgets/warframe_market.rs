@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, Layout, Sense, Stroke, Vec2, vec2};
+use eframe::egui::{self, Color32, Layout, Sense, Vec2, vec2};
 use overcrow_config::WARFRAME_MARKET_QUERY_MAX_CHARS;
 use overcrow_protocol::OverlayMode;
 
@@ -10,8 +10,12 @@ use super::{
         primary_button, resize_grip, scaled_content_font_size, status_pill, widget_identity,
     },
 };
-use crate::warframe::{
-    MarketCommand, MarketOrder, MarketSnapshot, TradeSide, format_trade_line, format_whisper_line,
+use crate::{
+    icons::{AppIcon, paint_icon_at},
+    warframe::{
+        MarketCommand, MarketOrder, MarketSnapshot, TradeSide, format_trade_line,
+        format_whisper_line,
+    },
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -448,12 +452,7 @@ fn paint_status_dot(ui: &mut egui::Ui, color: Color32) {
 fn paint_check_mark(ui: &mut egui::Ui, color: Color32) {
     let size = vec2(16.0, 16.0);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    let c = rect.center();
-    let stroke = Stroke::new(2.0, color);
-    ui.painter()
-        .line_segment([c + vec2(-5.0, 0.0), c + vec2(-1.5, 4.0)], stroke);
-    ui.painter()
-        .line_segment([c + vec2(-1.5, 4.0), c + vec2(5.5, -4.0)], stroke);
+    paint_icon_at(ui.painter(), rect, AppIcon::Check, color);
 }
 
 fn presence_color(label: &str) -> Color32 {

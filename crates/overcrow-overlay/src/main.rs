@@ -1,5 +1,7 @@
 mod app;
 mod branding;
+mod discord;
+mod icons;
 mod media;
 mod notes;
 mod placement;

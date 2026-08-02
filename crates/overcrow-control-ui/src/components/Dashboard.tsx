@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Activity, Gamepad2, Info, LayoutGrid, Plus } from 'lucide-react';
 
 import { en } from '../i18n/en';
 import { APP_VERSION } from '../version';
@@ -161,7 +162,7 @@ export function Dashboard(props: DashboardProps) {
                   aria-label={en.dashboard.search}
                 />
                 <button className="button button--secondary" onClick={props.onRefresh} disabled={busy}>{en.common.refresh}</button>
-                <button className="button button--primary" onClick={props.onPickManualGame} disabled={busy || !snapshot.selection_editing_enabled}>+ {en.common.addNative}</button>
+                <button className="button button--primary" onClick={props.onPickManualGame} disabled={busy || !snapshot.selection_editing_enabled}><Plus aria-hidden="true" />{en.common.addNative}</button>
               </div>
             </div>
             <div className="game-selector game-selector--dashboard">
@@ -224,16 +225,13 @@ function NavButton({ active, icon, children, onClick }: { active: boolean; icon:
 }
 
 function NavIcon({ name }: { name: Page }) {
-  if (name === 'overview') {
-    return <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>;
-  }
-  if (name === 'games') {
-    return <svg viewBox="0 0 24 24"><path d="M8 8h8a5 5 0 0 1 4.7 3.3l.8 2.4a3 3 0 0 1-4.8 3.2L15 15.5H9l-1.7 1.4a3 3 0 0 1-4.8-3.2l.8-2.4A5 5 0 0 1 8 8Z" /><path d="M7 12h4M9 10v4" /><circle cx="16.5" cy="11.5" r=".8" /><circle cx="18.5" cy="13.5" r=".8" /></svg>;
-  }
-  if (name === 'diagnostics') {
-    return <svg viewBox="0 0 24 24"><path d="M3 12h4l2.3-6 4.2 12 2.3-6H21" /></svg>;
-  }
-  return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></svg>;
+  const Icon = {
+    overview: LayoutGrid,
+    games: Gamepad2,
+    diagnostics: Activity,
+    about: Info,
+  }[name];
+  return <Icon />;
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {

@@ -1,7 +1,10 @@
 use std::{fmt, io};
 
 use eframe::egui::{self, Color32, Stroke, Vec2};
-use overcrow_config::{PerformanceLayout, WidgetId, WidgetProfile, settings_save_was_committed};
+use overcrow_config::{
+    DISCORD_PARTICIPANT_LIMIT_MAX, DISCORD_PARTICIPANT_LIMIT_MIN, DiscordVoiceAlignment,
+    PerformanceLayout, WidgetId, WidgetProfile, settings_save_was_committed,
+};
 use overcrow_protocol::OverlayMode;
 
 use super::{
@@ -44,6 +47,8 @@ pub enum CatalogAction {
     SetPerformanceLayout(PerformanceLayout),
     SetNotesNoteVisible(bool),
     SetNotesChecklistVisible(bool),
+    SetDiscordParticipantLimit(u8),
+    SetDiscordAlignment(DiscordVoiceAlignment),
     ResetSize(WidgetId),
     ResetPosition(WidgetId),
 }
@@ -60,6 +65,9 @@ impl CatalogAction {
             Self::SetClockDateVisible(_) => WidgetId::Clock,
             Self::SetPerformanceLayout(_) => WidgetId::Performance,
             Self::SetNotesNoteVisible(_) | Self::SetNotesChecklistVisible(_) => WidgetId::Notes,
+            Self::SetDiscordParticipantLimit(_) | Self::SetDiscordAlignment(_) => {
+                WidgetId::DiscordVoice
+            }
         }
     }
 }
@@ -132,6 +140,12 @@ pub fn apply_catalog_action(
         }
         CatalogAction::SetNotesChecklistVisible(visible) => {
             candidate.notes_display.show_checklist = visible;
+        }
+        CatalogAction::SetDiscordParticipantLimit(limit) => {
+            candidate.discord_voice_display.participant_limit = limit;
+        }
+        CatalogAction::SetDiscordAlignment(alignment) => {
+            candidate.discord_voice_display.alignment = alignment;
         }
         CatalogAction::ResetSize(id) => {
             let (width, height) = id.default_panel_size();
@@ -440,6 +454,32 @@ pub(crate) fn paint_profile_options(
                 .changed()
             {
                 actions.push(CatalogAction::SetNotesChecklistVisible(show_checklist));
+            }
+        }
+        WidgetId::DiscordVoice => {
+            ui.label(eyebrow_text("ALIGNMENT"));
+            let mut alignment = profile.discord_voice_display.alignment;
+            let left_changed = ui
+                .radio_value(&mut alignment, DiscordVoiceAlignment::Left, "Left")
+                .changed();
+            let right_changed = ui
+                .radio_value(&mut alignment, DiscordVoiceAlignment::Right, "Right")
+                .changed();
+            if left_changed || right_changed {
+                actions.push(CatalogAction::SetDiscordAlignment(alignment));
+            }
+
+            ui.label(eyebrow_text("PARTICIPANTS"));
+            let mut limit = profile.discord_voice_display.participant_limit;
+            let response = ui.add(
+                egui::Slider::new(
+                    &mut limit,
+                    DISCORD_PARTICIPANT_LIMIT_MIN..=DISCORD_PARTICIPANT_LIMIT_MAX,
+                )
+                .text("Visible people"),
+            );
+            if (response.changed() && !response.dragged()) || response.drag_stopped() {
+                actions.push(CatalogAction::SetDiscordParticipantLimit(limit));
             }
         }
         _ => {}

@@ -1,10 +1,12 @@
 use std::{collections::BTreeSet, sync::Arc, time::Instant};
 
 use eframe::egui::{Event, PointerButton, RawInput, Rect, pos2, vec2};
-use overcrow_config::{TwitchPrefs, WidgetId, WidgetPosition, WidgetProfile};
+use overcrow_config::{PerformanceLayout, TwitchPrefs, WidgetId, WidgetPosition, WidgetProfile};
 use overcrow_protocol::{CoreSnapshot, GameWindow, OverlayMode, Rect as GameRect};
 
-use super::{WidgetManager, placement_save_requested, widget_draggable, widget_visible};
+use super::{
+    WidgetManager, layout::widget_index, placement_save_requested, widget_draggable, widget_visible,
+};
 use crate::{
     notes::NotesUpdate,
     twitch::model::{TwitchConnectionState, TwitchSnapshot},
@@ -516,6 +518,130 @@ fn horizontal_performance_resize_changes_width_without_persisting_height() {
         manager.screen_position(id, INTERACTIVE, viewport, 24.0, &profile),
         top_left
     );
+}
+
+#[test]
+fn vertical_performance_resize_can_shrink_below_the_horizontal_minimum() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Performance;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0));
+    profile.performance_display.layout = PerformanceLayout::Vertical;
+    profile.performance.width = 300.0;
+
+    manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(300.0, 240.0),
+        pos2(200.0, 180.0),
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(-150.0, 0.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+
+    assert_eq!(manager.resize.expect("active resize session").size.x, 180.0);
+}
+
+#[test]
+fn performance_resize_starts_at_the_active_layout_minimum() {
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Performance;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0));
+    profile.performance_display.layout = PerformanceLayout::Horizontal;
+    profile.performance.width = 180.0;
+
+    manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(300.0, 120.0),
+        pos2(200.0, 180.0),
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(20.0, 0.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+
+    assert_eq!(manager.resize.expect("active resize session").size.x, 320.0);
+}
+
+#[test]
+fn performance_renders_the_active_resize_width_before_release() {
+    let context = eframe::egui::Context::default();
+    let mut manager = WidgetManager::default();
+    let mut profile = WidgetProfile::default();
+    let id = WidgetId::Performance;
+    let viewport = Rect::from_min_size(pos2(0.0, 0.0), vec2(1_920.0, 1_080.0));
+    let top_left = pos2(200.0, 180.0);
+    profile.performance.enabled = true;
+    profile.performance.width = 580.0;
+    profile.performance.position = WidgetPosition { x: 0.0, y: 0.0 };
+
+    manager.finish_width_resizable_panel(
+        id,
+        INTERACTIVE,
+        viewport,
+        24.0,
+        &mut profile,
+        vec2(580.0, 120.0),
+        top_left,
+        false,
+        false,
+        ResizeGripOutcome {
+            drag_delta: vec2(100.0, 0.0),
+            dragging: true,
+            drag_stopped: false,
+            drag_cancelled: false,
+        },
+    );
+    let snapshot = CoreSnapshot {
+        active_game: Some(GameWindow {
+            pid: Some(42),
+            steam_app_id: Some(230_410),
+            app_id: Some("game.exe".to_owned()),
+            title: "Game".to_owned(),
+            rect: GameRect {
+                x: 0,
+                y: 0,
+                width: 1_920,
+                height: 1_080,
+            },
+            scale: 1.0,
+            backend: "test".to_owned(),
+        }),
+        overlay_mode: INTERACTIVE,
+        ..CoreSnapshot::default()
+    };
+
+    let _ = context.run_ui(
+        RawInput {
+            screen_rect: Some(viewport),
+            ..RawInput::default()
+        },
+        |ui| {
+            manager.begin_widget_frame();
+            manager.render_performance(ui, &snapshot, &mut profile, 24.0);
+        },
+    );
+
+    let visible = manager.visible_rects[widget_index(id)].expect("performance widget rect");
+    assert_eq!(profile.performance.width, 580.0);
+    assert!((visible.width() - 680.0).abs() <= 0.5, "{visible:?}");
 }
 
 #[test]

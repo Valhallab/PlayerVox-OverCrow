@@ -873,6 +873,62 @@ used.
     `widget=twitch_chat provider=twitch` with fixed categories—no account,
     channel, message, code, token, URL, badge, or emote data.
 
+## Discord voice acceptance
+
+Use the official Discord desktop client and an official build, which embeds the
+public Discord application ID. Fork builds can override that identity through
+`OVERCROW_DISCORD_CLIENT_ID`. The dedicated Discord application must list the
+test account while RPC access remains in tester mode. One complete OAuth run is
+sufficient when the exact package is reused across display backends; repeat the
+visual and input checks on every claimed backend.
+
+1. With no selected game active, enable **Discord voice** and confirm no local
+   RPC, Secret Service, or avatar work starts. Start and focus a selected game;
+   the widget may now report Discord unavailable or authorization required.
+2. Open Interactive mode and select **Connect Discord**. Confirm Discord's own
+   prompt requests only `identify` and `rpc`, and that neither OverCrow nor a
+   browser asks for a Client Secret.
+3. Accept the prompt. Confirm the widget reaches **Connected**, then restart
+   OverCrow and verify Secret Service restores the session. Repeat once without
+   Secret Service and confirm the explicit memory-only state requires a new
+   authorization after restart.
+4. Join, leave, and switch voice channels. Confirm the current channel and
+   participants update without polling, duplicate subscriptions, or stale
+   members. Joining no channel must hide the panel in Passive mode.
+5. Have several users speak, mute, unmute, deafen, and undeafen. Confirm the
+   thin green speaking ring is visible around its complete circumference,
+   local-user ordering, Phosphor microphone/disabled-hearing status icons,
+   participant limit, and `+N` overflow update without duplicates or unbounded
+   growth. No separate activity dot should remain.
+6. Confirm validated Discord avatars appear off the render thread and missing
+   avatars fall back to initials. Temporarily block Discord's CDN and verify the
+   overlay remains responsive with no retry loop or layout collapse.
+7. Switch between left and right alignment. Confirm the avatar precedes the
+   name on the left and follows it on the right, with the complete row pinned
+   to the selected edge. At 100% content scale avatars must be 35 logical
+   pixels; at 75% and 175%, names, spacing, state icons, and avatars must scale
+   proportionally without an independent avatar-size option.
+8. Scale, move, disable, and re-enable the widget. Confirm that the voice panel
+   has no resize grip, long display names end in an ellipsis, and its compact
+   dimensions and top-left position remain unchanged when entering Passive
+   mode. Passive presentation must stay click-through and hide disconnected
+   placeholders.
+9. Change workspace or briefly interrupt Discord after a healthy channel
+   snapshot. Confirm the retained participants remain visible with
+   **Resynchronizing…** in Passive mode, then update promptly from a fresh
+   snapshot when focus or transport returns.
+10. Stop the game, close Discord, change workspaces, and sign out from the
+   widget in turn. Confirm the worker cancels or reconnects within its bounded
+   deadlines and never traps game input. If Secret Service deletion is made to
+   fail, confirm the UI does not claim sign-out succeeded and permits retry.
+11. Confirm the Discord voice catalog card uses Phosphor's Discord logo rather
+    than an approximate hand-painted chat or activity symbol. Confirm the other
+    catalog cards, widget toolbar, media controls, notes controls, and Twitch
+    reply action use the same coherent icon style.
+12. Inspect `overcrowctl logs`. Discord entries must use only
+   `widget=discord_voice provider=discord` and fixed categories—never account,
+   channel, participant, code, token, URL, avatar identifier, or RPC payload.
+
 ## Supported presentation boundary
 
 Acceptance covers **windowed and borderless-fullscreen windows only**. Exclusive

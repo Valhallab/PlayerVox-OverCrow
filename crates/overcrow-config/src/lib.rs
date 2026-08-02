@@ -29,10 +29,11 @@ pub use warframe_prefs::{
 };
 pub use widget_store::{WidgetSettingsLoad, WidgetSettingsStore};
 pub use widgets::{
-    ClockDisplaySettings, NotesDisplaySettings, PerformanceDisplaySettings, PerformanceLayout,
-    WIDGET_PANEL_MAX, WIDGET_PANEL_MIN, WIDGET_PANEL_MIN_HEIGHT, WIDGET_SCALE_MAX,
-    WIDGET_SCALE_MIN, WIDGET_SCHEMA_VERSION, WidgetId, WidgetPosition, WidgetProfile,
-    WidgetProfileError, WidgetSettings,
+    ClockDisplaySettings, DISCORD_PARTICIPANT_LIMIT_MAX, DISCORD_PARTICIPANT_LIMIT_MIN,
+    DiscordVoiceAlignment, DiscordVoiceDisplaySettings, NotesDisplaySettings,
+    PerformanceDisplaySettings, PerformanceLayout, WIDGET_PANEL_MAX, WIDGET_PANEL_MIN,
+    WIDGET_PANEL_MIN_HEIGHT, WIDGET_SCALE_MAX, WIDGET_SCALE_MIN, WIDGET_SCHEMA_VERSION, WidgetId,
+    WidgetPosition, WidgetProfile, WidgetProfileError, WidgetSettings,
 };
 
 #[cfg(test)]
