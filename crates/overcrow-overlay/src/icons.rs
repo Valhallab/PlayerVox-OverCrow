@@ -150,11 +150,11 @@ pub(crate) fn paint_icon_at(painter: &Painter, rect: Rect, icon: AppIcon, color:
                 color,
             );
         }
-        IconSource::Brand(brand) => paint_brand_icon(painter, rect, brand, color.a()),
+        IconSource::Brand(brand) => paint_brand_icon(painter, rect, brand, color),
     }
 }
 
-fn paint_brand_icon(painter: &Painter, rect: Rect, brand: BrandIcon, alpha: u8) {
+fn paint_brand_icon(painter: &Painter, rect: Rect, brand: BrandIcon, color: Color32) {
     let Some(texture) = brand_texture(painter.ctx(), brand) else {
         return;
     };
@@ -163,7 +163,7 @@ fn paint_brand_icon(painter: &Painter, rect: Rect, brand: BrandIcon, alpha: u8) 
         texture.id(),
         fitted,
         Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-        Color32::WHITE.gamma_multiply(f32::from(alpha) / 255.0),
+        color,
     );
 }
 
@@ -173,16 +173,59 @@ fn brand_texture(ctx: &egui::Context, brand: BrandIcon) -> Option<TextureHandle>
         return Some(texture);
     }
 
+    let image = brand_image(brand)?;
+    let texture = ctx.load_texture(brand.texture_name(), image, TextureOptions::LINEAR);
+    ctx.data_mut(|data| data.insert_temp(cache_id, texture.clone()));
+    Some(texture)
+}
+
+fn brand_image(brand: BrandIcon) -> Option<egui::ColorImage> {
     let decoded = image::load_from_memory(brand.bytes()).ok()?.into_rgba8();
     let width = usize::try_from(decoded.width()).ok()?;
     let height = usize::try_from(decoded.height()).ok()?;
     if width == 0 || height == 0 {
         return None;
     }
-    let image = egui::ColorImage::from_rgba_unmultiplied([width, height], decoded.as_raw());
-    let texture = ctx.load_texture(brand.texture_name(), image, TextureOptions::LINEAR);
-    ctx.data_mut(|data| data.insert_temp(cache_id, texture.clone()));
-    Some(texture)
+
+    let mut pixels = decoded.into_raw();
+    apply_monochrome_mask(brand, &mut pixels);
+    Some(egui::ColorImage::from_rgba_unmultiplied(
+        [width, height],
+        &pixels,
+    ))
+}
+
+fn apply_monochrome_mask(brand: BrandIcon, pixels: &mut [u8]) {
+    let max_white_distance = if brand == BrandIcon::Twitch {
+        pixels
+            .chunks_exact(4)
+            .filter(|pixel| pixel[3] > 0)
+            .map(white_distance)
+            .max()
+            .unwrap_or(0)
+    } else {
+        u8::MAX
+    };
+
+    for pixel in pixels.chunks_exact_mut(4) {
+        let alpha = if brand == BrandIcon::Twitch && max_white_distance > 0 {
+            let coverage = u16::from(white_distance(pixel));
+            let scaled = u16::from(pixel[3]) * coverage / u16::from(max_white_distance);
+            u8::try_from(scaled).unwrap_or(u8::MAX)
+        } else {
+            pixel[3]
+        };
+        pixel[..3].fill(u8::MAX);
+        pixel[3] = alpha;
+    }
+}
+
+fn white_distance(pixel: &[u8]) -> u8 {
+    pixel[..3]
+        .iter()
+        .map(|channel| u8::MAX - channel)
+        .max()
+        .unwrap_or(0)
 }
 
 fn fit_rect(target: Rect, source_size: Vec2) -> Rect {
@@ -195,9 +238,14 @@ fn fit_rect(target: Rect, source_size: Vec2) -> Rect {
 
 #[cfg(test)]
 mod tests {
-    use eframe::egui::{FontDefinitions, FontFamily, Rect, pos2, vec2};
+    use eframe::egui::{
+        Color32, Context, FontDefinitions, FontFamily, RawInput, Rect, Shape, pos2, vec2,
+    };
 
-    use super::{AppIcon, DISCORD_MARK, TABLER_FONT_NAME, TWITCH_MARK, add_to_fonts, fit_rect};
+    use super::{
+        AppIcon, BrandIcon, DISCORD_MARK, TABLER_FONT_NAME, TWITCH_MARK, add_to_fonts, brand_image,
+        fit_rect, paint_icon_at,
+    };
 
     #[test]
     fn semantic_icons_use_the_expected_tabler_glyphs() {
@@ -226,6 +274,62 @@ mod tests {
             assert!(image.height() <= 128);
             assert!(image.width() > 0);
             assert!(image.height() > 0);
+        }
+    }
+
+    #[test]
+    fn monochrome_discord_mark_is_a_white_alpha_mask() {
+        let image = brand_image(BrandIcon::Discord).expect("embedded Discord mark must decode");
+
+        assert!(image.pixels.iter().any(|pixel| pixel.a() > 0));
+        assert!(image.pixels.iter().all(|pixel| {
+            let [red, green, blue, alpha] = pixel.to_srgba_unmultiplied();
+            alpha == 0 || [red, green, blue] == [u8::MAX; 3]
+        }));
+    }
+
+    #[test]
+    fn monochrome_twitch_mark_preserves_its_white_knockout() {
+        let source = image::load_from_memory(TWITCH_MARK)
+            .expect("embedded Twitch mark must decode")
+            .into_rgba8();
+        let white_index = source
+            .pixels()
+            .position(|pixel| pixel.0 == [u8::MAX; 4])
+            .expect("Twitch mark must contain its white knockout");
+        let image = brand_image(BrandIcon::Twitch).expect("embedded Twitch mark must decode");
+
+        assert_eq!(image.pixels[white_index].a(), 0);
+        assert!(image.pixels.iter().any(|pixel| pixel.a() > 0));
+        assert!(image.pixels.iter().all(|pixel| {
+            let [red, green, blue, alpha] = pixel.to_srgba_unmultiplied();
+            alpha == 0 || [red, green, blue] == [u8::MAX; 3]
+        }));
+    }
+
+    #[test]
+    fn brand_marks_use_the_requested_palette_tint() {
+        let tint = Color32::from_rgb(17, 113, 209);
+
+        for icon in [AppIcon::Discord, AppIcon::Twitch] {
+            let context = Context::default();
+            let output = context.run_ui(RawInput::default(), |ui| {
+                paint_icon_at(
+                    ui.painter(),
+                    Rect::from_min_size(pos2(8.0, 8.0), vec2(24.0, 24.0)),
+                    icon,
+                    tint,
+                );
+            });
+            let painted_colors = output
+                .shapes
+                .iter()
+                .flat_map(|clipped| match &clipped.shape {
+                    Shape::Mesh(mesh) => mesh.vertices.iter().map(|vertex| vertex.color).collect(),
+                    _ => Vec::new(),
+                });
+
+            assert_eq!(painted_colors.collect::<Vec<_>>(), vec![tint; 4]);
         }
     }
 
