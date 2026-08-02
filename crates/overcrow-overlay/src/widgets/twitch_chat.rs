@@ -431,11 +431,9 @@ pub(super) fn paint_favorite_indicator(ui: &mut egui::Ui, prefs: &TwitchPrefs) {
         return;
     };
     if prefs.favorites.iter().any(|item| item == channel) {
-        let response = ui.label(
-            egui::RichText::new(AppIcon::Star.glyph())
-                .size(super::chrome::scaled_content_font_size(ui, 14.0))
-                .color(FAVORITE_STAR_YELLOW),
-        );
+        let size = super::chrome::scaled_content_font_size(ui, 14.0);
+        let (rect, response) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+        paint_icon_at(ui.painter(), rect, AppIcon::Star, FAVORITE_STAR_YELLOW);
         response.widget_info(|| {
             egui::WidgetInfo::labeled(egui::WidgetType::Label, true, "Favorite channel")
         });
@@ -559,7 +557,7 @@ fn paint_current_channel_favorite_control(
     let is_favorite = prefs.favorites.iter().any(|item| item == channel);
     let can_toggle = is_favorite || prefs.favorites.len() < TWITCH_FAVORITES_MAX;
     let label = if is_favorite {
-        format!("{} #{channel}", AppIcon::Star.glyph())
+        format!("Unfavorite #{channel}")
     } else {
         format!("Favorite #{channel}")
     };

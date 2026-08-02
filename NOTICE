@@ -5,3 +5,33 @@ OverCrow was originally created by Valhallab SASU and distributed under the Play
 
 OverCrow is licensed under the GNU Affero General Public License version 3 only (AGPL-3.0-only).
 PlayerVox trademark rights are not granted by that license. See TRADEMARKS.md.
+
+Tabler Icons
+Copyright (c) 2020-2026 Paweł Kuna
+
+The bundled Tabler icon font is a subset of Tabler Icons 3.45.0, licensed under
+the MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Discord and Twitch brand marks
+
+The Discord symbol and Twitch Glitch are official brand assets used solely to
+identify their respective optional integrations. Discord and Twitch own their
+respective marks. Their inclusion does not imply affiliation or endorsement.

@@ -183,7 +183,9 @@ fn about_close_uses_the_shared_icon_painter() {
     let output = context.run_ui(RawInput::default(), |ui| {
         let _ = about_close_button(ui);
     });
-    let close_glyph = AppIcon::Close.glyph();
+    let close_glyph = AppIcon::Close
+        .glyph()
+        .expect("the close icon must be a font glyph");
     let family = output
         .shapes
         .iter()
@@ -191,8 +193,8 @@ fn about_close_uses_the_shared_icon_painter() {
 
     assert_eq!(
         family,
-        Some(FontFamily::Proportional),
-        "close glyph must not use the UI text font"
+        Some(crate::icons::tabler_font_family()),
+        "close glyph must use the dedicated Tabler font"
     );
 }
 

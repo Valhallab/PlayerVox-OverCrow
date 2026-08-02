@@ -20,6 +20,12 @@ grep -Fqx \
     NOTICE
 grep -Fq 'Copyright (c) 2026 Valhallab SASU' NOTICE
 grep -Fq 'AGPL-3.0-only' NOTICE
+grep -Fq 'Tabler Icons 3.45.0' NOTICE
+grep -Fq 'Copyright (c) 2020-2026 Paweł Kuna' NOTICE
+grep -Fq 'Discord and Twitch brand marks' NOTICE
+test -s assets/icons/tabler-icons-overcrow.ttf
+test -s assets/icons/discord-symbol-blurple.png
+test -s assets/icons/twitch-glitch-purple.png
 
 grep -Fq 'PlayerVox is a registered trademark owned by Valhallab SASU.' TRADEMARKS.md
 grep -Fq 'modified distribution' TRADEMARKS.md

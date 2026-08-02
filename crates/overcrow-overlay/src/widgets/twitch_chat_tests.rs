@@ -333,7 +333,7 @@ fn twitch_reply_action_uses_the_shared_icon_only_while_hovered() {
     assert!(
         !painted_text(&first)
             .iter()
-            .any(|text| text == AppIcon::Reply.glyph())
+            .any(|text| Some(text.as_str()) == AppIcon::Reply.glyph())
     );
     let body = painted_bounds(&first, "message hover");
 
@@ -348,7 +348,7 @@ fn twitch_reply_action_uses_the_shared_icon_only_while_hovered() {
     assert!(
         painted_text(&hovered)
             .iter()
-            .any(|text| text == AppIcon::Reply.glyph())
+            .any(|text| Some(text.as_str()) == AppIcon::Reply.glyph())
     );
 }
 
@@ -817,6 +817,7 @@ fn activate_disconnect_channel(input_enabled: bool) -> Vec<TwitchChatAction> {
 #[test]
 fn twitch_favorite_header_indicator_is_static() {
     let context = eframe::egui::Context::default();
+    install_fonts(&context);
     let prefs = TwitchPrefs {
         active_channel: Some("playervox".to_owned()),
         favorites: vec!["playervox".to_owned()],
@@ -830,7 +831,7 @@ fn twitch_favorite_header_indicator_is_static() {
 
     assert_eq!(
         text.iter()
-            .filter(|value| value.as_str() == AppIcon::Star.glyph())
+            .filter(|value| Some(value.as_str()) == AppIcon::Star.glyph())
             .count(),
         1
     );
@@ -839,6 +840,7 @@ fn twitch_favorite_header_indicator_is_static() {
 #[test]
 fn twitch_favorite_star_precedes_the_channel_on_the_same_line() {
     let context = eframe::egui::Context::default();
+    install_fonts(&context);
     context.enable_accesskit();
     let mut state = TwitchWidgetState::default();
     state.apply_snapshot(
@@ -866,7 +868,12 @@ fn twitch_favorite_star_precedes_the_channel_on_the_same_line() {
             paint_header(ui, &mut state, &prefs);
         },
     );
-    let star = painted_bounds(&output, AppIcon::Star.glyph());
+    let star = painted_bounds(
+        &output,
+        AppIcon::Star
+            .glyph()
+            .expect("the favorite icon must be a font glyph"),
+    );
     let channel = painted_bounds(&output, "#playervox");
 
     assert!(star.right() <= channel.left(), "{star:?} {channel:?}");

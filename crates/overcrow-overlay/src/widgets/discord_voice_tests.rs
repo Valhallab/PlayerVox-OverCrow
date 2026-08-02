@@ -227,12 +227,12 @@ fn connected_widget_exposes_dynamic_mute_and_deafen_icons() {
     let text = painted_text(&paint_participant_visuals(&mut state, &participants, 1.0));
     assert!(
         text.iter()
-            .any(|value| value == AppIcon::MicrophoneMuted.glyph()),
+            .any(|value| Some(value.as_str()) == AppIcon::MicrophoneMuted.glyph()),
         "{text:?}"
     );
     assert!(
         text.iter()
-            .any(|value| value == AppIcon::Headphones.glyph()),
+            .any(|value| Some(value.as_str()) == AppIcon::Headphones.glyph()),
         "{text:?}"
     );
 }
@@ -339,12 +339,10 @@ fn discord_scrollbar_reserves_space_from_right_aligned_content() {
 }
 
 #[test]
-fn discord_catalog_glyph_uses_the_shared_discord_logo() {
+fn discord_catalog_glyph_uses_the_official_brand_mark() {
     assert_eq!(WidgetGlyph::Discord.app_icon(), AppIcon::Discord);
-    assert_eq!(
-        WidgetGlyph::Discord.app_icon().glyph(),
-        egui_phosphor::regular::DISCORD_LOGO
-    );
+    assert!(WidgetGlyph::Discord.app_icon().is_brand());
+    assert_eq!(WidgetGlyph::Discord.app_icon().glyph(), None);
 }
 
 #[test]

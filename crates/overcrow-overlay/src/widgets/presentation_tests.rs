@@ -306,7 +306,7 @@ fn widget_toolbar_hover_region_bridges_the_floating_gap() {
 }
 
 #[test]
-fn generic_icon_enums_map_to_the_shared_phosphor_set() {
+fn generic_icon_enums_map_to_the_shared_icon_set() {
     assert_eq!(
         ToolbarIcon::PassiveVisible.app_icon(),
         AppIcon::PassiveVisible

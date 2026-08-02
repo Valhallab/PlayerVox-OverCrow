@@ -897,7 +897,7 @@ visual and input checks on every claimed backend.
    members. Joining no channel must hide the panel in Passive mode.
 5. Have several users speak, mute, unmute, deafen, and undeafen. Confirm the
    thin green speaking ring is visible around its complete circumference,
-   local-user ordering, Phosphor microphone/disabled-hearing status icons,
+   local-user ordering, Tabler microphone/headphones-off status icons,
    participant limit, and `+N` overflow update without duplicates or unbounded
    growth. No separate activity dot should remain.
 6. Confirm validated Discord avatars appear off the render thread and missing
@@ -921,10 +921,10 @@ visual and input checks on every claimed backend.
    widget in turn. Confirm the worker cancels or reconnects within its bounded
    deadlines and never traps game input. If Secret Service deletion is made to
    fail, confirm the UI does not claim sign-out succeeded and permits retry.
-11. Confirm the Discord voice catalog card uses Phosphor's Discord logo rather
-    than an approximate hand-painted chat or activity symbol. Confirm the other
-    catalog cards, widget toolbar, media controls, notes controls, and Twitch
-    reply action use the same coherent icon style.
+11. Confirm the Discord and Twitch catalog cards use their official brand
+    marks. Confirm the other catalog cards, widget toolbar, media controls,
+    notes controls, and Twitch reply action use the same coherent Tabler
+    outline style.
 12. Inspect `overcrowctl logs`. Discord entries must use only
    `widget=discord_voice provider=discord` and fixed categories—never account,
    channel, participant, code, token, URL, avatar identifier, or RPC payload.
