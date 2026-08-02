@@ -201,6 +201,11 @@ export function Dashboard(props: DashboardProps) {
               <Brand />
               <p>{en.dashboard.aboutBody}</p>
               <p>{en.dashboard.license}</p>
+              <p className="about-card__commercial">
+                <span>{en.dashboard.commercialLicense}</span>
+                {' '}
+                <code>{en.dashboard.commercialContact}</code>
+              </p>
               <code>{en.dashboard.source}</code>
               <p className="about-card__version">{en.dashboard.version} {APP_VERSION}</p>
             </div>

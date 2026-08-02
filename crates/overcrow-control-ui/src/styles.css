@@ -1447,6 +1447,10 @@ input:disabled + .switch {
   font-size: 0.72rem;
 }
 
+.about-card .about-card__commercial {
+  margin-top: 8px;
+}
+
 .about-card .about-card__version {
   margin-top: 18px;
   color: var(--subtle);

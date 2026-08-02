@@ -171,6 +171,8 @@ export const en = {
     aboutBody:
       'An open-source, external overlay framework for Linux games, created by Valhallab SASU and distributed under the PlayerVox brand.',
     license: 'Licensed under AGPL-3.0-only.',
+    commercialLicense: 'Commercial licenses for proprietary use are available from Valhallab.',
+    commercialContact: 'contact@valhallab.com',
     source: 'Source: github.com/Valhallab/PlayerVox-OverCrow',
     version: 'Version',
     systemStatus: 'OverCrow status',

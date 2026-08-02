@@ -1,14 +1,14 @@
 use super::{
-    APP_VERSION, LICENSE_ID, LaunchGate, ManualStopwatchCommandClient, NOTICE_TEXT,
-    NotesCommandClient, OverlayState, SOURCE_REPOSITORY_URL, ViewportUpdate, about_close_button,
-    about_content_size, about_visible, authoritative_snapshot, catalog_outside_click,
-    confirmed_mode_event, controls_visible, discord_avatars_allowed, discord_gate,
-    dispatch_manual_stopwatch_action, dispatch_notes_action, handle_catalog_outcome,
-    interactive_scrim, log_catalog_settings_outcome, paint_about_window, paint_control_notices,
-    paint_overlay_version, paint_widget_catalog, schedule_wayland_input_region_commit,
-    settings_failure_target, stopwatch_repaint_after, twitch_emotes_allowed, twitch_gate,
-    viewport_builder, viewport_update_changed, widget_actions_allowed, x11_scale_changed,
-    x11_should_request_focus,
+    APP_VERSION, COMMERCIAL_CONTACT, COMMERCIAL_LICENSE_NOTICE, LICENSE_ID, LaunchGate,
+    ManualStopwatchCommandClient, NOTICE_TEXT, NotesCommandClient, OverlayState,
+    SOURCE_REPOSITORY_URL, ViewportUpdate, about_close_button, about_content_size, about_visible,
+    authoritative_snapshot, catalog_outside_click, confirmed_mode_event, controls_visible,
+    discord_avatars_allowed, discord_gate, dispatch_manual_stopwatch_action, dispatch_notes_action,
+    handle_catalog_outcome, interactive_scrim, log_catalog_settings_outcome, paint_about_window,
+    paint_control_notices, paint_overlay_version, paint_widget_catalog,
+    schedule_wayland_input_region_commit, settings_failure_target, stopwatch_repaint_after,
+    twitch_emotes_allowed, twitch_gate, viewport_builder, viewport_update_changed,
+    widget_actions_allowed, x11_scale_changed, x11_should_request_focus,
 };
 use crate::{
     branding::{BrandAssets, install_fonts},
@@ -116,6 +116,11 @@ fn about_copy_exposes_license_origin_and_public_source() {
         SOURCE_REPOSITORY_URL,
         "https://github.com/Valhallab/PlayerVox-OverCrow"
     );
+    assert_eq!(
+        COMMERCIAL_LICENSE_NOTICE,
+        "Commercial licenses for proprietary use are available from Valhallab."
+    );
+    assert_eq!(COMMERCIAL_CONTACT, "contact@valhallab.com");
     assert_eq!(APP_VERSION, env!("CARGO_PKG_VERSION"));
 }
 

@@ -19,3 +19,8 @@ anti-cheat safety model, and describe any real-machine validation separately.
 
 Contributors retain copyright in their work. This project currently requires
 neither copyright assignment nor a contributor license agreement.
+
+Valhallab's commercial licensing offer applies only to code it is authorized
+to relicense. Contributions submitted under the AGPL alone do not grant
+Valhallab separate proprietary relicensing rights; any broader grant would
+require an explicit contributor agreement.

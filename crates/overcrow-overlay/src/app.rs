@@ -49,6 +49,9 @@ use overcrow_protocol::{CoreSnapshot, OverlayMode};
 pub const APP_ID: &str = "io.github.overcrow.Overlay";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE_ID: &str = "AGPL-3.0-only";
+const COMMERCIAL_LICENSE_NOTICE: &str =
+    "Commercial licenses for proprietary use are available from Valhallab.";
+const COMMERCIAL_CONTACT: &str = "contact@valhallab.com";
 const NOTICE_TEXT: &str = include_str!("../../../NOTICE");
 const SOURCE_REPOSITORY_URL: &str = "https://github.com/Valhallab/PlayerVox-OverCrow";
 const WIDGET_MARGIN: f32 = 24.0;
@@ -1522,6 +1525,13 @@ fn paint_about_window(
                                     .size(11.0)
                                     .color(TEXT_MUTED),
                             );
+                            ui.add_space(8.0);
+                            ui.label(
+                                egui::RichText::new(COMMERCIAL_LICENSE_NOTICE)
+                                    .size(11.0)
+                                    .color(TEXT_MUTED),
+                            );
+                            ui.monospace(COMMERCIAL_CONTACT);
                         });
                     ui.add_space(14.0);
                     ui.horizontal_wrapped(|ui| {

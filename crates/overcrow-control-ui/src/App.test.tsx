@@ -311,6 +311,10 @@ describe('Control Center dashboard', () => {
     expect(await screen.findByText(`v${APP_VERSION}`)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'About' }));
     expect(screen.getByText(`Version ${APP_VERSION}`)).toBeVisible();
+    expect(
+      screen.getByText('Commercial licenses for proprietary use are available from Valhallab.'),
+    ).toBeVisible();
+    expect(screen.getByText('contact@valhallab.com')).toBeVisible();
   });
 
   it('locks the lifecycle action while OverCrow is starting', async () => {

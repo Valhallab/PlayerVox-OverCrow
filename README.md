@@ -262,3 +262,8 @@ OverCrow is licensed under [AGPL-3.0-only](LICENSE), created by Valhallab SASU,
 and distributed under the PlayerVox brand. Attribution is recorded in
 [NOTICE](NOTICE); trademark terms are in [TRADEMARKS.md](TRADEMARKS.md).
 Third-party dependencies retain their licenses.
+
+Commercial licenses permitting proprietary use are available separately from
+Valhallab. See [Commercial licensing](COMMERCIAL-LICENSING.md) or contact
+[contact@valhallab.com](mailto:contact@valhallab.com). No commercial rights are
+granted without a separate written agreement.
